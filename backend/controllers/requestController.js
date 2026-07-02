@@ -67,3 +67,24 @@ exports.updateStatus = async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 };
+
+
+// Employé : répondre à une proposition de replanification
+exports.respondReschedule = async (req, res) => {
+  try {
+    const { accepted } = req.body; // true | false
+    const request = await Request.findByPk(req.params.id);
+
+    if (!request) return res.status(404).json({ message: 'Demande introuvable' });
+    if (request.employee_id !== req.user.id) {
+      return res.status(403).json({ message: 'Action non autorisée' });
+    }
+
+    request.status = accepted ? 'approved' : 'rejected';
+    await request.save();
+
+    res.json(request);
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+  }
+};

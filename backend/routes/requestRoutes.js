@@ -8,5 +8,6 @@ router.post('/', auth, requestController.create);
 router.get('/mine', auth, requestController.mine);
 router.get('/', auth, checkRole(['logistics_chief', 'admin']), requestController.all);
 router.patch('/:id/status', auth, checkRole(['logistics_chief', 'admin']), requestController.updateStatus);
+router.patch('/:id/reschedule/respond', auth, requestController.respondReschedule);
 
 module.exports = router;
