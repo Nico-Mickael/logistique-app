@@ -1,4 +1,5 @@
 const { Request, Employee } = require('../models');
+const { createNotification } = require('./notificationController');
 
 // Employé : créer une demande
 exports.create = async (req, res) => {
@@ -61,6 +62,16 @@ exports.updateStatus = async (req, res) => {
       request.date_souhaitee = new_date;
     }
     await request.save();
+
+    // ⬇️ AJOUT : notifier l'employé du changement de statut
+    await createNotification({
+      user_id: request.employee_id,
+      message: `Votre demande vers ${request.destination} a été ${
+        status === 'approved' ? 'validée' :
+        status === 'rejected' ? 'refusée' : 'replanifiée'
+      }`,
+      type: status,
+    });
 
     res.json(request);
   } catch (err) {

@@ -11,5 +11,7 @@ router.post('/', sortieController.create);
 router.get('/:id/suggestions', sortieController.suggestions);
 router.post('/:id/add-request', sortieController.addRequest);
 router.patch('/:id/status', sortieController.updateStatus);
+router.patch('/:id/depart', sortieController.depart);
+router.patch('/:id/arrivee', sortieController.arrivee);
 
 module.exports = router;
