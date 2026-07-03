@@ -10,6 +10,9 @@ import Layout from './components/Layout';
 import Dashboard from './pages/chief/Dashboard';
 import PrivateRoute from './routes/PrivateRoute';
 import MyRequests from './pages/employee/MyRequests';
+import ValidateRequests from './pages/chief/ValidateRequests';
+import Vehicles from './pages/chief/Vehicles';
+
 
 function App() {
   return (
@@ -38,7 +41,27 @@ function App() {
                   </Layout>
                 </PrivateRoute>
               }
-            />                            
+            />         
+            <Route
+              path="/valider-demandes"
+              element={
+                <PrivateRoute allowedRoles={['logistics_chief', 'admin']}>
+                  <Layout>
+                    <ValidateRequests />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />                   
+            <Route
+              path="/vehicules"
+              element={
+                <PrivateRoute allowedRoles={['logistics_chief', 'admin']}>
+                  <Layout>
+                    <Vehicles />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
           </Routes>
         </AuthProvider>
       </BrowserRouter>
