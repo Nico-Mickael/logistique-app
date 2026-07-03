@@ -44,6 +44,11 @@ function Layout({ children }) {
           <NavLink label="Demandes" leftSection={<IconFileText size={16} />} />
           <NavLink label="Sorties" leftSection={<IconRoute size={16} />} />
           <NavLink label="Véhicules" leftSection={<IconCar size={16} />} />
+          <NavLink
+              label="Mes demandes"
+              leftSection={<IconFileText size={16} />}
+              onClick={() => navigate('/mes-demandes')}
+            />
         </Stack>
       </AppShell.Navbar>
 

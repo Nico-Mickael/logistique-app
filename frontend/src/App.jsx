@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import Layout from './components/Layout';
 import Dashboard from './pages/chief/Dashboard';
 import PrivateRoute from './routes/PrivateRoute';
+import MyRequests from './pages/employee/MyRequests';
 
 function App() {
   return (
@@ -28,6 +29,16 @@ function App() {
                 </PrivateRoute>
               }
             />
+            <Route
+              path="/mes-demandes"
+              element={
+                <PrivateRoute allowedRoles={['employee']}>
+                  <Layout>
+                    <MyRequests />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />                            
           </Routes>
         </AuthProvider>
       </BrowserRouter>
