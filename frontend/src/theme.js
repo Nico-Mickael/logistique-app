@@ -1,4 +1,6 @@
 export const theme = {
+  fontFamily: "'Inter', system-ui, sans-serif",
+  headings: { fontFamily: "'Inter', system-ui, sans-serif", fontWeight: '600' },
   token: {
     colorPrimary: '#F5B301',
     colorSuccess: '#2E7D32',

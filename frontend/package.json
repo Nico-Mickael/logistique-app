@@ -10,14 +10,24 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@mantine/charts": "^9.4.1",
+    "@mantine/core": "^9.4.1",
+    "@mantine/dates": "^9.4.1",
+    "@mantine/form": "^9.4.1",
+    "@mantine/hooks": "^9.4.1",
+    "@mantine/notifications": "^9.4.1",
+    "@tabler/icons-react": "^3.44.0",
     "antd": "^6.5.0",
     "axios": "^1.18.1",
     "bootstrap": "^5.3.8",
+    "dayjs": "^1.11.21",
     "react": "^19.2.7",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
     "react-toastify": "^11.1.0",
+    "recharts": "^3.9.1",
     "sweetalert2": "^11.26.25"
   },
   "devDependencies": {
