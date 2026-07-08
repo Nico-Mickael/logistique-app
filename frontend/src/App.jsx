@@ -10,7 +10,9 @@ import Layout from './components/Layout';
 import Dashboard from './pages/chief/Dashboard';
 import PrivateRoute from './routes/PrivateRoute';
 import MyRequests from './pages/employee/MyRequests';
+import NewRequest from './pages/employee/NewRequest';
 import ValidateRequests from './pages/chief/ValidateRequests';
+import Sorties from './pages/chief/Sorties';
 import Vehicles from './pages/chief/Vehicles';
 
 
@@ -43,6 +45,16 @@ function App() {
               }
             />         
             <Route
+              path="/nouvelle-demande"
+              element={
+                <PrivateRoute allowedRoles={['employee']}>
+                  <Layout>
+                    <NewRequest />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/valider-demandes"
               element={
                 <PrivateRoute allowedRoles={['logistics_chief', 'admin']}>
@@ -52,6 +64,16 @@ function App() {
                 </PrivateRoute>
               }
             />                   
+            <Route
+              path="/sorties"
+              element={
+                <PrivateRoute allowedRoles={['logistics_chief', 'admin']}>
+                  <Layout>
+                    <Sorties />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/vehicules"
               element={
