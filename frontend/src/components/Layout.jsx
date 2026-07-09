@@ -49,16 +49,16 @@ function Layout({ children }) {
               leftSection={<IconFileText size={16} />}
               onClick={() => navigate('/mes-demandes')}
             />
-            <NavLink
-  label="Demandes à valider"
-  leftSection={<IconFileText size={16} />}
-  onClick={() => navigate('/valider-demandes')}
-/>
-<NavLink
-  label="Véhicules"
-  leftSection={<IconCar size={16} />}
-  onClick={() => navigate('/vehicules')}
-/>
+          <NavLink
+              label="Demandes à valider"
+              leftSection={<IconFileText size={16} />}
+              onClick={() => navigate('/valider-demandes')}
+            />
+          <NavLink
+              label="Véhicules"
+              leftSection={<IconCar size={16} />}
+              onClick={() => navigate('/vehicules')}
+            />
         </Stack>
       </AppShell.Navbar>
 
