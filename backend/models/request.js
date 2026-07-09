@@ -11,11 +11,13 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
   Request.belongsTo(models.Employee, { foreignKey: 'employee_id' });
+  Request.belongsTo(models.Vehicle, { foreignKey: 'vehicle_id' });
   Request.belongsToMany(models.Sortie, { through: models.SortieRequest, foreignKey: 'request_id' });
 }
   }
   Request.init({
     employee_id: DataTypes.INTEGER,
+    vehicle_id: DataTypes.INTEGER,
     destination: DataTypes.STRING,
     motif: DataTypes.STRING,
     date_souhaitee: DataTypes.DATE,

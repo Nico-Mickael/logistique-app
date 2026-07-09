@@ -1,4 +1,5 @@
 const { Notification } = require('../models');
+const { notifyUser } = require('../services/socketService');
 
 exports.mine = async (req, res) => {
   try {
@@ -32,5 +33,7 @@ exports.markAsRead = async (req, res) => {
 
 // Fonction utilitaire réutilisable depuis les autres contrôleurs
 exports.createNotification = async ({ user_id, message, type }) => {
-  return Notification.create({ user_id, message, type, is_read: false });
+  const notif = await Notification.create({ user_id, message, type, is_read: false });
+  notifyUser(user_id, 'notification', notif);
+  return notif;
 };
