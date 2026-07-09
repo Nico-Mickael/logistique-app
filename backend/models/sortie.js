@@ -22,7 +22,9 @@ module.exports = (sequelize, DataTypes) => {
     status: DataTypes.STRING,
     departure_km: DataTypes.INTEGER,
     arrival_km: DataTypes.INTEGER,
-    distance_km: DataTypes.INTEGER
+    distance_km: DataTypes.INTEGER,
+    return_km: DataTypes.INTEGER,
+    returned_at: DataTypes.DATE
   }, {
     sequelize,
     modelName: 'Sortie',

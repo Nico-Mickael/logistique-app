@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
-  Paper, Title, Table, Badge, Loader, Center, Text, Group, Button, Modal,
+  Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
   TextInput, Select, NumberInput, Card, SimpleGrid, Stack, Flex,
 } from '@mantine/core';
+import { DataTable } from 'mantine-datatable';
 import { useDisclosure } from '@mantine/hooks';
-import { IconPlus, IconTool, IconCar, IconInbox } from '@tabler/icons-react';
+import { IconPlus, IconTool, IconInbox, IconCar } from '@tabler/icons-react';
+import VehicleIcon from '../../components/VehicleIcon';
 import { DateInput } from '@mantine/dates';
-import dayjs from 'dayjs';
+import dayjs from '../../utils/date';
 import { vehicleService } from '../../api/vehicleService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 
@@ -22,7 +24,10 @@ function VehicleCard({ vehicle, onMaintenance, onAvailable }) {
                      'var(--mantine-color-brandYellow-6)'
       }} />
       <Group justify="space-between" mb="xs" wrap="nowrap">
-        <Text fw={600} size="md" tt="capitalize">{vehicle.type}</Text>
+        <Group gap="sm">
+          <VehicleIcon type={vehicle.type} size={22} color="var(--mantine-color-brand-6)" />
+          <Text fw={600} size="md" tt="capitalize">{vehicle.type}</Text>
+        </Group>
         <Badge color={statusColor[vehicle.status]} variant="light">
           {statusLabel[vehicle.status]}
         </Badge>
@@ -116,7 +121,7 @@ function Vehicles() {
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
+      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowgap={4}>
         <div>
           <Title order={3}>Véhicules</Title>
           <Text size="sm" c="dimmed" mt={2}>{vehicles.length} véhicule{vehicles.length !== 1 ? 's' : ''} dans la flotte</Text>
@@ -139,47 +144,36 @@ function Vehicles() {
         <>
           <div className="hide-on-mobile">
             <Paper p="lg" radius="lg" withBorder className="dashboard-panel">
-              <Table.ScrollContainer minWidth={500}>
-                <Table verticalSpacing="sm" highlightOnHover>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Type</Table.Th>
-                      <Table.Th>Capacité</Table.Th>
-                      <Table.Th>Statut</Table.Th>
-                      <Table.Th>Maintenance jusqu'au</Table.Th>
-                      <Table.Th>Actions</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {vehicles.map((v) => (
-                      <Table.Tr key={v.id}>
-                        <Table.Td fw={500} tt="capitalize">{v.type}</Table.Td>
-                        <Table.Td>{v.capacity} pers.</Table.Td>
-                        <Table.Td>
-                          <Badge color={statusColor[v.status]} variant="light">{statusLabel[v.status]}</Badge>
-                        </Table.Td>
-                        <Table.Td>{v.maintenance_until ? dayjs(v.maintenance_until).format('DD/MM/YYYY') : '—'}</Table.Td>
-                        <Table.Td>
-                          <Group gap="xs" wrap="nowrap">
-                            {v.status !== 'maintenance' && v.status !== 'busy' && (
-                              <Button size="xs" variant="outline" color="red" leftSection={<IconTool size={14} />}
-                                onClick={() => openMaintenanceModal(v)}
-                              >
-                                Maintenance
-                              </Button>
-                            )}
-                            {v.status === 'maintenance' && (
-                              <Button size="xs" color="brand" onClick={() => handleMakeAvailable(v.id)}>
-                                Rendre disponible
-                              </Button>
-                            )}
-                          </Group>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </Table.ScrollContainer>
+              <DataTable
+                withTableBorder
+                borderRadius="md"
+                highlightOnHover
+                verticalSpacing="sm"
+                columns={[
+                  { accessor: 'type', title: 'Type', sortable: true, render: (v) => <Text tt="capitalize">{v.type}</Text> },
+                  { accessor: 'capacity', title: 'Capacité', render: (v) => `${v.capacity} pers.` },
+                  { accessor: 'status', title: 'Statut', render: (v) => <Badge color={statusColor[v.status]} variant="light">{statusLabel[v.status]}</Badge> },
+                  { accessor: 'maintenance_until', title: 'Maintenance jusqu\'au', render: (v) => v.maintenance_until ? dayjs(v.maintenance_until).format('DD/MM/YYYY') : '—' },
+                  {
+                    accessor: 'actions', title: '',
+                    render: (v) => (
+                      <Group gap="xs" wrap="nowrap">
+                        {v.status !== 'maintenance' && v.status !== 'busy' && (
+                          <Button size="xs" variant="outline" color="red" leftSection={<IconTool size={14} />}
+                            onClick={() => openMaintenanceModal(v)}>Maintenance</Button>
+                        )}
+                        {v.status === 'maintenance' && (
+                          <Button size="xs" color="brand" onClick={() => handleMakeAvailable(v.id)}>
+                            Rendre disponible
+                          </Button>
+                        )}
+                      </Group>
+                    ),
+                  },
+                ]}
+                records={vehicles}
+                idAccessor="id"
+              />
             </Paper>
           </div>
 

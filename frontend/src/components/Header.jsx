@@ -150,7 +150,7 @@ function Header({ opened: navOpened, onToggle }) {
 
       <style>{`
         .app-header {
-          background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 60%, #164d18 100%);
+          background: linear-gradient(135deg, #ffffff 0%, #ffffff 60%, #164d18 50%);
         }
 
         .logo-badge {

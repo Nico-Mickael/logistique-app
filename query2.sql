@@ -1,0 +1,1 @@
+SELECT r.id, r.employee_id, r.vehicle_id, r.date_souhaitee, r.status, r.destination, e.prenom, e.nom FROM "Requests" r JOIN "Employees" e ON e.id = r.employee_id ORDER BY r.id;

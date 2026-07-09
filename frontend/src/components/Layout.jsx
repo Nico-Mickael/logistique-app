@@ -7,7 +7,10 @@ import {
   IconRoute,
   IconCar,
   IconPlus,
+  IconCalendarEvent,
   IconCaravan,
+  IconUsers,
+  IconDatabaseImport,
 } from '@tabler/icons-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -17,13 +20,26 @@ const navConfig = {
   chief: [
     { label: 'Tableau de bord', path: '/', icon: IconLayoutDashboard },
     { label: 'Demandes à valider', path: '/valider-demandes', icon: IconFileText },
+    { label: 'Créer une sortie', path: '/creer-sortie', icon: IconPlus },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
+    { label: 'Planning', path: '/planning', icon: IconCalendarEvent },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
   ],
   employee: [
     { label: 'Tableau de bord', path: '/', icon: IconLayoutDashboard },
     { label: 'Mes demandes', path: '/mes-demandes', icon: IconFileText },
     { label: 'Nouvelle demande', path: '/nouvelle-demande', icon: IconPlus },
+    { label: 'Mes trajets', path: '/mes-trajets', icon: IconRoute },
+  ],
+  superadmin: [
+    { label: 'Tableau de bord', path: '/', icon: IconLayoutDashboard },
+    { label: 'Gestion utilisateurs', path: '/utilisateurs', icon: IconUsers },
+    { label: 'Importation', path: '/importation', icon: IconDatabaseImport },
+    { label: 'Demandes à valider', path: '/valider-demandes', icon: IconFileText },
+    { label: 'Créer une sortie', path: '/creer-sortie', icon: IconPlus },
+    { label: 'Sorties', path: '/sorties', icon: IconRoute },
+    { label: 'Planning', path: '/planning', icon: IconCalendarEvent },
+    { label: 'Véhicules', path: '/vehicules', icon: IconCar },
   ],
 };
 
@@ -34,7 +50,11 @@ function Layout({ children }) {
   const location = useLocation();
 
   const isChief = user?.role === 'logistics_chief' || user?.role === 'admin';
-  const navItems = useMemo(() => (isChief ? navConfig.chief : navConfig.employee), [isChief]);
+  const isSuperadmin = user?.role === 'superadmin';
+  const navItems = useMemo(() => {
+    if (isSuperadmin) return navConfig.superadmin;
+    return isChief ? navConfig.chief : navConfig.employee;
+  }, [isChief, isSuperadmin]);
 
   const initials = useMemo(() => {
     if (!user) return '?';
@@ -58,21 +78,6 @@ function Layout({ children }) {
           borderRight: '1px solid #f0f0f0',
         }}
       >
-        <AppShell.Section>
-          <Group gap="sm" px="sm" py="xs" mb="xs">
-            <Avatar color="brand" radius="xl" size="md">
-              {initials}
-            </Avatar>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <Text size="sm" fw={600} truncate>
-                {user?.prenom} {user?.nom}
-              </Text>
-              <Text size="xs" c="dimmed" tt="capitalize">
-                {user?.role === 'logistics_chief' ? 'Chef logistique' : user?.role === 'admin' ? 'Administrateur' : 'Employé'}
-              </Text>
-            </div>
-          </Group>
-        </AppShell.Section>
 
         <Divider mb="xs" />
 
