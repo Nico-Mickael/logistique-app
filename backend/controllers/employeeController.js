@@ -1,5 +1,5 @@
 const bcrypt = require('bcrypt');
-const { Employee } = require('../models');
+const { Employee, Request, Notification, SortieRequest } = require('../models');
 
 exports.list = async (req, res) => {
   try {
@@ -51,7 +51,17 @@ exports.remove = async (req, res) => {
   try {
     const employee = await Employee.findByPk(req.params.id);
     if (!employee) return res.status(404).json({ message: 'Utilisateur introuvable' });
+
+    const requests = await Request.findAll({ where: { employee_id: req.params.id }, attributes: ['id'] });
+    const requestIds = requests.map((r) => r.id);
+
+    if (requestIds.length > 0) {
+      await SortieRequest.destroy({ where: { request_id: requestIds } });
+    }
+    await Request.destroy({ where: { employee_id: req.params.id } });
+    await Notification.destroy({ where: { user_id: req.params.id } });
     await employee.destroy();
+
     res.json({ message: 'Utilisateur supprimé' });
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', error: err.message });

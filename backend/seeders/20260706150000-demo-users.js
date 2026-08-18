@@ -10,16 +10,16 @@ module.exports = {
     await queryInterface.bulkDelete('Vehicles', null, {});
     await queryInterface.bulkDelete('Employees', null, {});
 
-    const hash = await bcrypt.hash('admin123', 10);
-    const hash2 = await bcrypt.hash('employee123', 10);
+    const hash = await bcrypt.hash('Ades', 10);
+    const hash2 = await bcrypt.hash('Ades', 10);
     const hash3 = await bcrypt.hash('Ades', 10);
     const now = new Date();
     const d = 86400000;
 
     // ── 1. EMPLOYEES ──────────────────────────────────────────
     await queryInterface.bulkInsert('Employees', [
-      { id: 1, nom: 'Admin-IT', prenom: '',       email: 'admin@logistique.com',       password: hash3, department: 'IT',         role: 'superadmin',   createdAt: new Date(now - 30*d), updatedAt: new Date(now - 30*d) },
-      { id: 2, nom: 'Rakoto',    prenom: 'Chef',    email: 'chef@logistique.com',        password: hash,  department: 'Logistique',  role: 'logistics_chief', createdAt: new Date(now - 30*d), updatedAt: new Date(now - 30*d) },
+      { id: 1, nom: 'Admin-IT', prenom: '',       email: 'admin@ades-solaire.org',       password: hash3, department: 'IT',         role: 'superadmin',   createdAt: new Date(now - 30*d), updatedAt: new Date(now - 30*d) },
+      { id: 2, nom: 'Rakoto',    prenom: 'Chef',    email: 'chef@ades-solaire.org',        password: hash,  department: 'Logistique',  role: 'logistics_chief', createdAt: new Date(now - 30*d), updatedAt: new Date(now - 30*d) },
       { id: 3, nom: 'Rabe',      prenom: 'Jean',    email: 'employee@logistique.com',    password: hash2, department: 'Transport',   role: 'employee', createdAt: new Date(now - 30*d), updatedAt: new Date(now - 30*d) },
       { id: 4, nom: 'Claire',    prenom: 'Marie',   email: 'marie.claire@logistique.com', password: hash2, department: 'Transport',   role: 'employee', createdAt: new Date(now - 30*d), updatedAt: new Date(now - 30*d) },
       { id: 5, nom: 'Rabenjamina', prenom: 'Pierre', email: 'pierre.raben@logistique.com', password: hash2, department: 'Maintenance', role: 'employee', createdAt: new Date(now - 30*d), updatedAt: new Date(now - 30*d) },

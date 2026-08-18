@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { AppShell, NavLink, Stack, Text, Avatar, Divider, Group, ScrollArea } from '@mantine/core';
+import { useMemo, useState } from 'react';
+import { AppShell, NavLink, Stack, Text, Avatar, Divider, Group, ScrollArea, Tooltip, UnstyledButton } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconLayoutDashboard,
@@ -11,6 +11,8 @@ import {
   IconCaravan,
   IconUsers,
   IconDatabaseImport,
+  IconChevronsLeft,
+  IconChevronsRight,
 } from '@tabler/icons-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -45,6 +47,7 @@ const navConfig = {
 
 function Layout({ children }) {
   const [opened, { toggle }] = useDisclosure();
+  const [collapsed, setCollapsed] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -61,10 +64,12 @@ function Layout({ children }) {
     return `${user.prenom?.[0] || ''}${user.nom?.[0] || ''}`.toUpperCase();
   }, [user]);
 
+  const navbarWidth = collapsed ? 72 : 260;
+
   return (
     <AppShell
       header={{ height: 56 }}
-      navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      navbar={{ width: navbarWidth, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       padding={{ base: 'sm', sm: 'md', lg: 'lg' }}
     >
       <AppShell.Header style={{ border: 'none' }}>
@@ -76,10 +81,28 @@ function Layout({ children }) {
         style={{
           background: '#fff',
           borderRight: '1px solid #f0f0f0',
+          transition: 'width 0.2s ease',
         }}
       >
-
-        <Divider mb="xs" />
+        <Group justify={collapsed ? 'center' : 'space-between'} mb="xs" wrap="nowrap">
+          {!collapsed && <Divider style={{ flex: 1 }} />}
+          <Tooltip label={collapsed ? 'Développer' : 'Rétrécir'} position="right" withArrow>
+            <UnstyledButton
+              onClick={() => setCollapsed((c) => !c)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 4,
+                borderRadius: 6,
+                transition: 'background 0.15s ease',
+              }}
+              className="collapse-btn"
+            >
+              {collapsed ? <IconChevronsRight size={16} /> : <IconChevronsLeft size={16} />}
+            </UnstyledButton>
+          </Tooltip>
+        </Group>
 
         <AppShell.Section grow component={ScrollArea}>
           <Stack gap={2}>
@@ -88,10 +111,10 @@ function Layout({ children }) {
                 ? location.pathname === '/'
                 : location.pathname.startsWith(item.path);
 
-              return (
+              const navLink = (
                 <NavLink
                   key={item.path}
-                  label={item.label}
+                  label={collapsed ? undefined : item.label}
                   leftSection={<item.icon size={18} />}
                   active={active}
                   color="brand"
@@ -100,25 +123,48 @@ function Layout({ children }) {
                     navigate(item.path);
                     if (opened) toggle();
                   }}
-                  style={{ borderRadius: 8 }}
+                  style={{ borderRadius: 8, justifyContent: collapsed ? 'center' : undefined }}
+                  p={collapsed ? 'sm' : undefined}
                 />
               );
+
+              if (collapsed) {
+                return (
+                  <Tooltip key={item.path} label={item.label} position="right" withArrow>
+                    {navLink}
+                  </Tooltip>
+                );
+              }
+              return navLink;
             })}
           </Stack>
         </AppShell.Section>
 
         <AppShell.Section>
           <Divider mb="xs" />
-          <Group gap="xs" px="sm" py="xs">
-            <IconCaravan size={14} color="var(--mantine-color-dimmed)" />
-            <Text size="xs" c="dimmed">ADES Logistique</Text>
-          </Group>
+          {!collapsed && (
+            <Group gap="xs" px="sm" py="xs">
+              <IconCaravan size={14} color="var(--mantine-color-dimmed)" />
+              <Text size="xs" c="dimmed">ADES Logistique</Text>
+            </Group>
+          )}
+          {collapsed && (
+            <Group justify="center" py="xs">
+              <IconCaravan size={14} color="var(--mantine-color-dimmed)" />
+            </Group>
+          )}
         </AppShell.Section>
       </AppShell.Navbar>
 
       <AppShell.Main style={{ background: '#f5f7f5', minHeight: '100vh' }}>
         {children}
       </AppShell.Main>
+
+      <style>{`
+        .collapse-btn:hover {
+          background-color: var(--mantine-color-gray-1);
+        }
+      `}</style>
     </AppShell>
   );
 }

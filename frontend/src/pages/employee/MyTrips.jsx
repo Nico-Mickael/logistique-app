@@ -101,8 +101,8 @@ function MyTrips() {
 
   const fetchTrips = async () => {
     try {
-      const { data } = await sortieService.getAll({ limit: 9999 });
-      setSorties(data.data || []);
+      const { data } = await sortieService.mine();
+      setSorties(Array.isArray(data) ? data : data.data || []);
     } catch {
       notifyError('Impossible de charger vos trajets');
     } finally {
@@ -116,7 +116,7 @@ function MyTrips() {
 
   const openReturnModal = (s) => {
     setReturnSortie(s);
-    setReturnKm(s.departure_km || 0);
+    setReturnKm((s.departure_km || 0) + 1);
     setReturnedAt(new Date());
     openReturn();
   };

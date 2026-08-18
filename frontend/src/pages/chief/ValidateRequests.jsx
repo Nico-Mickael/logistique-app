@@ -108,7 +108,7 @@ function ValidateRequests() {
   };
   const hasFilters = statusFilter || destinationFilter || dateFrom || dateTo;
 
-  useEffect(() => { if (!loading) fetchRequests(); }, [page]);
+  useEffect(() => { if (page !== 1) fetchRequests(); }, [page]);
 
   const handleApprove = async (id) => {
     try {
@@ -154,16 +154,28 @@ function ValidateRequests() {
     } catch { notifyError('Erreur lors de la replanification'); }
   };
 
-  const exportCSV = () => {
-    const headers = ['Employé;Département;Destination;Motif;Date souhaitée;Personnes;Statut'];
-    const rows = requests.map((r) =>
-      `${r.Employee?.prenom} ${r.Employee?.nom};${r.Employee?.department || ''};${r.destination};${r.motif};${dayjs(r.date_souhaitee).format('DD/MM/YYYY HH:mm')};${r.nb_personnes};${statusLabel[r.status] || r.status}`
-    );
-    const csv = [headers, ...rows].join('\n');
-    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'demandes.csv'; a.click();
-    URL.revokeObjectURL(url);
+  const exportCSV = async () => {
+    try {
+      const params = { limit: 9999 };
+      if (statusFilter) params.status = statusFilter;
+      if (destinationFilter) params.destination = destinationFilter;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      const { data } = await requestService.all(params);
+      const allRequests = data.data || [];
+
+      const headers = ['Employé;Département;Destination;Motif;Date souhaitée;Personnes;Statut'];
+      const rows = allRequests.map((r) =>
+        `${r.Employee?.prenom} ${r.Employee?.nom};${r.Employee?.department || ''};${r.destination};${r.motif};${dayjs(r.date_souhaitee).format('DD/MM/YYYY HH:mm')};${r.nb_personnes};${statusLabel[r.status] || r.status}`
+      );
+      const csv = [headers, ...rows].join('\n');
+      const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'demandes.csv'; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      notifyError("Erreur lors de l'export CSV");
+    }
   };
 
   const [detailRequest, setDetailRequest] = useState(null);

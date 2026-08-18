@@ -3,9 +3,9 @@ import {
   Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal, TextInput, Select, Flex, Stack,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
-import { IconPlus, IconInbox, IconEdit, IconTrash, IconUsers as IconUsersIcon } from '@tabler/icons-react';
+import { IconPlus, IconInbox, IconEdit, IconTrash, IconUsers as IconUsersIcon, IconSearch } from '@tabler/icons-react';
 import { useDisclosure } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
+import { notifySuccess, notifyError } from '../../utils/toast';
 import api from '../../api/axios';
 
 const roleLabels = {
@@ -28,6 +28,9 @@ export default function Users() {
   const [opened, { open, close }] = useDisclosure(false);
   const [editUser, setEditUser] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const [form, setForm] = useState({ nom: '', prenom: '', email: '', password: '', department: '', role: 'employee' });
 
@@ -39,6 +42,20 @@ export default function Users() {
   };
 
   useEffect(() => { fetchUsers(); }, []);
+
+  const filteredUsers = users.filter((u) => {
+    const q = search.toLowerCase();
+    return (
+      (u.nom || '').toLowerCase().includes(q) ||
+      (u.prenom || '').toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q) ||
+      (u.department || '').toLowerCase().includes(q) ||
+      (roleLabels[u.role] || u.role).toLowerCase().includes(q)
+    );
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const paginatedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize);
 
   const openCreate = () => {
     setEditUser(null);
@@ -54,11 +71,11 @@ export default function Users() {
 
   const handleSave = async () => {
     if (!form.nom || !form.prenom || !form.email) {
-      notifications.show({ color: 'red', title: 'Erreur', message: 'Nom, prénom et email sont obligatoires' });
+      notifyError('Nom, prénom et email sont obligatoires');
       return;
     }
     if (!editUser && !form.password) {
-      notifications.show({ color: 'red', title: 'Erreur', message: 'Mot de passe obligatoire pour un nouvel utilisateur' });
+      notifyError('Mot de passe obligatoire pour un nouvel utilisateur');
       return;
     }
     setSaving(true);
@@ -67,15 +84,15 @@ export default function Users() {
         const payload = { ...form };
         if (!payload.password) delete payload.password;
         await api.put(`/employees/${editUser.id}`, payload);
-        notifications.show({ color: 'green', title: 'Succès', message: 'Utilisateur modifié' });
+        notifySuccess('Utilisateur modifié');
       } else {
         await api.post('/employees', form);
-        notifications.show({ color: 'green', title: 'Succès', message: 'Utilisateur créé' });
+        notifySuccess('Utilisateur créé');
       }
       close();
       fetchUsers();
     } catch (err) {
-      notifications.show({ color: 'red', title: 'Erreur', message: err.response?.data?.message || 'Erreur serveur' });
+      notifyError(err.response?.data?.message || 'Erreur serveur');
     } finally { setSaving(false); }
   };
 
@@ -83,10 +100,10 @@ export default function Users() {
     if (!window.confirm(`Supprimer ${u.prenom} ${u.nom} ?`)) return;
     try {
       await api.delete(`/employees/${u.id}`);
-      notifications.show({ color: 'green', title: 'Succès', message: 'Utilisateur supprimé' });
+      notifySuccess('Utilisateur supprimé');
       fetchUsers();
     } catch (err) {
-      notifications.show({ color: 'red', title: 'Erreur', message: err.response?.data?.message || 'Erreur serveur' });
+      notifyError(err.response?.data?.message || 'Erreur serveur');
     }
   };
 
@@ -119,11 +136,23 @@ export default function Users() {
       <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
         <div>
           <Title order={3}>Gestion des utilisateurs</Title>
-          <Text size="sm" c="dimmed" mt={2}>{users.length} utilisateur{users.length !== 1 ? 's' : ''}</Text>
+          <Text size="sm" c="dimmed" mt={2}>{filteredUsers.length} utilisateur{filteredUsers.length !== 1 ? 's' : ''}</Text>
         </div>
-        <Button leftSection={<IconPlus size={16} />} color="brand" onClick={openCreate}>
-          Nouvel utilisateur
-        </Button>
+        <Group gap="sm" wrap="wrap">
+          {users.length > 0 && (
+            <TextInput
+              placeholder="Rechercher..."
+              leftSection={<IconSearch size={16} />}
+              value={search}
+              onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
+              radius="md"
+              w={280}
+            />
+          )}
+          <Button leftSection={<IconPlus size={16} />} color="brand" onClick={openCreate}>
+            Nouvel utilisateur
+          </Button>
+        </Group>
       </Flex>
 
       {users.length === 0 ? (
@@ -132,6 +161,15 @@ export default function Users() {
             <Flex direction="column" align="center" gap={6}>
               <IconUsersIcon size={28} color="var(--mantine-color-gray-5)" />
               <Text c="dimmed" size="sm">Aucun utilisateur</Text>
+            </Flex>
+          </Center>
+        </Paper>
+      ) : filteredUsers.length === 0 ? (
+        <Paper p="xl" radius="lg" withBorder>
+          <Center h={160}>
+            <Flex direction="column" align="center" gap={6}>
+              <IconSearch size={28} color="var(--mantine-color-gray-5)" />
+              <Text c="dimmed" size="sm">Aucun résultat pour "{search}"</Text>
             </Flex>
           </Center>
         </Paper>
@@ -144,10 +182,13 @@ export default function Users() {
             striped
             verticalSpacing="sm"
             columns={columns}
-            records={users}
+            records={paginatedUsers}
             idAccessor="id"
             sortable
-            paginationSize="sm"
+            page={page}
+            onPageChange={setPage}
+            totalRecords={filteredUsers.length}
+            recordsPerPage={pageSize}
             paginationActiveBackgroundColor="#3FA34A"
           />
         </Paper>

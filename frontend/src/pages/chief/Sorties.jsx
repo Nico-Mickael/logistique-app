@@ -169,7 +169,12 @@ function Sorties() {
   };
 
   useEffect(() => { fetchSorties(1); fetchVehicles(); }, []);
-  useEffect(() => { if (!loading) fetchSorties(); }, [page]);
+  useEffect(() => { if (page !== 1) fetchSorties(); }, [page]);
+
+  useEffect(() => {
+    setPage(1);
+    fetchSorties(1);
+  }, [statusFilter, vehicleFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     if (!vehicleId) return;
@@ -258,9 +263,9 @@ function Sorties() {
     } catch { notifyError('Erreur lors de la suppression'); }
   };
 
-  const openDepartModal = (s) => { setSelectedSortie(s); setDepartureKm(0); openDepart(); };
+  const openDepartModal = (s) => { setSelectedSortie(s); setDepartureKm(s.departure_km || ''); openDepart(); };
   const handleDepart = async () => {
-    if (!departureKm || departureKm <= 0) { notifyError('Saisissez un kilométrage valide'); return; }
+    if (!departureKm || departureKm <= 0) { notifyError('Saisissez un kilométrage valide supérieur à 0'); return; }
     try { await sortieService.depart(selectedSortie.id, departureKm); notifySuccess('Départ enregistré'); closeDepart(); fetchSorties(page); }
     catch { notifyError("Erreur lors de l'enregistrement du départ"); }
   };
@@ -306,16 +311,29 @@ function Sorties() {
     finally { setAdding(false); }
   };
 
-  const exportCSV = () => {
-    const headers = ['Destination;Conducteur;Véhicule;Départ prévu;Statut;Km départ;Km arrivée;Distance'];
-    const rows = sorties.map((s) =>
-      `${s.destination};${s.driver_name};${s.Vehicle?.type || ''};${dayjs(s.departure_time).format('DD/MM/YYYY HH:mm')};${statusLabel[s.status] || s.status};${s.departure_km || ''};${s.arrival_km || ''};${s.distance_km || ''}`
-    );
-    const csv = [headers, ...rows].join('\n');
-    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'sorties.csv'; a.click();
-    URL.revokeObjectURL(url);
+  const exportCSV = async () => {
+    try {
+      const params = { limit: 9999 };
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (vehicleFilter) params.vehicle_id = vehicleFilter;
+      if (searchQuery) params.destination = searchQuery;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      const { data } = await sortieService.getAll(params);
+      const allSorties = data.data || [];
+
+      const headers = ['Destination;Conducteur;Véhicule;Départ prévu;Statut;Km départ;Km arrivée;Distance'];
+      const rows = allSorties.map((s) =>
+        `${s.destination};${s.driver_name};${s.Vehicle?.type || ''};${dayjs(s.departure_time).format('DD/MM/YYYY HH:mm')};${statusLabel[s.status] || s.status};${s.departure_km || ''};${s.arrival_km || ''};${s.distance_km || ''}`
+      );
+      const csv = [headers, ...rows].join('\n');
+      const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'sorties.csv'; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      notifyError("Erreur lors de l'export CSV");
+    }
   };
 
   const columns = [

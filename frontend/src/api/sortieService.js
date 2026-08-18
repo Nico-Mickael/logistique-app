@@ -2,6 +2,7 @@ import api from './axios';
 
 export const sortieService = {
   getAll: (params) => api.get('/sorties', { params }),
+  mine: () => api.get('/sorties/mine'),
   create: (payload) => api.post('/sorties', payload),
   lastForVehicle: (vehicleId) => api.get(`/sorties/last/${vehicleId}`),
   suggestions: (id) => api.get(`/sorties/${id}/suggestions`),

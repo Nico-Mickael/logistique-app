@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Group, Text, ActionIcon, Popover, Stack, UnstyledButton, Badge,
   Loader, Center, ScrollArea, Burger, Avatar, Tooltip, Divider,
@@ -6,6 +6,7 @@ import {
 import { IconBell, IconLogout } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import { notificationService } from '../api/notificationService';
 import Logo from './Logo';
 
@@ -16,11 +17,11 @@ function initials(user) {
 
 function Header({ opened: navOpened, onToggle }) {
   const { logout, user } = useAuth();
+  const { unreadCount } = useSocket();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loadingNotif, setLoadingNotif] = useState(false);
   const [notifOpened, setNotifOpened] = useState(false);
-  const intervalRef = useRef(null);
 
   const fetchNotifications = async () => {
     try {
@@ -34,17 +35,11 @@ function Header({ opened: navOpened, onToggle }) {
   };
 
   useEffect(() => {
-    if (user) {
+    if (notifOpened && user) {
       setLoadingNotif(true);
       fetchNotifications();
-      intervalRef.current = setInterval(fetchNotifications, 15000);
     }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [user]);
-
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  }, [notifOpened, user]);
 
   const handleMarkAsRead = async (id) => {
     try {
@@ -150,7 +145,7 @@ function Header({ opened: navOpened, onToggle }) {
 
       <style>{`
         .app-header {
-          background: linear-gradient(135deg, #ffffff 0%, #ffffff 60%, #164d18 50%);
+          background: linear-gradient(135deg, #ffffff 0%, #ffffff 50%, #164d18 100%);
         }
 
         .logo-badge {

@@ -3,7 +3,7 @@ import {
   Paper, Title, Badge, Center, Text, Group, Button, Select, Stack, Code, Alert, Table, Progress, Tooltip, Flex,
 } from '@mantine/core';
 import { IconUpload, IconFileDownload, IconCheck, IconX, IconAlertCircle, IconArrowRight, IconRefresh } from '@tabler/icons-react';
-import { notifications } from '@mantine/notifications';
+import { notifySuccess, notifyError } from '../../utils/toast';
 import api from '../../api/axios';
 
 export default function Import() {
@@ -20,7 +20,7 @@ export default function Import() {
     if (!f) return;
     const ext = f.name.split('.').pop().toLowerCase();
     if (!['csv', 'xlsx', 'xls'].includes(ext)) {
-      notifications.show({ color: 'red', title: 'Erreur', message: 'Formats acceptés : CSV, XLSX, XLS' });
+      notifyError('Formats acceptés : CSV, XLSX, XLS');
       return;
     }
     setFile(f);
@@ -39,7 +39,7 @@ export default function Import() {
       setAnalysis(data);
       setMappingOverride(null);
     } catch (err) {
-      notifications.show({ color: 'red', title: 'Erreur', message: err.response?.data?.message || 'Erreur d\'analyse' });
+      notifyError(err.response?.data?.message || 'Erreur d\'analyse');
     } finally { setLoading(false); }
   };
 
@@ -70,13 +70,13 @@ export default function Import() {
       fd.append('mapping', JSON.stringify(currentMapping));
       const { data } = await api.post('/import/execute', fd);
       setResult(data);
-      notifications.show({
-        color: data.errors === 0 ? 'green' : 'orange',
-        title: 'Import terminé',
-        message: `${data.imported} ligne(s) importée(s), ${data.errors} erreur(s)`,
-      });
+      if (data.errors === 0) {
+        notifySuccess(`${data.imported} ligne(s) importée(s)`);
+      } else {
+        notifyError(`${data.imported} ligne(s) importée(s), ${data.errors} erreur(s)`);
+      }
     } catch (err) {
-      notifications.show({ color: 'red', title: 'Erreur', message: err.response?.data?.message || 'Erreur d\'import' });
+      notifyError(err.response?.data?.message || 'Erreur d\'import');
     } finally { setImporting(false); }
   };
 
@@ -91,7 +91,7 @@ export default function Import() {
   const colOptions = (analysis?.columns || []).map(c => ({ value: c, label: c }));
 
   return (
-    <div className="page-content">
+    <div className="import-page">
       <Title order={3} mb="lg">Importation de données</Title>
 
       {/* Step 1: Choose file */}
@@ -286,7 +286,7 @@ export default function Import() {
       )}
 
       <style>{`
-        .page-content { animation: fade-in 0.3s ease-out; max-width: 860px; margin: 0 auto; }
+        .import-page { animation: fade-in 0.3s ease-out; max-width: 860px; margin: 0 auto; }
         .step-panel { animation: panel-in 0.4s ease-out; }
         select { font-family: inherit; }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }

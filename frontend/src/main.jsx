@@ -7,9 +7,9 @@ import '@fontsource/inter/600.css';
 import 'react-toastify/dist/ReactToastify.css';
 import '@mantine/core/styles.css';
 import '@mantine/dates/styles.css';
-import '@mantine/notifications/styles.css';
 import '@mantine/charts/styles.css';
 import 'mantine-datatable/styles.css';
+import './App.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

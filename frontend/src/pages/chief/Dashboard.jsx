@@ -4,7 +4,7 @@ import {
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { AreaChart, PieChart, BarChart } from '@mantine/charts';
-import { IconFileText, IconRoute, IconCar, IconCheck, IconInbox, IconMapPin } from '@tabler/icons-react';
+import { IconFileText, IconRoute, IconCar, IconCheck, IconInbox, IconMapPin, IconX, IconCalendarRepeat } from '@tabler/icons-react';
 import dayjs from '../../utils/date';
 import { useAuth } from '../../context/AuthContext';
 import { requestService } from '../../api/requestService';
@@ -112,11 +112,15 @@ function Dashboard() {
       const ongoingSorties = sorties.filter((s) => s.status === 'ongoing').length;
       const availableVehicles = vehicles.filter((v) => v.status === 'available').length;
       const totalKm = sorties.reduce((sum, s) => sum + Number(s.distance_km || 0), 0);
+      const rejectedRequests = requests.filter((r) => r.status === 'rejected').length;
+      const rescheduledRequests = requests.filter((r) => r.status === 'rescheduled').length;
       return [
         { label: 'Demandes en attente', value: pendingRequests, icon: IconFileText, color: 'brandYellow' },
         { label: 'Sorties en cours', value: ongoingSorties, icon: IconRoute, color: 'brand' },
         { label: 'Véhicules disponibles', value: `${availableVehicles} / ${vehicles.length}`, icon: IconCar, color: 'brand' },
         { label: 'Km parcourus', value: `${totalKm} km`, icon: IconMapPin, color: 'brand' },
+        { label: 'Refusées', value: rejectedRequests, icon: IconX, color: 'red' },
+        { label: 'Replanifiées', value: rescheduledRequests, icon: IconCalendarRepeat, color: 'yellow' },
       ];
     }
     const pending = requests.filter((r) => r.status === 'pending').length;
@@ -196,7 +200,7 @@ function Dashboard() {
         <Text size="xs" c="dimmed" tt="capitalize">{dayjs().format('dddd D MMMM YYYY')}</Text>
       </Flex>
 
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: isChief ? 4 : 3 }} mb="xl">
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: isChief ? 3 : 3 }} mb="xl">
         {statsData.map((stat, i) => (
           <StatCard key={stat.label} {...stat} delay={i * 80} />
         ))}

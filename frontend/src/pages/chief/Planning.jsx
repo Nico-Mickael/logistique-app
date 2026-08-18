@@ -15,7 +15,7 @@ const statusLabel = { planned: 'Planifiée', ongoing: 'En cours', pending_return
 function Planning() {
   const [sorties, setSorties] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [selectedDate, setSelectedDate] = useState(dayjs());
 
   const fetchSorties = async () => {
     try {
@@ -91,8 +91,8 @@ function Planning() {
         <Paper p="md" radius="lg" withBorder style={{ flex: '0 0 auto' }}>
           <Calendar
             getDayProps={(date) => ({
-              selected: selectedDate && dayjs(date).isSame(selectedDate, 'day'),
-              onClick: () => setSelectedDate(date),
+              selected: selectedDate && dayjs(date).isSame(dayjs(selectedDate), 'day'),
+              onClick: () => setSelectedDate(dayjs(date)),
             })}
             renderDay={renderDay}
             size="md"

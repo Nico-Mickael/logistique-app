@@ -73,11 +73,21 @@ exports.addRequest = async (req, res) => {
     const sortie = await Sortie.findByPk(req.params.id);
     if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
 
+    const exists = await SortieRequest.findOne({
+      where: { sortie_id: sortie.id, request_id },
+    });
+    if (exists) {
+      return res.status(400).json({ message: 'Cette demande est déjà liée à cette sortie' });
+    }
+
     await SortieRequest.create({ sortie_id: sortie.id, request_id });
 
-    // ⬇️ AJOUT : notifier l'employé
     const request = await Request.findByPk(request_id);
     if (request) {
+      if (request.status === 'pending') {
+        request.status = 'approved';
+        await request.save();
+      }
       await createNotification({
         user_id: request.employee_id,
         message: `Votre demande a été intégrée à une sortie vers ${sortie.destination}`,
@@ -95,6 +105,11 @@ exports.addRequest = async (req, res) => {
 exports.updateStatus = async (req, res) => {
   try {
     const { status } = req.body;
+    const validStatuses = ['planned', 'ongoing', 'pending_return', 'finished'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Statut invalide' });
+    }
+
     const sortie = await Sortie.findByPk(req.params.id);
     if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
 
@@ -119,7 +134,6 @@ exports.updateStatus = async (req, res) => {
 // Employé : voir les sorties liées à ses demandes
 exports.mine = async (req, res) => {
   try {
-    const { Request, SortieRequest } = require('../models');
     const userRequests = await Request.findAll({
       where: { employee_id: req.user.id },
       attributes: ['id'],
@@ -184,6 +198,9 @@ exports.depart = async (req, res) => {
     const { departure_km } = req.body;
     const sortie = await Sortie.findByPk(req.params.id);
     if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+    if (sortie.status !== 'planned') {
+      return res.status(400).json({ message: 'Seules les sorties planifiées peuvent démarrer' });
+    }
 
     sortie.departure_km = departure_km;
     sortie.status = 'ongoing';

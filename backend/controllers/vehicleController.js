@@ -1,4 +1,5 @@
 const { Vehicle, Request, Employee } = require('../models');
+const { Op } = require('sequelize');
 
 exports.getAll = async (req, res) => {
   try {
@@ -30,7 +31,6 @@ exports.create = async (req, res) => {
 
 exports.getOccupancy = async (req, res) => {
   try {
-    const { Op } = require('sequelize');
     const vehicles = await Vehicle.findAll();
 
     const result = await Promise.all(vehicles.map(async (vehicle) => {
@@ -76,8 +76,14 @@ exports.update = async (req, res) => {
       return res.status(404).json({ message: 'Véhicule introuvable' });
     }
 
-    if (status) vehicle.status = status;
-    if (maintenance_until) vehicle.maintenance_until = maintenance_until;
+    if (status) {
+      const validStatuses = ['available', 'busy', 'maintenance', 'broken'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ message: 'Statut invalide' });
+      }
+      vehicle.status = status;
+    }
+    if (maintenance_until !== undefined) vehicle.maintenance_until = maintenance_until;
     await vehicle.save();
 
     res.json(vehicle);

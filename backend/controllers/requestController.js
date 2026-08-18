@@ -25,11 +25,21 @@ exports.create = async (req, res) => {
         return res.status(400).json({ message: 'Véhicule déjà en trajet (départ passé)' });
       }
 
+      const requestedDate = new Date(date_souhaitee);
+      const startOfDay = new Date(requestedDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(requestedDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
       const occupiedCount = await Request.count({
-        where: { vehicle_id, status: ['pending', 'approved', 'rescheduled'] },
+        where: {
+          vehicle_id,
+          status: ['pending', 'approved', 'rescheduled'],
+          date_souhaitee: { [Op.between]: [startOfDay, endOfDay] },
+        },
       });
       if (occupiedCount + nb_personnes > vehicle.capacity) {
-        return res.status(400).json({ message: 'Pas assez de places disponibles dans ce véhicule' });
+        return res.status(400).json({ message: 'Pas assez de places disponibles dans ce véhicule pour cette date' });
       }
     }
 
@@ -109,11 +119,15 @@ exports.all = async (req, res) => {
 // Chef logistique : valider / refuser / replanifier
 exports.updateStatus = async (req, res) => {
   try {
-    const { status, new_date } = req.body; // status: approved | rejected | rescheduled
+    const { status, new_date } = req.body;
     const request = await Request.findByPk(req.params.id);
 
     if (!request) {
       return res.status(404).json({ message: 'Demande introuvable' });
+    }
+
+    if (!['approved', 'rejected', 'rescheduled'].includes(status)) {
+      return res.status(400).json({ message: 'Statut invalide' });
     }
 
     request.status = status;
@@ -128,7 +142,14 @@ exports.updateStatus = async (req, res) => {
       const existingSortie = await Sortie.findOne({
         where: { vehicle_id: request.vehicle_id, departure_time: request.date_souhaitee },
       });
-      if (!existingSortie) {
+      if (existingSortie) {
+        const linkExists = await SortieRequest.findOne({
+          where: { sortie_id: existingSortie.id, request_id: request.id },
+        });
+        if (!linkExists) {
+          await SortieRequest.create({ sortie_id: existingSortie.id, request_id: request.id });
+        }
+      } else {
         const sortie = await Sortie.create({
           vehicle_id: request.vehicle_id,
           driver_name: emp ? `${emp.prenom} ${emp.nom}` : 'Chauffeur',
@@ -146,7 +167,6 @@ exports.updateStatus = async (req, res) => {
       }
     }
 
-    // ⬇️ AJOUT : notifier l'employé du changement de statut
     await createNotification({
       user_id: request.employee_id,
       message: `Votre demande vers ${request.destination} a été ${
@@ -176,9 +196,34 @@ exports.cancel = async (req, res) => {
       return res.status(400).json({ message: 'Cette demande ne peut plus être annulée' });
     }
 
+    const wasApproved = request.status === 'approved';
+    const vehicleId = request.vehicle_id;
+
+    await SortieRequest.destroy({ where: { request_id: request.id } });
+
     request.status = 'cancelled';
     request.vehicle_id = null;
     await request.save();
+
+    if (wasApproved && vehicleId) {
+      const hasActiveSorties = await SortieRequest.count({
+        include: [
+          { model: Sortie, where: { vehicle_id: vehicleId, status: { [Op.notIn]: ['finished'] } }, required: true },
+        ],
+      });
+      if (hasActiveSorties === 0) {
+        const activeRequests = await Request.count({
+          where: { vehicle_id: vehicleId, status: ['pending', 'approved', 'rescheduled'] },
+        });
+        if (activeRequests === 0) {
+          const vehicle = await Vehicle.findByPk(vehicleId);
+          if (vehicle) {
+            vehicle.status = 'available';
+            await vehicle.save();
+          }
+        }
+      }
+    }
 
     await createNotification({
       user_id: request.employee_id,
@@ -221,7 +266,7 @@ exports.update = async (req, res) => {
 // Employé : répondre à une proposition de replanification
 exports.respondReschedule = async (req, res) => {
   try {
-    const { accepted } = req.body; // true | false
+    const { accepted } = req.body;
     const request = await Request.findByPk(req.params.id);
 
     if (!request) return res.status(404).json({ message: 'Demande introuvable' });
@@ -231,6 +276,45 @@ exports.respondReschedule = async (req, res) => {
 
     request.status = accepted ? 'approved' : 'rejected';
     await request.save();
+
+    // Auto-créer une sortie si accepté et véhicule assigné
+    if (accepted && request.vehicle_id) {
+      const emp = await Employee.findByPk(request.employee_id);
+      const existingSortie = await Sortie.findOne({
+        where: { vehicle_id: request.vehicle_id, departure_time: request.date_souhaitee },
+      });
+      if (existingSortie) {
+        const linkExists = await SortieRequest.findOne({
+          where: { sortie_id: existingSortie.id, request_id: request.id },
+        });
+        if (!linkExists) {
+          await SortieRequest.create({ sortie_id: existingSortie.id, request_id: request.id });
+        }
+      } else {
+        const sortie = await Sortie.create({
+          vehicle_id: request.vehicle_id,
+          driver_name: emp ? `${emp.prenom} ${emp.nom}` : 'Chauffeur',
+          destination: request.destination,
+          departure_time: request.date_souhaitee,
+          status: 'planned',
+        });
+        await SortieRequest.create({ sortie_id: sortie.id, request_id: request.id });
+        const vehicle = await Vehicle.findByPk(request.vehicle_id);
+        if (vehicle && vehicle.status === 'available') {
+          vehicle.status = 'busy';
+          await vehicle.save();
+        }
+        notifyChiefs('sortie_created', sortie);
+      }
+    }
+
+    await createNotification({
+      user_id: request.employee_id,
+      message: accepted
+        ? `Vous avez accepté la replanification pour ${request.destination}`
+        : `Vous avez refusé la replanification pour ${request.destination}`,
+      type: accepted ? 'approved' : 'rejected',
+    });
 
     res.json(request);
   } catch (err) {

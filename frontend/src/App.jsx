@@ -1,7 +1,6 @@
 import { MantineProvider } from '@mantine/core';
-import { Notifications } from '@mantine/notifications';
 import { ToastContainer } from 'react-toastify';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import { theme } from './theme';
@@ -141,11 +140,11 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </SocketProvider>
         </AuthProvider>
       </BrowserRouter>
-      <Notifications />
       <ToastContainer position="top-right" autoClose={3500} theme="light" />
     </MantineProvider>
   );

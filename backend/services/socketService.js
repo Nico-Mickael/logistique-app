@@ -29,7 +29,7 @@ function setupSocket(server) {
 
       socket.join(`user:${decoded.id}`);
 
-      if (decoded.role === 'logistics_chief' || decoded.role === 'admin') {
+      if (decoded.role === 'logistics_chief' || decoded.role === 'admin' || decoded.role === 'superadmin') {
         socket.join('chiefs');
       }
 

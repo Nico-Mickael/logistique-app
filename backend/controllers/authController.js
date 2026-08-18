@@ -72,6 +72,9 @@ exports.me = async (req, res) => {
     const employee = await Employee.findByPk(req.user.id, {
       attributes: ['id', 'nom', 'prenom', 'email', 'department', 'role'],
     });
+    if (!employee) {
+      return res.status(404).json({ message: 'Utilisateur introuvable' });
+    }
     res.json(employee);
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
