@@ -74,15 +74,13 @@ exports.getOccupancy = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
-    const { type, capacity, status, maintenance_until } = req.body;
+    const { status, maintenance_until } = req.body;
     const vehicle = await Vehicle.findByPk(req.params.id);
 
     if (!vehicle) {
       return res.status(404).json({ message: 'Véhicule introuvable' });
     }
 
-    if (type) vehicle.type = type;
-    if (capacity) vehicle.capacity = capacity;
     if (status) {
       const validStatuses = ['available', 'busy', 'maintenance', 'broken'];
       if (!validStatuses.includes(status)) {
@@ -94,22 +92,6 @@ exports.update = async (req, res) => {
     await vehicle.save();
 
     res.json(vehicle);
-  } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
-  }
-};
-
-exports.remove = async (req, res) => {
-  try {
-    const vehicle = await Vehicle.findByPk(req.params.id);
-    if (!vehicle) {
-      return res.status(404).json({ message: 'Véhicule introuvable' });
-    }
-    if (vehicle.status === 'busy') {
-      return res.status(400).json({ message: 'Impossible de supprimer un véhicule en cours de sortie' });
-    }
-    await vehicle.destroy();
-    res.json({ message: 'Véhicule supprimé' });
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }

@@ -1,22 +1,21 @@
 import { useEffect, useState } from 'react';
 import {
   Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
-  TextInput, Select, NumberInput, Card, SimpleGrid, Stack, Flex, Pagination,
+  TextInput, Select, NumberInput, Card, SimpleGrid, Stack, Flex,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { useDisclosure } from '@mantine/hooks';
-import { IconPlus, IconTool, IconInbox, IconCar, IconEdit, IconTrash, IconSearch } from '@tabler/icons-react';
+import { IconPlus, IconTool, IconInbox, IconCar } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import { DateInput } from '@mantine/dates';
 import dayjs from '../../utils/date';
 import { vehicleService } from '../../api/vehicleService';
 import { notifySuccess, notifyError } from '../../utils/toast';
-import ConfirmModal from '../../components/ConfirmModal';
 
 const statusColor = { available: 'brand', busy: 'brandYellow', maintenance: 'red', broken: 'red' };
 const statusLabel = { available: 'Disponible', busy: 'En sortie', maintenance: 'Maintenance', broken: 'En panne' };
 
-function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete }) {
+function VehicleCard({ vehicle, onMaintenance, onAvailable }) {
   return (
     <Card withBorder radius="lg" p="lg" className="vehicle-card">
       <div className="stat-card-accent" style={{
@@ -40,19 +39,10 @@ function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete }) 
         )}
       </Stack>
       <Group gap="xs">
-        <Button size="xs" variant="subtle" color="gray" leftSection={<IconEdit size={14} />}
-          onClick={() => onEdit(vehicle)}>
-          Modifier
-        </Button>
-        {vehicle.status !== 'busy' && (
-          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
-            onClick={() => onDelete(vehicle)}>
-            Supprimer
-          </Button>
-        )}
         {vehicle.status !== 'maintenance' && vehicle.status !== 'busy' && (
           <Button size="xs" variant="outline" color="red" leftSection={<IconTool size={14} />}
-            onClick={() => onMaintenance(vehicle)}>
+            onClick={() => onMaintenance(vehicle)}
+          >
             Maintenance
           </Button>
         )}
@@ -78,18 +68,6 @@ function Vehicles() {
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [maintenanceUntil, setMaintenanceUntil] = useState(null);
 
-  const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
-  const [editVehicle, setEditVehicle] = useState(null);
-  const [editType, setEditType] = useState('');
-  const [editCapacity, setEditCapacity] = useState(4);
-  const [saving, setSaving] = useState(false);
-
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
-
   const fetchVehicles = async () => {
     try {
       const { data } = await vehicleService.getAll();
@@ -102,18 +80,6 @@ function Vehicles() {
   };
 
   useEffect(() => { fetchVehicles(); }, []);
-
-  const filteredVehicles = vehicles.filter((v) => {
-    const q = search.toLowerCase();
-    return (
-      (v.type || '').toLowerCase().includes(q) ||
-      (statusLabel[v.status] || '').toLowerCase().includes(q) ||
-      String(v.capacity).includes(q)
-    );
-  });
-
-  const totalPages = Math.max(1, Math.ceil(filteredVehicles.length / pageSize));
-  const paginatedVehicles = filteredVehicles.slice((page - 1) * pageSize, page * pageSize);
 
   const handleCreate = async () => {
     if (!type || !capacity) { notifyError('Merci de remplir tous les champs'); return; }
@@ -151,38 +117,6 @@ function Vehicles() {
     } catch { notifyError('Erreur lors de la mise à jour'); }
   };
 
-  const openEditModal = (vehicle) => {
-    setEditVehicle(vehicle);
-    setEditType(vehicle.type);
-    setEditCapacity(vehicle.capacity);
-    openEdit();
-  };
-
-  const handleEditSave = async () => {
-    if (!editType || !editCapacity) { notifyError('Merci de remplir tous les champs'); return; }
-    setSaving(true);
-    try {
-      await vehicleService.update(editVehicle.id, { type: editType, capacity: editCapacity });
-      notifySuccess('Véhicule modifié');
-      closeEdit();
-      fetchVehicles();
-    } catch { notifyError('Erreur lors de la modification'); }
-    finally { setSaving(false); }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await vehicleService.remove(deleteTarget.id);
-      notifySuccess('Véhicule supprimé');
-      setDeleteTarget(null);
-      fetchVehicles();
-    } catch (err) {
-      notifyError(err.response?.data?.message || 'Erreur lors de la suppression');
-    } finally { setDeleting(false); }
-  };
-
   if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
 
   return (
@@ -190,23 +124,11 @@ function Vehicles() {
       <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowgap={4}>
         <div>
           <Title order={3}>Véhicules</Title>
-          <Text size="sm" c="dimmed" mt={2}>{filteredVehicles.length} véhicule{filteredVehicles.length !== 1 ? 's' : ''} dans la flotte</Text>
+          <Text size="sm" c="dimmed" mt={2}>{vehicles.length} véhicule{vehicles.length !== 1 ? 's' : ''} dans la flotte</Text>
         </div>
-        <Group gap="sm" wrap="wrap">
-          {vehicles.length > 0 && (
-            <TextInput
-              placeholder="Rechercher..."
-              leftSection={<IconSearch size={16} />}
-              value={search}
-              onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
-              radius="md"
-              w={260}
-            />
-          )}
-          <Button color="brand" leftSection={<IconPlus size={16} />} onClick={openCreate}>
-            Ajouter un véhicule
-          </Button>
-        </Group>
+        <Button color="brand" leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          Ajouter un véhicule
+        </Button>
       </Flex>
 
       {vehicles.length === 0 ? (
@@ -215,15 +137,6 @@ function Vehicles() {
             <Flex direction="column" align="center" gap={6}>
               <IconCar size={28} color="var(--mantine-color-gray-5)" />
               <Text c="dimmed" size="sm">Aucun véhicule enregistré</Text>
-            </Flex>
-          </Center>
-        </Paper>
-      ) : filteredVehicles.length === 0 ? (
-        <Paper p="xl" radius="lg" withBorder>
-          <Center h={160}>
-            <Flex direction="column" align="center" gap={6}>
-              <IconSearch size={28} color="var(--mantine-color-gray-5)" />
-              <Text c="dimmed" size="sm">Aucun résultat pour "{search}"</Text>
             </Flex>
           </Center>
         </Paper>
@@ -245,12 +158,6 @@ function Vehicles() {
                     accessor: 'actions', title: '',
                     render: (v) => (
                       <Group gap="xs" wrap="nowrap">
-                        <Button size="xs" variant="subtle" color="gray" leftSection={<IconEdit size={14} />}
-                          onClick={() => openEditModal(v)}>Modifier</Button>
-                        {v.status !== 'busy' && (
-                          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
-                            onClick={() => setDeleteTarget(v)}>Supprimer</Button>
-                        )}
                         {v.status !== 'maintenance' && v.status !== 'busy' && (
                           <Button size="xs" variant="outline" color="red" leftSection={<IconTool size={14} />}
                             onClick={() => openMaintenanceModal(v)}>Maintenance</Button>
@@ -264,100 +171,49 @@ function Vehicles() {
                     ),
                   },
                 ]}
-                records={paginatedVehicles}
+                records={vehicles}
                 idAccessor="id"
-                sortable
-                page={page}
-                onPageChange={setPage}
-                totalRecords={filteredVehicles.length}
-                recordsPerPage={pageSize}
-                paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
               />
             </Paper>
           </div>
 
           <div className="hide-on-tablet-up">
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-              {paginatedVehicles.map((v) => (
+              {vehicles.map((v) => (
                 <VehicleCard key={v.id} vehicle={v}
                   onMaintenance={openMaintenanceModal} onAvailable={handleMakeAvailable}
-                  onEdit={openEditModal} onDelete={(veh) => setDeleteTarget(veh)}
                 />
               ))}
             </SimpleGrid>
-            {totalPages > 1 && (
-              <Center mt="md">
-                <Pagination total={totalPages} value={page} onChange={setPage} color="brand" />
-              </Center>
-            )}
           </div>
         </>
       )}
 
-      <Modal opened={createOpened} onClose={closeCreate} title="Ajouter un véhicule" size="md" radius="md"
+      <Modal opened={createOpened} onClose={closeCreate} title="Ajouter un véhicule" size="sm"
+        fullScreen={{ base: true, sm: false }}
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
         transitionProps={{ transition: 'fade', duration: 200 }}
       >
-        <Stack gap="sm">
-          <Select label="Type" placeholder="Choisir un type"
-            data={[{ value: 'moto', label: 'Moto' }, { value: 'voiture', label: 'Voiture' }, { value: 'minibus', label: 'Minibus' }]}
-            value={type} onChange={setType} required
-          />
-          <NumberInput label="Capacité (nombre de personnes)" min={1} max={30} value={capacity}
-            onChange={setCapacity} required
-          />
-          <Group justify="end" mt="md">
-            <Button variant="default" onClick={closeCreate}>Annuler</Button>
-            <Button onClick={handleCreate} loading={saving} color="brand">Ajouter</Button>
-          </Group>
-        </Stack>
+        <Select label="Type" placeholder="Choisir un type"
+          data={[{ value: 'moto', label: 'Moto' }, { value: 'voiture', label: 'Voiture' }, { value: 'minibus', label: 'Minibus' }]}
+          value={type} onChange={setType} mb="sm" required
+        />
+        <NumberInput label="Capacité (nombre de personnes)" min={1} max={30} value={capacity}
+          onChange={setCapacity} mb="md" required
+        />
+        <Button color="brand" fullWidth onClick={handleCreate} size="md">Ajouter</Button>
       </Modal>
 
-      <Modal opened={maintOpened} onClose={closeMaint} title="Mettre en maintenance" size="sm" radius="md"
+      <Modal opened={maintOpened} onClose={closeMaint} title="Mettre en maintenance" size="sm"
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
         transitionProps={{ transition: 'fade', duration: 200 }}
       >
-        <Stack gap="sm">
-          <TextInput label="Véhicule" value={selectedVehicle?.type || ''} disabled tt="capitalize" />
-          <DateInput label="Retour prévu le" value={maintenanceUntil} onChange={setMaintenanceUntil}
-            minDate={new Date()}
-          />
-          <Group justify="end" mt="md">
-            <Button variant="default" onClick={closeMaint}>Annuler</Button>
-            <Button color="red" onClick={handleSetMaintenance}>Confirmer</Button>
-          </Group>
-        </Stack>
+        <TextInput label="Véhicule" value={selectedVehicle?.type || ''} disabled mb="sm" tt="capitalize" />
+        <DateInput label="Retour prévu le" value={maintenanceUntil} onChange={setMaintenanceUntil}
+          minDate={new Date()} mb="md"
+        />
+        <Button color="red" fullWidth onClick={handleSetMaintenance} size="md">Confirmer la maintenance</Button>
       </Modal>
-
-      <Modal opened={editOpened} onClose={closeEdit} title="Modifier le véhicule" size="md" radius="md"
-        overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
-      >
-        <Stack gap="sm">
-          <Select label="Type" placeholder="Choisir un type"
-            data={[{ value: 'moto', label: 'Moto' }, { value: 'voiture', label: 'Voiture' }, { value: 'minibus', label: 'Minibus' }]}
-            value={editType} onChange={setEditType} required
-          />
-          <NumberInput label="Capacité (nombre de personnes)" min={1} max={30} value={editCapacity}
-            onChange={setEditCapacity} required
-          />
-          <Group justify="end" mt="md">
-            <Button variant="default" onClick={closeEdit}>Annuler</Button>
-            <Button onClick={handleEditSave} loading={saving} color="brand">Enregistrer</Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      <ConfirmModal
-        opened={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-        title={`Supprimer ${deleteTarget?.type || ''} ?`}
-        message="Cette action est irréversible. Le véhicule sera définitivement supprimé."
-        confirmLabel="Supprimer"
-        variant="danger"
-        loading={deleting}
-      />
 
       <style>{`
         .vehicle-card {
