@@ -9,5 +9,6 @@ router.get('/available', auth, vehicleController.getAvailable);
 router.get('/occupancy', auth, vehicleController.getOccupancy);
 router.post('/', auth, checkRole(['logistics_chief', 'admin', 'superadmin']), vehicleController.create);
 router.patch('/:id', auth, checkRole(['logistics_chief', 'admin', 'superadmin']), vehicleController.update);
+router.delete('/:id', auth, checkRole(['logistics_chief', 'admin', 'superadmin']), vehicleController.remove);
 
 module.exports = router;

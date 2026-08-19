@@ -6,4 +6,5 @@ export const vehicleService = {
   getOccupancy: () => api.get('/vehicles/occupancy'),
   create: (payload) => api.post('/vehicles', payload),
   update: (id, payload) => api.patch(`/vehicles/${id}`, payload),
+  remove: (id) => api.delete(`/vehicles/${id}`),
 };
