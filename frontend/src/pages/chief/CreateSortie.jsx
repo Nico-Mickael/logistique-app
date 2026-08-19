@@ -662,7 +662,7 @@ function CreateSortie() {
                 {selectedSeat !== null && seatStates[selectedSeat] === 'occupied' && (
                   <div style={{ position: 'absolute', top: '50%', right: -20, transform: 'translateY(-50%)' }}>
                     <SeatInfoCard
-                      employee={seatAssignments.find((a) => a.seatId === selectedSeat)}
+                      employee={seatAssignments.find((a) => a.seatId === selectedSeat)?.employee}
                       onClose={() => setSelectedSeat(null)}
                     />
                   </div>

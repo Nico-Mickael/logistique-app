@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
   TextInput, Textarea, Stack, Card, SimpleGrid, Flex, Select,
@@ -8,9 +8,9 @@ import { DateTimePicker } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
 import { IconCheck, IconX, IconCalendar, IconInbox, IconSearch, IconDownload, IconX as IconClear, IconEye } from '@tabler/icons-react';
 import dayjs from '../../utils/date';
-import Swal from 'sweetalert2';
 import { requestService } from '../../api/requestService';
 import { notifySuccess, notifyError } from '../../utils/toast';
+import ConfirmModal from '../../components/ConfirmModal';
 
 const statusColor = { pending: 'gray', approved: 'brand', rescheduled: 'brandYellow', rejected: 'red' };
 const statusLabel = { pending: 'En attente', approved: 'Validée', rescheduled: 'Replanifiée', rejected: 'Refusée' };
@@ -77,12 +77,14 @@ function ValidateRequests() {
   const [destinationFilter, setDestinationFilter] = useState('');
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejecting, setRejecting] = useState(false);
 
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 20;
 
-  const fetchRequests = async (p = page) => {
+  const fetchRequests = useCallback(async (p = page) => {
     try {
       const params = { page: p, limit };
       if (statusFilter) params.status = statusFilter;
@@ -97,18 +99,18 @@ function ValidateRequests() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, destinationFilter, dateFrom, dateTo, page]);
 
   useEffect(() => { fetchRequests(1); }, []);
 
-  const applyFilters = () => { setPage(1); fetchRequests(1); };
+  const applyFilters = () => { setPage(1); };
   const clearFilters = () => {
     setStatusFilter(''); setDestinationFilter(''); setDateFrom(null); setDateTo(null);
-    setPage(1); fetchRequests(1);
+    setPage(1);
   };
   const hasFilters = statusFilter || destinationFilter || dateFrom || dateTo;
 
-  useEffect(() => { if (page !== 1) fetchRequests(); }, [page]);
+  useEffect(() => { fetchRequests(page); }, [page]);
 
   const handleApprove = async (id) => {
     try {
@@ -118,24 +120,16 @@ function ValidateRequests() {
     } catch { notifyError('Erreur lors de la validation'); }
   };
 
-  const handleReject = async (id) => {
-    const result = await Swal.fire({
-      title: 'Refuser cette demande ?',
-      text: "L'employé sera notifié du refus.",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Oui, refuser',
-      cancelButtonText: 'Annuler',
-      confirmButtonColor: '#D32F2F',
-      cancelButtonColor: '#8C8C8C',
-      reverseButtons: true,
-    });
-    if (!result.isConfirmed) return;
+  const handleReject = async () => {
+    if (!rejectTarget) return;
+    setRejecting(true);
     try {
-      await requestService.updateStatus(id, 'rejected');
+      await requestService.updateStatus(rejectTarget.id, 'rejected');
       notifySuccess('Demande refusée');
+      setRejectTarget(null);
       fetchRequests(page);
     } catch { notifyError('Erreur lors du refus'); }
+    finally { setRejecting(false); }
   };
 
   const openRescheduleModal = (request) => {
@@ -205,7 +199,7 @@ function ValidateRequests() {
             <>
               <Button size="xs" color="brand" leftSection={<IconCheck size={14} />} onClick={() => handleApprove(r.id)}>Valider</Button>
               <Button size="xs" variant="outline" color="brandYellow" leftSection={<IconCalendar size={14} />} onClick={() => openRescheduleModal(r)}>Replanifier</Button>
-              <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />} onClick={() => handleReject(r.id)}>Refuser</Button>
+              <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />} onClick={() => setRejectTarget(r)}>Refuser</Button>
             </>
           ) : (
             <Button size="xs" variant="subtle" leftSection={<IconEye size={14} />} onClick={() => openDetail(r)}>Détail</Button>
@@ -344,6 +338,17 @@ function ValidateRequests() {
           Envoyer la proposition
         </Button>
       </Modal>
+
+      <ConfirmModal
+        opened={!!rejectTarget}
+        onClose={() => setRejectTarget(null)}
+        onConfirm={handleReject}
+        title="Refuser cette demande ?"
+        message="L'employé sera notifié du refus."
+        confirmLabel="Refuser"
+        variant="danger"
+        loading={rejecting}
+      />
 
       <style>{`
         .page-content {  }

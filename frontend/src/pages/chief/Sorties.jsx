@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
   TextInput, Select, Stack, NumberInput, Card, SimpleGrid, Flex, SegmentedControl, Pagination,
@@ -9,10 +9,10 @@ import { useDisclosure } from '@mantine/hooks';
 import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconInbox, IconSearch, IconX, IconEdit, IconTrash, IconDownload } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
-import Swal from 'sweetalert2';
 import { sortieService } from '../../api/sortieService';
 import { vehicleService } from '../../api/vehicleService';
 import { notifySuccess, notifyError } from '../../utils/toast';
+import ConfirmModal from '../../components/ConfirmModal';
 
 const statusColor = { planned: 'gray', ongoing: 'brand', pending_return: 'orange', finished: 'brandYellow' };
 const statusLabel = { planned: 'Planifiée', ongoing: 'En cours', pending_return: 'Retour à valider', finished: 'Terminée' };
@@ -25,7 +25,7 @@ const statusFilterOptions = [
   { label: 'Terminées', value: 'finished' },
 ];
 
-function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValidateReturn, onArrivee }) {
+function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValidateReturn, onArrivee, actionLoading }) {
   return (
     <Card withBorder radius="lg" p="lg" className="sortie-card">
       <div className="stat-card-accent" style={{
@@ -71,7 +71,7 @@ function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValid
       <Group gap="xs">
         {sortie.status === 'planned' && (
           <>
-            <Button size="xs" color="brand" leftSection={<IconPlayerPlay size={14} />} onClick={() => onDepart(sortie)}>
+            <Button size="xs" color="brand" leftSection={<IconPlayerPlay size={14} />} onClick={() => onDepart(sortie)} loading={actionLoading === 'depart'}>
               Démarrer
             </Button>
             <Button size="xs" variant="outline" color="brand" leftSection={<IconUsers size={14} />} onClick={() => onSuggestions(sortie.id)}>
@@ -80,21 +80,21 @@ function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValid
             <Button size="xs" variant="subtle" color="gray" leftSection={<IconEdit size={14} />} onClick={() => onEdit(sortie)}>
               Modifier
             </Button>
-            <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => onDelete(sortie)}>
+            <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={onDelete}>
               Supprimer
             </Button>
           </>
         )}
         {sortie.status === 'ongoing' && (
           <Group gap="xs">
-            <Button size="xs" color="brand" leftSection={<IconFlag size={14} />} onClick={() => onArrivee(sortie)}>
+            <Button size="xs" color="brand" leftSection={<IconFlag size={14} />} onClick={() => onArrivee(sortie)} loading={actionLoading === 'arrivee'}>
               Saisir arrivée
             </Button>
             <Text size="xs" c="dimmed">En attente du retour de l'employé</Text>
           </Group>
         )}
         {sortie.status === 'pending_return' && (
-          <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={() => onValidateReturn(sortie)}>
+          <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={onValidateReturn} loading={actionLoading === 'validateReturn'}>
             Valider le retour
           </Button>
         )}
@@ -146,7 +146,11 @@ function Sorties() {
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
 
-  const fetchSorties = async (p = page) => {
+  const [actionLoading, setActionLoading] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [validateReturnTarget, setValidateReturnTarget] = useState(null);
+
+  const fetchSorties = useCallback(async (p = page) => {
     try {
       const params = { page: p, limit };
       if (statusFilter !== 'all') params.status = statusFilter;
@@ -162,14 +166,14 @@ function Sorties() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, vehicleFilter, searchQuery, dateFrom, dateTo, page]);
 
   const fetchVehicles = async () => {
     try { const { data } = await vehicleService.getAll(); setVehicles(data || []); } catch { /* ignore */ }
   };
 
   useEffect(() => { fetchSorties(1); fetchVehicles(); }, []);
-  useEffect(() => { if (page !== 1) fetchSorties(); }, [page]);
+  useEffect(() => { fetchSorties(); }, [page]);
 
   useEffect(() => {
     setPage(1);
@@ -243,60 +247,47 @@ function Sorties() {
     }
   };
 
-  const handleDelete = async (s) => {
-    const result = await Swal.fire({
-      title: 'Supprimer cette sortie ?',
-      text: 'La sortie sera définitivement supprimée et le véhicule libéré.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Oui, supprimer',
-      cancelButtonText: 'Annuler',
-      confirmButtonColor: '#D32F2F',
-      cancelButtonColor: '#8C8C8C',
-      reverseButtons: true,
-    });
-    if (!result.isConfirmed) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setActionLoading('delete');
     try {
-      await sortieService.remove(s.id);
+      await sortieService.remove(deleteTarget.id);
       notifySuccess('Sortie supprimée');
+      setDeleteTarget(null);
       fetchSorties(page);
     } catch { notifyError('Erreur lors de la suppression'); }
+    finally { setActionLoading(null); }
   };
 
   const openDepartModal = (s) => { setSelectedSortie(s); setDepartureKm(s.departure_km || ''); openDepart(); };
   const handleDepart = async () => {
     if (!departureKm || departureKm <= 0) { notifyError('Saisissez un kilométrage valide supérieur à 0'); return; }
+    setActionLoading('depart');
     try { await sortieService.depart(selectedSortie.id, departureKm); notifySuccess('Départ enregistré'); closeDepart(); fetchSorties(page); }
     catch { notifyError("Erreur lors de l'enregistrement du départ"); }
+    finally { setActionLoading(null); }
   };
 
   const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); openArrivee(); };
   const handleArrivee = async () => {
     if (!arrivalKm || arrivalKm <= 0) { notifyError('Saisissez un kilométrage valide'); return; }
+    if (selectedSortie && arrivalKm < selectedSortie.departure_km) { notifyError("Le km d'arrivée ne peut pas être inférieur au km de départ"); return; }
+    setActionLoading('arrivee');
     try { await sortieService.arrivee(selectedSortie.id, arrivalKm); notifySuccess('Arrivée enregistrée'); closeArrivee(); fetchSorties(page); }
     catch { notifyError("Erreur lors de l'enregistrement de l'arrivée"); }
+    finally { setActionLoading(null); }
   };
 
-  const handleValidateReturn = async (s) => {
-    const result = await Swal.fire({
-      title: 'Valider le retour ?',
-      html: `La sortie vers <strong>${s.destination}</strong> sera clôturée.<br/>
-        Km retour: <strong>${s.return_km} km</strong><br/>
-        Retour le: <strong>${s.returned_at ? dayjs(s.returned_at).format('DD/MM/YYYY HH:mm') : '—'}</strong>`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Oui, valider',
-      cancelButtonText: 'Annuler',
-      confirmButtonColor: '#2E7D32',
-      cancelButtonColor: '#8C8C8C',
-      reverseButtons: true,
-    });
-    if (!result.isConfirmed) return;
+  const handleValidateReturn = async () => {
+    if (!validateReturnTarget) return;
+    setActionLoading('validateReturn');
     try {
-      await sortieService.validateReturn(s.id);
+      await sortieService.validateReturn(validateReturnTarget.id);
       notifySuccess('Retour validé - Sortie terminée');
+      setValidateReturnTarget(null);
       fetchSorties(page);
     } catch { notifyError("Erreur lors de la validation du retour"); }
+    finally { setActionLoading(null); }
   };
 
   const openSuggestionsModal = async (sortieId) => {
@@ -372,17 +363,17 @@ function Sorties() {
         <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
           {s.status === 'planned' && (
             <>
-              <Button size="xs" color="brand" leftSection={<IconPlayerPlay size={14} />} onClick={() => openDepartModal(s)}>Démarrer</Button>
+              <Button size="xs" color="brand" leftSection={<IconPlayerPlay size={14} />} onClick={() => openDepartModal(s)} loading={actionLoading === 'depart'}>Démarrer</Button>
               <Button size="xs" variant="outline" color="brand" leftSection={<IconUsers size={14} />} onClick={() => openSuggestionsModal(s.id)}>Demandes</Button>
               <Button size="xs" variant="subtle" leftSection={<IconEdit size={14} />} onClick={() => openEdit(s)}>Modifier</Button>
-              <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => handleDelete(s)}>Supprimer</Button>
+              <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
             </>
           )}
           {s.status === 'ongoing' && (
-            <Button size="xs" color="brand" leftSection={<IconFlag size={14} />} onClick={() => openArriveeModal(s)}>Saisir arrivée</Button>
+            <Button size="xs" color="brand" leftSection={<IconFlag size={14} />} onClick={() => openArriveeModal(s)} loading={actionLoading === 'arrivee'}>Saisir arrivée</Button>
           )}
           {s.status === 'pending_return' && (
-            <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={() => handleValidateReturn(s)}>Valider le retour</Button>
+            <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={() => setValidateReturnTarget(s)} loading={actionLoading === 'validateReturn'}>Valider le retour</Button>
           )}
           {s.status === 'finished' && <Text size="xs" c="dimmed">Terminée</Text>}
         </Group>
@@ -470,8 +461,8 @@ function Sorties() {
               {sorties.map((s) => (
                 <SortieCard key={s.id} sortie={s}
                   onDepart={openDepartModal} onSuggestions={openSuggestionsModal}
-                  onEdit={openEdit} onDelete={handleDelete} onValidateReturn={handleValidateReturn}
-                  onArrivee={openArriveeModal}
+                  onEdit={openEdit} onDelete={() => setDeleteTarget(s)} onValidateReturn={() => setValidateReturnTarget(s)}
+                  onArrivee={openArriveeModal} actionLoading={actionLoading}
                 />
               ))}
             </SimpleGrid>
@@ -591,6 +582,28 @@ function Sorties() {
           />
         )}
       </Modal>
+
+      <ConfirmModal
+        opened={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Supprimer cette sortie ?"
+        message="La sortie sera définitivement supprimée et le véhicule libéré."
+        confirmLabel="Supprimer"
+        variant="danger"
+        loading={actionLoading === 'delete'}
+      />
+
+      <ConfirmModal
+        opened={!!validateReturnTarget}
+        onClose={() => setValidateReturnTarget(null)}
+        onConfirm={handleValidateReturn}
+        title="Valider le retour ?"
+        message={`La sortie vers ${validateReturnTarget?.destination || ''} sera clôturée. Km retour: ${validateReturnTarget?.return_km || ''} km`}
+        confirmLabel="Oui, valider"
+        variant="question"
+        loading={actionLoading === 'validateReturn'}
+      />
 
       <style>{`
         .sortie-card {

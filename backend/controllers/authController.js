@@ -6,6 +6,18 @@ exports.register = async (req, res) => {
   try {
     const { nom, prenom, email, password, department, role } = req.body;
 
+    if (!nom || !prenom || !email || !password) {
+      return res.status(400).json({ message: 'Champs obligatoires : nom, prenom, email, password' });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: 'Format d\'email invalide' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 6 caractères' });
+    }
+
     const existing = await Employee.findOne({ where: { email } });
     if (existing) {
       return res.status(400).json({ message: 'Cet email est déjà utilisé' });

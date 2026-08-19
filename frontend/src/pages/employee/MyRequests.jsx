@@ -8,9 +8,9 @@ import { DateTimePicker } from '@mantine/dates';
 import { IconCheck, IconX, IconTrash, IconInbox, IconEdit, IconSend, IconEye } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
-import Swal from 'sweetalert2';
 import { requestService } from '../../api/requestService';
 import { notifySuccess, notifyError } from '../../utils/toast';
+import ConfirmModal from '../../components/ConfirmModal';
 
 const statusColor = { pending: 'gray', approved: 'brand', rescheduled: 'brandYellow', rejected: 'red', cancelled: 'gray' };
 const statusLabel = { pending: 'En attente', approved: 'Validée', rescheduled: 'Replanifiée', rejected: 'Refusée', cancelled: 'Annulée' };
@@ -55,16 +55,16 @@ function RequestCard({ request, onRespond, onCancel, onEdit, onDetail }) {
         {request.status === 'rescheduled' && (
           <>
             <Button size="xs" color="brand" leftSection={<IconCheck size={14} />}
-              onClick={() => onRespond(request.id, true)}
+              onClick={() => onRespond(true)}
             >Accepter</Button>
             <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />}
-              onClick={() => onRespond(request.id, false)}
+              onClick={() => onRespond(false)}
             >Refuser</Button>
           </>
         )}
         {canCancel && (
           <Button size="xs" variant="outline" color="gray" leftSection={<IconTrash size={14} />}
-            onClick={() => onCancel(request)}
+            onClick={onCancel}
           >Annuler</Button>
         )}
       </Group>
@@ -96,6 +96,11 @@ function MyRequests() {
   const [editDate, setEditDate] = useState(null);
   const [editNb, setEditNb] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [respondTarget, setRespondTarget] = useState(null);
+  const [respondAccepted, setRespondAccepted] = useState(false);
+  const [responding, setResponding] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const openEdit = (r) => {
     setEditRequest(r);
@@ -128,47 +133,28 @@ function MyRequests() {
     }
   };
 
-  const handleRespond = async (id, accepted) => {
-    const action = accepted ? 'accepter' : 'refuser';
-    const result = await Swal.fire({
-      title: `${accepted ? 'Accepter' : 'Refuser'} la replanification ?`,
-      text: accepted ? 'Vous confirmez la nouvelle date proposée.' : 'Votre demande sera annulée.',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: `Oui, ${action}`,
-      cancelButtonText: 'Annuler',
-      confirmButtonColor: accepted ? '#2E7D32' : '#D32F2F',
-      cancelButtonColor: '#8C8C8C',
-      reverseButtons: true,
-    });
-    if (!result.isConfirmed) return;
+  const handleRespond = async () => {
+    if (!respondTarget) return;
+    setResponding(true);
     try {
-      await requestService.respondReschedule(id, accepted);
-      notifySuccess(accepted ? 'Nouvelle date acceptée' : 'Replanification refusée');
+      await requestService.respondReschedule(respondTarget.id, respondAccepted);
+      notifySuccess(respondAccepted ? 'Nouvelle date acceptée' : 'Replanification refusée');
+      setRespondTarget(null);
       fetchRequests();
     } catch { notifyError('Erreur lors de la réponse'); }
+    finally { setResponding(false); }
   };
 
-  const handleCancel = async (request) => {
-    const result = await Swal.fire({
-      title: 'Annuler cette demande ?',
-      text: request.status === 'approved'
-        ? 'Cette demande est déjà validée. L\'annuler libérera la place sur le véhicule.'
-        : 'Votre demande sera supprimée et la place libérée.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Oui, annuler',
-      cancelButtonText: 'Retour',
-      confirmButtonColor: '#D32F2F',
-      cancelButtonColor: '#8C8C8C',
-      reverseButtons: true,
-    });
-    if (!result.isConfirmed) return;
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
     try {
-      await requestService.cancel(request.id);
+      await requestService.cancel(cancelTarget.id);
       notifySuccess('Demande annulée');
+      setCancelTarget(null);
       fetchRequests();
     } catch { notifyError("Erreur lors de l'annulation"); }
+    finally { setCancelling(false); }
   };
 
   const [detailRequest, setDetailRequest] = useState(null);
@@ -210,16 +196,16 @@ function MyRequests() {
           {r.status === 'rescheduled' && (
             <>
               <Button size="xs" color="brand" leftSection={<IconCheck size={14} />}
-                onClick={() => handleRespond(r.id, true)}
+                onClick={() => { setRespondTarget(r); setRespondAccepted(true); }}
               >Accepter</Button>
               <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />}
-                onClick={() => handleRespond(r.id, false)}
+                onClick={() => { setRespondTarget(r); setRespondAccepted(false); }}
               >Refuser</Button>
             </>
           )}
           {canCancel(r) && (
             <Button size="xs" variant="outline" color="gray" leftSection={<IconTrash size={14} />}
-              onClick={() => handleCancel(r)}
+              onClick={() => setCancelTarget(r)}
             >Annuler</Button>
           )}
         </Group>
@@ -259,7 +245,7 @@ function MyRequests() {
           {viewMode === 'cards' ? (
             <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
               {requests.map((r) => (
-                <RequestCard key={r.id} request={r} onRespond={handleRespond} onCancel={handleCancel} onEdit={openEdit} onDetail={openDetail} />
+                <RequestCard key={r.id} request={r} onRespond={(accepted) => { setRespondTarget(r); setRespondAccepted(accepted); }} onCancel={() => setCancelTarget(r)} onEdit={openEdit} onDetail={openDetail} />
               ))}
             </SimpleGrid>
           ) : (
@@ -330,6 +316,30 @@ function MyRequests() {
           </Stack>
         )}
       </Modal>
+
+      <ConfirmModal
+        opened={!!respondTarget}
+        onClose={() => setRespondTarget(null)}
+        onConfirm={handleRespond}
+        title={`${respondAccepted ? 'Accepter' : 'Refuser'} la replanification ?`}
+        message={respondAccepted ? 'Vous confirmez la nouvelle date proposée.' : 'Votre demande sera annulée.'}
+        confirmLabel={respondAccepted ? 'Accepter' : 'Refuser'}
+        variant={respondAccepted ? 'question' : 'danger'}
+        loading={responding}
+      />
+
+      <ConfirmModal
+        opened={!!cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={handleCancel}
+        title="Annuler cette demande ?"
+        message={cancelTarget?.status === 'approved'
+          ? "Cette demande est déjà validée. L'annuler libérera la place sur le véhicule."
+          : 'Votre demande sera supprimée et la place libérée.'}
+        confirmLabel="Oui, annuler"
+        variant="danger"
+        loading={cancelling}
+      />
 
       <style>{`
         .request-card {

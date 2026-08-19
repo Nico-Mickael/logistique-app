@@ -3,6 +3,37 @@ const { Op } = require('sequelize');
 const { createNotification } = require('./notificationController');
 const { notifyChiefs } = require('../services/socketService');
 
+async function autoCreateSortie(request) {
+  if (!request.vehicle_id) return;
+  const emp = await Employee.findByPk(request.employee_id);
+  const existingSortie = await Sortie.findOne({
+    where: { vehicle_id: request.vehicle_id, departure_time: request.date_souhaitee },
+  });
+  if (existingSortie) {
+    const linkExists = await SortieRequest.findOne({
+      where: { sortie_id: existingSortie.id, request_id: request.id },
+    });
+    if (!linkExists) {
+      await SortieRequest.create({ sortie_id: existingSortie.id, request_id: request.id });
+    }
+  } else {
+    const sortie = await Sortie.create({
+      vehicle_id: request.vehicle_id,
+      driver_name: emp ? `${emp.prenom} ${emp.nom}` : 'Chauffeur',
+      destination: request.destination,
+      departure_time: request.date_souhaitee,
+      status: 'planned',
+    });
+    await SortieRequest.create({ sortie_id: sortie.id, request_id: request.id });
+    const vehicle = await Vehicle.findByPk(request.vehicle_id);
+    if (vehicle && vehicle.status === 'available') {
+      vehicle.status = 'busy';
+      await vehicle.save();
+    }
+    notifyChiefs('sortie_created', sortie);
+  }
+}
+
 // Employé : créer une demande
 exports.create = async (req, res) => {
   try {
@@ -14,31 +45,22 @@ exports.create = async (req, res) => {
         return res.status(400).json({ message: 'Véhicule indisponible' });
       }
 
-      const pastApproved = await Request.count({
-        where: {
-          vehicle_id,
-          status: 'approved',
-          date_souhaitee: { [Op.lt]: new Date() },
-        },
-      });
-      if (pastApproved > 0) {
-        return res.status(400).json({ message: 'Véhicule déjà en trajet (départ passé)' });
-      }
-
       const requestedDate = new Date(date_souhaitee);
       const startOfDay = new Date(requestedDate);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(requestedDate);
       endOfDay.setHours(23, 59, 59, 999);
 
-      const occupiedCount = await Request.count({
+      const occupiedRequests = await Request.findAll({
         where: {
           vehicle_id,
           status: ['pending', 'approved', 'rescheduled'],
           date_souhaitee: { [Op.between]: [startOfDay, endOfDay] },
         },
+        attributes: ['nb_personnes'],
       });
-      if (occupiedCount + nb_personnes > vehicle.capacity) {
+      const occupiedSeats = occupiedRequests.reduce((sum, r) => sum + (r.nb_personnes || 0), 0);
+      if (occupiedSeats + nb_personnes > vehicle.capacity) {
         return res.status(400).json({ message: 'Pas assez de places disponibles dans ce véhicule pour cette date' });
       }
     }
@@ -130,41 +152,19 @@ exports.updateStatus = async (req, res) => {
       return res.status(400).json({ message: 'Statut invalide' });
     }
 
+    const allowedTransitions = { pending: ['approved', 'rejected', 'rescheduled'], rescheduled: ['approved', 'rejected'] };
+    if (!allowedTransitions[request.status]?.includes(status)) {
+      return res.status(400).json({ message: `Impossible de passer de "${request.status}" à "${status}"` });
+    }
+
     request.status = status;
     if (status === 'rescheduled' && new_date) {
       request.date_souhaitee = new_date;
     }
     await request.save();
 
-    // Auto-créer une sortie dès qu'une demande est validée
-    if (status === 'approved' && request.vehicle_id) {
-      const emp = await Employee.findByPk(request.employee_id);
-      const existingSortie = await Sortie.findOne({
-        where: { vehicle_id: request.vehicle_id, departure_time: request.date_souhaitee },
-      });
-      if (existingSortie) {
-        const linkExists = await SortieRequest.findOne({
-          where: { sortie_id: existingSortie.id, request_id: request.id },
-        });
-        if (!linkExists) {
-          await SortieRequest.create({ sortie_id: existingSortie.id, request_id: request.id });
-        }
-      } else {
-        const sortie = await Sortie.create({
-          vehicle_id: request.vehicle_id,
-          driver_name: emp ? `${emp.prenom} ${emp.nom}` : 'Chauffeur',
-          destination: request.destination,
-          departure_time: request.date_souhaitee,
-          status: 'planned',
-        });
-        await SortieRequest.create({ sortie_id: sortie.id, request_id: request.id });
-        const vehicle = await Vehicle.findByPk(request.vehicle_id);
-        if (vehicle && vehicle.status === 'available') {
-          vehicle.status = 'busy';
-          await vehicle.save();
-        }
-        notifyChiefs('sortie_created', sortie);
-      }
+    if (status === 'approved') {
+      await autoCreateSortie(request);
     }
 
     await createNotification({
@@ -273,39 +273,15 @@ exports.respondReschedule = async (req, res) => {
     if (request.employee_id !== req.user.id) {
       return res.status(403).json({ message: 'Action non autorisée' });
     }
+    if (request.status !== 'rescheduled') {
+      return res.status(400).json({ message: 'Cette demande n\'est pas en attente de réponse' });
+    }
 
     request.status = accepted ? 'approved' : 'rejected';
     await request.save();
 
-    // Auto-créer une sortie si accepté et véhicule assigné
-    if (accepted && request.vehicle_id) {
-      const emp = await Employee.findByPk(request.employee_id);
-      const existingSortie = await Sortie.findOne({
-        where: { vehicle_id: request.vehicle_id, departure_time: request.date_souhaitee },
-      });
-      if (existingSortie) {
-        const linkExists = await SortieRequest.findOne({
-          where: { sortie_id: existingSortie.id, request_id: request.id },
-        });
-        if (!linkExists) {
-          await SortieRequest.create({ sortie_id: existingSortie.id, request_id: request.id });
-        }
-      } else {
-        const sortie = await Sortie.create({
-          vehicle_id: request.vehicle_id,
-          driver_name: emp ? `${emp.prenom} ${emp.nom}` : 'Chauffeur',
-          destination: request.destination,
-          departure_time: request.date_souhaitee,
-          status: 'planned',
-        });
-        await SortieRequest.create({ sortie_id: sortie.id, request_id: request.id });
-        const vehicle = await Vehicle.findByPk(request.vehicle_id);
-        if (vehicle && vehicle.status === 'available') {
-          vehicle.status = 'busy';
-          await vehicle.save();
-        }
-        notifyChiefs('sortie_created', sortie);
-      }
+    if (accepted) {
+      await autoCreateSortie(request);
     }
 
     await createNotification({

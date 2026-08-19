@@ -14,6 +14,10 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      notifyError('Format d\'email invalide');
+      return;
+    }
     setLoading(true);
     try {
       const user = await login(email, password);

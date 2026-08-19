@@ -1,4 +1,4 @@
-const { Request } = require('../models');
+const { Request, SortieRequest } = require('../models');
 const { Op } = require('sequelize');
 
 // Trouve les demandes compatibles avec une sortie (même destination, ±30min, capacité respectée)
@@ -7,11 +7,14 @@ exports.findCompatibleRequests = async (destination, dateSouhaitee, vehicleCapac
   const min = new Date(target.getTime() - 30 * 60000);
   const max = new Date(target.getTime() + 30 * 60000);
 
+  const linkedRequestIds = (await SortieRequest.findAll({ attributes: ['request_id'] })).map((sr) => sr.request_id);
+
   const candidates = await Request.findAll({
     where: {
       destination,
       status: 'approved',
       date_souhaitee: { [Op.between]: [min, max] },
+      id: { [Op.notIn]: linkedRequestIds },
     },
   });
 

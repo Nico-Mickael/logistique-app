@@ -52,6 +52,18 @@ function Header({ opened: navOpened, onToggle }) {
     }
   };
 
+  const handleMarkAllRead = async () => {
+    try {
+      const unread = notifications.filter((n) => !n.is_read);
+      for (const n of unread) {
+        await notificationService.markAsRead(n.id);
+      }
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } catch {
+      // silent
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -103,9 +115,16 @@ function Header({ opened: navOpened, onToggle }) {
           <Popover.Dropdown p="xs">
             <Group justify="space-between" px="xs" mb="xs">
               <Text size="sm" fw={600}>Notifications</Text>
-              {unreadCount > 0 && (
-                <Badge size="xs" variant="light" color="red">{unreadCount} non lues</Badge>
-              )}
+              <Group gap="xs">
+                {unreadCount > 0 && (
+                  <Button size="compact-xs" variant="subtle" color="brand" onClick={handleMarkAllRead}>
+                    Tout marquer lu
+                  </Button>
+                )}
+                {unreadCount > 0 && (
+                  <Badge size="xs" variant="light" color="red">{unreadCount} non lues</Badge>
+                )}
+              </Group>
             </Group>
             {loadingNotif && notifications.length === 0 ? (
               <Center h={60}><Loader size="sm" /></Center>

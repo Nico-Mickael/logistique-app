@@ -28,7 +28,7 @@ const entities = {
 
 // ── Parse file (CSV or XLSX) ──
 function parseFile(buffer, filename) {
-  if (filename.endsWith('.csv')) {
+  if (filename.toLowerCase().endsWith('.csv')) {
     const csv = buffer.toString('utf-8');
     return csvParse(csv, {
       columns: true,
@@ -162,7 +162,11 @@ exports.execute = async (req, res) => {
     if (!entityDef) return res.status(400).json({ message: 'Entité inconnue' });
 
     const rows = parseFile(req.file.buffer, req.file.originalname);
-    const parsedMapping = typeof mappingInput === 'string' ? JSON.parse(mappingInput) : mappingInput;
+    const parsedMapping = typeof mappingInput === 'string'
+      ? (() => { try { return JSON.parse(mappingInput); } catch { return null; } })()
+      : mappingInput;
+
+    if (!parsedMapping) return res.status(400).json({ message: 'Mapping invalide' });
 
     const errors = [];
     const created = [];
@@ -181,7 +185,9 @@ exports.execute = async (req, res) => {
           const existing = await Employee.findOne({ where: { email } });
           if (existing) { errors.push(`Ligne ${lineNum} : ${email} existe déjà`); continue; }
           const h = await bcrypt.hash(password, 10);
-          const e = await Employee.create({ nom, prenom, email, password: h, department, role: role || 'employee' });
+          const validRoles = ['employee', 'logistics_chief', 'admin'];
+          const finalRole = validRoles.includes(role) ? role : 'employee';
+          const e = await Employee.create({ nom, prenom, email, password: h, department, role: finalRole });
           created.push({ email: e.email, nom: e.nom, prenom: e.prenom, role: e.role });
         } else if (entity === 'vehicles') {
           const type = (row.type || '').toLowerCase();

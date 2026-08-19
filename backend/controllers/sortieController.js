@@ -101,7 +101,7 @@ exports.addRequest = async (req, res) => {
   }
 };
 
-// Changer le statut d'une sortie (planned → ongoing → finished)
+// Changer le statut d'une sortie (planned → ongoing → pending_return → finished)
 exports.updateStatus = async (req, res) => {
   try {
     const { status } = req.body;
@@ -112,6 +112,15 @@ exports.updateStatus = async (req, res) => {
 
     const sortie = await Sortie.findByPk(req.params.id);
     if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+
+    const allowedTransitions = {
+      planned: ['ongoing'],
+      ongoing: ['pending_return', 'finished'],
+      pending_return: ['finished'],
+    };
+    if (!allowedTransitions[sortie.status]?.includes(status)) {
+      return res.status(400).json({ message: `Transition "${sortie.status}" → "${status}" non autorisée` });
+    }
 
     sortie.status = status;
     await sortie.save();
@@ -288,6 +297,9 @@ exports.remove = async (req, res) => {
   try {
     const sortie = await Sortie.findByPk(req.params.id);
     if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+    if (sortie.status !== 'planned') {
+      return res.status(400).json({ message: 'Seules les sorties planifiées peuvent être supprimées' });
+    }
 
     const vehicle = await Vehicle.findByPk(sortie.vehicle_id);
     if (vehicle) {

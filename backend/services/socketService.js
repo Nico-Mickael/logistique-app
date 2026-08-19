@@ -1,9 +1,11 @@
+const jwt = require('jsonwebtoken');
+
 let io;
 
 function setupSocket(server) {
   io = require('socket.io')(server, {
     cors: {
-      origin: '*',
+      origin: process.env.CORS_ORIGIN || '*',
       methods: ['GET', 'POST'],
     },
   });
@@ -18,7 +20,6 @@ function setupSocket(server) {
     }
 
     try {
-      const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId = decoded.id;
       socket.userRole = decoded.role;

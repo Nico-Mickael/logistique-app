@@ -12,8 +12,16 @@ const employeeRoutes = require('./routes/employeeRoutes');
 const importRoutes = require('./routes/importRoutes');
 const { setupSocket } = require('./services/socketService');
 
+if (!process.env.JWT_SECRET) {
+  console.error('❌ JWT_SECRET non défini dans les variables d\'environnement');
+  process.exit(1);
+}
+
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+}));
 app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
@@ -25,13 +33,25 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/import', importRoutes);
 
+app.use((err, req, res, next) => {
+  console.error('Erreur non gérée:', err);
+  res.status(500).json({ message: 'Erreur interne du serveur' });
+});
+
 const PORT = process.env.PORT || 5000;
 
 const server = http.createServer(app);
 setupSocket(server);
 
-db.sequelize.authenticate()
-  .then(() => console.log('✅ Connexion PostgreSQL réussie'))
-  .catch((err) => console.error('❌ Erreur de connexion PostgreSQL :', err.message));
+const start = async () => {
+  try {
+    await db.sequelize.authenticate();
+    console.log('✅ Connexion PostgreSQL réussie');
+    server.listen(PORT, () => console.log(`Backend démarré sur le port ${PORT}`));
+  } catch (err) {
+    console.error('❌ Erreur de connexion PostgreSQL :', err.message);
+    process.exit(1);
+  }
+};
 
-server.listen(PORT, () => console.log(`Backend démarré sur le port ${PORT}`));
+start();

@@ -5,7 +5,10 @@ const importController = require('../controllers/importController');
 const auth = require('../middlewares/auth');
 const checkRole = require('../middlewares/checkRole');
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 
 router.use(auth, checkRole(['superadmin']));
 

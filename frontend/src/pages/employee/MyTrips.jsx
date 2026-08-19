@@ -98,6 +98,7 @@ function MyTrips() {
   const [returnSortie, setReturnSortie] = useState(null);
   const [returnKm, setReturnKm] = useState(0);
   const [returnedAt, setReturnedAt] = useState(null);
+  const [returnLoading, setReturnLoading] = useState(false);
 
   const fetchTrips = async () => {
     try {
@@ -116,15 +117,16 @@ function MyTrips() {
 
   const openReturnModal = (s) => {
     setReturnSortie(s);
-    setReturnKm((s.departure_km || 0) + 1);
+    setReturnKm(s.departure_km != null ? s.departure_km + 1 : 0);
     setReturnedAt(new Date());
     openReturn();
   };
 
   const handleReturn = async () => {
     if (!returnKm || returnKm <= 0) { notifyError('Saisissez un kilométrage valide'); return; }
-    if (returnKm < returnSortie.departure_km) { notifyError("Le km de retour ne peut pas être inférieur au km de départ"); return; }
+    if (returnSortie && returnKm < returnSortie.departure_km) { notifyError("Le km de retour ne peut pas être inférieur au km de départ"); return; }
     if (!returnedAt) { notifyError('Saisissez la date et heure de retour'); return; }
+    setReturnLoading(true);
     try {
       await sortieService.employeeReturn(returnSortie.id, returnKm, returnedAt);
       notifySuccess('Retour marqué - En attente de validation');
@@ -132,6 +134,8 @@ function MyTrips() {
       fetchTrips();
     } catch (err) {
       notifyError(err.response?.data?.message || "Erreur lors de l'enregistrement du retour");
+    } finally {
+      setReturnLoading(false);
     }
   };
 
@@ -235,14 +239,14 @@ function MyTrips() {
         <DateTimePicker label="Date et heure de retour" value={returnedAt} onChange={setReturnedAt}
           required mb="sm" />
         <NumberInput label="Kilométrage au retour" placeholder="Ex: 12750"
-          min={returnSortie?.departure_km || 0} value={returnKm} onChange={setReturnKm} mb="md" required
+          min={returnSortie?.departure_km != null ? returnSortie.departure_km : 0} value={returnKm} onChange={setReturnKm} mb="md" required
         />
         {returnSortie?.departure_km && returnKm > returnSortie.departure_km && (
           <Text size="sm" c="dimmed" mb="md">
             Distance parcourue : <strong>{returnKm - returnSortie.departure_km} km</strong>
           </Text>
         )}
-        <Button color="brand" fullWidth onClick={handleReturn} size="md">Confirmer le retour</Button>
+        <Button color="brand" fullWidth onClick={handleReturn} size="md" loading={returnLoading}>Confirmer le retour</Button>
       </Modal>
 
       <style>{`

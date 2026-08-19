@@ -7,6 +7,7 @@ import { IconPlus, IconInbox, IconEdit, IconTrash, IconUsers as IconUsersIcon, I
 import { useDisclosure } from '@mantine/hooks';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import api from '../../api/axios';
+import ConfirmModal from '../../components/ConfirmModal';
 
 const roleLabels = {
   superadmin: 'Superadmin',
@@ -33,6 +34,8 @@ export default function Users() {
   const pageSize = 10;
 
   const [form, setForm] = useState({ nom: '', prenom: '', email: '', password: '', department: '', role: 'employee' });
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -96,14 +99,18 @@ export default function Users() {
     } finally { setSaving(false); }
   };
 
-  const handleDelete = async (u) => {
-    if (!window.confirm(`Supprimer ${u.prenom} ${u.nom} ?`)) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await api.delete(`/employees/${u.id}`);
+      await api.delete(`/employees/${deleteTarget.id}`);
       notifySuccess('Utilisateur supprimé');
+      setDeleteTarget(null);
       fetchUsers();
     } catch (err) {
       notifyError(err.response?.data?.message || 'Erreur serveur');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -122,7 +129,7 @@ export default function Users() {
         <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
           <Button size="xs" variant="subtle" leftSection={<IconEdit size={14} />} onClick={() => openEdit(u)}>Modifier</Button>
           {u.role !== 'superadmin' && (
-            <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => handleDelete(u)}>Supprimer</Button>
+            <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(u)}>Supprimer</Button>
           )}
         </Group>
       ),
@@ -218,6 +225,17 @@ export default function Users() {
           </Group>
         </Stack>
       </Modal>
+
+      <ConfirmModal
+        opened={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title={`Supprimer ${deleteTarget?.prenom} ${deleteTarget?.nom} ?`}
+        message="Cette action est irréversible."
+        confirmLabel="Supprimer"
+        variant="danger"
+        loading={deleting}
+      />
 
       <style>{`
         .page-content { animation: fade-in 0.3s ease-out; }

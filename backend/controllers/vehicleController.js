@@ -33,22 +33,27 @@ exports.getOccupancy = async (req, res) => {
   try {
     const vehicles = await Vehicle.findAll();
 
-    const result = await Promise.all(vehicles.map(async (vehicle) => {
-      const requests = await Request.findAll({
-        where: { vehicle_id: vehicle.id, status: ['pending', 'approved', 'rescheduled'] },
-        include: [{ model: Employee, attributes: ['nom', 'prenom', 'department'] }],
-      });
+    const allRequests = await Request.findAll({
+      where: { status: ['pending', 'approved', 'rescheduled'] },
+      include: [{ model: Employee, attributes: ['nom', 'prenom', 'department'] }],
+    });
 
-      const occupiedSeats = requests.reduce((sum, r) => sum + r.nb_personnes, 0);
-      const hasPastApproved = requests.some(
-        (r) => r.status === 'approved' && new Date(r.date_souhaitee).getTime() < Date.now()
-      );
+    const requestsByVehicle = {};
+    for (const r of allRequests) {
+      if (r.vehicle_id) {
+        if (!requestsByVehicle[r.vehicle_id]) requestsByVehicle[r.vehicle_id] = [];
+        requestsByVehicle[r.vehicle_id].push(r);
+      }
+    }
+
+    const result = vehicles.map((vehicle) => {
+      const requests = requestsByVehicle[vehicle.id] || [];
+      const occupiedSeats = requests.reduce((sum, r) => sum + (r.nb_personnes || 0), 0);
 
       return {
         ...vehicle.toJSON(),
         occupiedSeats,
         availableSeats: Math.max(0, vehicle.capacity - occupiedSeats),
-        status: hasPastApproved ? 'busy' : vehicle.status,
         occupants: requests.map((r) => ({
           id: r.id,
           employee_id: r.employee_id,
@@ -59,7 +64,7 @@ exports.getOccupancy = async (req, res) => {
           date_souhaitee: r.date_souhaitee,
         })),
       };
-    }));
+    });
 
     res.json(result);
   } catch (err) {
