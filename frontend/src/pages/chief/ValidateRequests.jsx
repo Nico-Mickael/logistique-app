@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
-  TextInput, Textarea, Stack, Card, SimpleGrid, Flex, Select,
+  TextInput, Stack, Flex, Select, Card, SimpleGrid, Pagination,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
@@ -23,45 +23,36 @@ const statusOptions = [
   { value: 'rescheduled', label: 'Replanifiée' },
 ];
 
-function RequestCard({ request, onApprove, onReject, onReschedule }) {
+function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail }) {
   return (
-    <Card withBorder radius="lg" p="lg" className="request-card">
-      <div className="stat-card-accent" style={{ background: 'var(--mantine-color-brandYellow-6)' }} />
+    <Card withBorder radius="lg" p="lg" className="validate-request-card">
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+        background: statusColor[r.status] === 'brand' ? 'var(--mantine-color-brand-6)' :
+                    statusColor[r.status] === 'red' ? 'var(--mantine-color-red-6)' :
+                    statusColor[r.status] === 'brandYellow' ? 'var(--mantine-color-brandYellow-6)' :
+                    'var(--mantine-color-gray-5)',
+      }} />
       <Group justify="space-between" mb="xs" wrap="nowrap">
-        <Text fw={600} size="md">{request.destination}</Text>
-        <Badge color={statusColor[request.status]} variant="light">
-          {statusLabel[request.status]}
-        </Badge>
+        <Text fw={600} size="md">{r.Employee?.prenom} {r.Employee?.nom}</Text>
+        <Badge color={statusColor[r.status]} variant="light">{statusLabel[r.status]}</Badge>
       </Group>
       <Stack gap={4} mb="md">
-        <Text size="sm">
-          <Text span c="dimmed" size="sm">Employé: </Text>
-          {request.Employee?.prenom} {request.Employee?.nom}
-        </Text>
-        <Text size="sm">
-          <Text span c="dimmed" size="sm">Motif: </Text>{request.motif}
-        </Text>
-        <Text size="sm">
-          <Text span c="dimmed" size="sm">Date: </Text>
-          {dayjs(request.date_souhaitee).format('DD/MM/YYYY HH:mm')}
-        </Text>
-        <Text size="sm">
-          <Text span c="dimmed" size="sm">Personnes: </Text>{request.nb_personnes}
-        </Text>
+        <Text size="sm"><Text span c="dimmed">Destination: </Text>{r.destination}</Text>
+        <Text size="sm"><Text span c="dimmed">Date: </Text>{dayjs(r.date_souhaitee).format('DD/MM/YYYY HH:mm')}</Text>
+        <Text size="sm"><Text span c="dimmed">Personnes: </Text>{r.nb_personnes}</Text>
       </Stack>
-      {request.status === 'pending' && (
-        <Group gap="xs" onClick={(e) => e.stopPropagation()}>
-          <Button size="xs" color="brand" leftSection={<IconCheck size={14} />} onClick={() => onApprove(request.id)}>
-            Valider
-          </Button>
-          <Button size="xs" variant="outline" color="brandYellow" leftSection={<IconCalendar size={14} />} onClick={() => onReschedule(request)}>
-            Replanifier
-          </Button>
-          <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />} onClick={() => onReject(request.id)}>
-            Refuser
-          </Button>
-        </Group>
-      )}
+      <Group gap="xs" wrap="wrap">
+        {r.status === 'pending' ? (
+          <>
+            <Button size="xs" color="brand" leftSection={<IconCheck size={14} />} onClick={() => onApprove(r.id)}>Valider</Button>
+            <Button size="xs" variant="outline" color="brandYellow" leftSection={<IconCalendar size={14} />} onClick={() => onReschedule(r)}>Replanifier</Button>
+            <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />} onClick={() => onReject(r)}>Refuser</Button>
+          </>
+        ) : (
+          <Button size="xs" variant="subtle" color="brand" leftSection={<IconEye size={14} />} onClick={() => onDetail(r)}>Détail</Button>
+        )}
+      </Group>
     </Card>
   );
 }
@@ -202,7 +193,7 @@ function ValidateRequests() {
               <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />} onClick={() => setRejectTarget(r)}>Refuser</Button>
             </>
           ) : (
-            <Button size="xs" variant="subtle" leftSection={<IconEye size={14} />} onClick={() => openDetail(r)}>Détail</Button>
+            <Button size="xs" variant="subtle" color="brand" leftSection={<IconEye size={14} />} onClick={() => openDetail(r)}>Détail</Button>
           )}
         </Group>
       ),
@@ -230,9 +221,9 @@ function ValidateRequests() {
           <Select placeholder="Statut" data={statusOptions} value={statusFilter}
             onChange={setStatusFilter} clearable size="xs" w={140} />
           <TextInput placeholder="Destination..." leftSection={<IconSearch size={14} />}
-            value={destinationFilter} onChange={(e) => setDestinationFilter(e.currentTarget.value)} size="xs" w={180} />
-          <DateTimePicker placeholder="Du" value={dateFrom} onChange={setDateFrom} size="xs" w={140} clearable />
-          <DateTimePicker placeholder="Au" value={dateTo} onChange={setDateTo} size="xs" w={140} clearable />
+            value={destinationFilter} onChange={(e) => setDestinationFilter(e.currentTarget.value)} size="xs" w={{ base: '100%', sm: 180 }} />
+          <DateTimePicker placeholder="Du" value={dateFrom} onChange={setDateFrom} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+          <DateTimePicker placeholder="Au" value={dateTo} onChange={setDateTo} size="xs" w={{ base: '100%', sm: 140 }} clearable />
           <Button color="brand" size="xs" onClick={applyFilters}>Filtrer</Button>
           {hasFilters && (
             <Button variant="subtle" color="gray" size="xs" leftSection={<IconClear size={14} />} onClick={clearFilters}>
@@ -252,27 +243,46 @@ function ValidateRequests() {
           </Center>
         </Paper>
       ) : (
-        <Paper p="lg" radius="lg" withBorder className="dashboard-panel">
-          <DataTable
-            withTableBorder
-            borderRadius="md"
-            highlightOnHover
-            verticalSpacing="sm"
-            columns={columns}
-            records={requests}
-            idAccessor="id"
-            onRowClick={({ record }) => openDetail(record)}
-            page={page}
-            onPageChange={setPage}
-            totalRecords={total}
-            recordsPerPage={limit}
-            paginationSize="sm"
-            paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
-          />
-        </Paper>
+        <>
+          <div className="hide-on-mobile">
+            <Paper p="lg" radius="lg" withBorder className="dashboard-panel">
+              <DataTable
+                withTableBorder
+                borderRadius="md"
+                highlightOnHover
+                verticalSpacing="sm"
+                columns={columns}
+                records={requests}
+                idAccessor="id"
+                onRowClick={({ record }) => openDetail(record)}
+                page={page}
+                onPageChange={setPage}
+                totalRecords={total}
+                recordsPerPage={limit}
+                paginationSize="sm"
+                paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
+              />
+            </Paper>
+          </div>
+
+          <div className="hide-on-tablet-up">
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+              {requests.map((r) => (
+                <ValidateRequestCard key={r.id} r={r}
+                  onApprove={handleApprove} onReject={(r) => setRejectTarget(r)}
+                  onReschedule={openRescheduleModal} onDetail={openDetail}
+                />
+              ))}
+            </SimpleGrid>
+            <Center mt="md">
+              <Pagination total={Math.ceil(total / limit)} value={page} onChange={setPage} color="brand" />
+            </Center>
+          </div>
+        </>
       )}
 
-      <Modal opened={detailOpened} onClose={() => setDetailOpened(false)} title="Détail de la demande" size="lg"
+      <Modal opened={detailOpened} onClose={() => setDetailOpened(false)} title="Détail de la demande"
+        size="lg" fullScreen={{ base: true, sm: false }}
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
         transitionProps={{ transition: 'fade', duration: 200 }}
       >
@@ -352,6 +362,11 @@ function ValidateRequests() {
 
       <style>{`
         .page-content {  }
+        .validate-request-card {
+          position: relative;
+          overflow: hidden;
+          animation: panel-in 0.35s ease-out;
+        }
         .request-card {
           position: relative;
           overflow: hidden;

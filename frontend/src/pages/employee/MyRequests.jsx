@@ -5,7 +5,7 @@ import {
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
-import { IconCheck, IconX, IconTrash, IconInbox, IconEdit, IconSend, IconEye } from '@tabler/icons-react';
+import { IconCheck, IconX, IconTrash, IconInbox, IconEdit, IconSend } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
 import { requestService } from '../../api/requestService';
@@ -48,7 +48,7 @@ function RequestCard({ request, onRespond, onCancel, onEdit, onDetail }) {
       </Stack>
       <Group gap="xs" onClick={(e) => e.stopPropagation()}>
         {request.status === 'pending' && (
-          <Button size="xs" variant="subtle" leftSection={<IconEdit size={14} />}
+          <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />}
             onClick={() => onEdit(request)}
           >Modifier</Button>
         )}
@@ -189,7 +189,7 @@ function MyRequests() {
       render: (r) => (
         <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
           {r.status === 'pending' && (
-            <Button size="xs" variant="subtle" leftSection={<IconEdit size={14} />}
+            <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />}
               onClick={() => openEdit(r)}
             >Modifier</Button>
           )}
@@ -267,6 +267,7 @@ function MyRequests() {
       )}
 
       <Modal opened={detailOpened} onClose={() => setDetailOpened(false)} title="Détail de la demande" size="lg" radius="md"
+        fullScreen={{ base: true, sm: false }}
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
         transitionProps={{ transition: 'fade', duration: 200 }}
       >
@@ -296,7 +297,8 @@ function MyRequests() {
       </Modal>
 
       <Modal opened={!!editRequest} onClose={() => setEditRequest(null)}
-        title="Modifier la demande" size="lg" radius="md">
+        title="Modifier la demande" size="lg" radius="md"
+        fullScreen={{ base: true, sm: false }}>
         {editRequest && (
           <Stack gap="sm">
             <TextInput label="Destination" value={editDestination}

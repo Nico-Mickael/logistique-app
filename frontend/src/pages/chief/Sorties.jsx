@@ -6,13 +6,14 @@ import {
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
-import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconInbox, IconSearch, IconX, IconEdit, IconTrash, IconDownload } from '@tabler/icons-react';
+import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { vehicleService } from '../../api/vehicleService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
+import { useNavigate } from 'react-router-dom';
 
 const statusColor = { planned: 'gray', ongoing: 'brand', pending_return: 'orange', finished: 'brandYellow' };
 const statusLabel = { planned: 'Planifiée', ongoing: 'En cours', pending_return: 'Retour à valider', finished: 'Terminée' };
@@ -77,7 +78,7 @@ function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValid
             <Button size="xs" variant="outline" color="brand" leftSection={<IconUsers size={14} />} onClick={() => onSuggestions(sortie.id)}>
               Demandes
             </Button>
-            <Button size="xs" variant="subtle" color="gray" leftSection={<IconEdit size={14} />} onClick={() => onEdit(sortie)}>
+            <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => onEdit(sortie)}>
               Modifier
             </Button>
             <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={onDelete}>
@@ -99,7 +100,12 @@ function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValid
           </Button>
         )}
         {sortie.status === 'finished' && (
-          <Text size="xs" c="dimmed">Terminée le {dayjs(sortie.updatedAt).format('DD/MM/YYYY')}</Text>
+          <>
+            <Text size="xs" c="dimmed">Terminée le {dayjs(sortie.updatedAt).format('DD/MM/YYYY')}</Text>
+            <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={onDelete}>
+              Supprimer
+            </Button>
+          </>
         )}
       </Group>
     </Card>
@@ -107,6 +113,7 @@ function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValid
 }
 
 function Sorties() {
+  const navigate = useNavigate();
   const [sorties, setSorties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [vehicles, setVehicles] = useState([]);
@@ -114,7 +121,7 @@ function Sorties() {
   const [page, setPage] = useState(1);
   const limit = 20;
 
-  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
+  const [createOpened, { close: closeCreate }] = useDisclosure(false);
   const [vehicleId, setVehicleId] = useState('');
   const [driverName, setDriverName] = useState('');
   const [destination, setDestination] = useState('');
@@ -216,8 +223,6 @@ function Sorties() {
       notifyError(err.response?.data?.message || 'Erreur lors de la création');
     }
   };
-
-  const openCreateModal = () => { fetchVehicles(); openCreate(); };
 
   const openEdit = (s) => {
     setEditSortie(s);
@@ -365,7 +370,7 @@ function Sorties() {
             <>
               <Button size="xs" color="brand" leftSection={<IconPlayerPlay size={14} />} onClick={() => openDepartModal(s)} loading={actionLoading === 'depart'}>Démarrer</Button>
               <Button size="xs" variant="outline" color="brand" leftSection={<IconUsers size={14} />} onClick={() => openSuggestionsModal(s.id)}>Demandes</Button>
-              <Button size="xs" variant="subtle" leftSection={<IconEdit size={14} />} onClick={() => openEdit(s)}>Modifier</Button>
+              <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => openEdit(s)}>Modifier</Button>
               <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
             </>
           )}
@@ -375,7 +380,12 @@ function Sorties() {
           {s.status === 'pending_return' && (
             <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={() => setValidateReturnTarget(s)} loading={actionLoading === 'validateReturn'}>Valider le retour</Button>
           )}
-          {s.status === 'finished' && <Text size="xs" c="dimmed">Terminée</Text>}
+          {s.status === 'finished' && (
+            <Group gap="xs" wrap="nowrap">
+              <Text size="xs" c="dimmed">Terminée</Text>
+              <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
+            </Group>
+          )}
         </Group>
       ),
     },
@@ -397,7 +407,7 @@ function Sorties() {
           <Button variant="subtle" color="gray" leftSection={<IconDownload size={16} />} onClick={exportCSV} size="sm">
             Export CSV
           </Button>
-          <Button color="brand" leftSection={<IconPlus size={16} />} onClick={openCreateModal} className="btn-action">
+          <Button color="brand" leftSection={<IconPlus size={16} />} onClick={() => navigate('/creer-sortie')} className="btn-action">
             Nouvelle sortie
           </Button>
         </Group>
@@ -414,9 +424,9 @@ function Sorties() {
           <TextInput placeholder="Rechercher une destination..."
             leftSection={<IconSearch size={14} />}
             value={searchQuery} onChange={(e) => { setSearchQuery(e.currentTarget.value); setPage(1); }}
-            size="xs" w={200} />
-          <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={140} clearable />
-          <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={140} clearable />
+            size="xs" w={{ base: '100%', sm: 200 }} />
+          <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+          <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
           {hasFilters && (
             <Button variant="subtle" color="gray" size="xs" leftSection={<IconX size={14} />} onClick={clearFilters}>
               Effacer
@@ -473,75 +483,89 @@ function Sorties() {
         </>
       )}
 
-      <Modal opened={createOpened} onClose={closeCreate} title="Nouvelle sortie" size="md"
-        fullScreen={{ base: true, sm: false }} className="modal-modern"
+      <Modal opened={createOpened} onClose={closeCreate} title="Nouvelle sortie" size="md" radius="lg" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
       >
-        <Stack>
+        <Stack gap="md" mt="sm">
           <Select label="Véhicule" placeholder="Choisir un véhicule"
             data={vehicles.map((v) => ({ value: String(v.id), label: `${v.type} (${v.capacity} pers.)` }))}
-            value={vehicleId} onChange={setVehicleId} required
+            value={vehicleId} onChange={setVehicleId} required radius="md"
           />
           <TextInput label="Conducteur" placeholder="Nom du conducteur" required value={driverName}
-            onChange={(e) => setDriverName(e.currentTarget.value)}
+            onChange={(e) => setDriverName(e.currentTarget.value)} radius="md"
           />
           <TextInput label="Destination" placeholder="Antananarivo" required value={destination}
-            onChange={(e) => setDestination(e.currentTarget.value)}
+            onChange={(e) => setDestination(e.currentTarget.value)} radius="md"
           />
           <DateTimePicker label="Date et heure de départ" placeholder="Choisir une date" required
-            value={departureTime} onChange={setDepartureTime} minDate={new Date()}
+            value={departureTime} onChange={setDepartureTime} minDate={new Date()} radius="md"
           />
           <NumberInput label="Kilométrage départ" placeholder={lastSortieLoading ? 'Chargement...' : 'km compteur au départ'}
-            value={createDepartureKm} onChange={setCreateDepartureKm} min={0} disabled={lastSortieLoading}
+            value={createDepartureKm} onChange={setCreateDepartureKm} min={0} disabled={lastSortieLoading} radius="md"
           />
-          <Button color="brand" fullWidth onClick={handleCreate} size="md">Créer la sortie</Button>
+          <Group justify="end" mt="md">
+            <Button variant="default" onClick={closeCreate} radius="md">Annuler</Button>
+            <Button color="brand" onClick={handleCreate} radius="md">Créer la sortie</Button>
+          </Group>
         </Stack>
       </Modal>
 
-      <Modal opened={editOpened} onClose={closeEditModal} title="Modifier la sortie" size="md"
-        fullScreen={{ base: true, sm: false }} className="modal-modern"
+      <Modal opened={editOpened} onClose={closeEditModal} title="Modifier la sortie" size="md" radius="lg" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
       >
-        <Stack>
+        <Stack gap="md" mt="sm">
           <Select label="Véhicule" placeholder="Choisir un véhicule"
             data={vehicles.map((v) => ({ value: String(v.id), label: `${v.type} (${v.capacity} pers.)` }))}
-            value={editVehicleId} onChange={setEditVehicleId}
+            value={editVehicleId} onChange={setEditVehicleId} radius="md"
           />
           <TextInput label="Conducteur" placeholder="Nom du conducteur" required value={editDriverName}
-            onChange={(e) => setEditDriverName(e.currentTarget.value)}
+            onChange={(e) => setEditDriverName(e.currentTarget.value)} radius="md"
           />
           <TextInput label="Destination" placeholder="Antananarivo" required value={editDestination}
-            onChange={(e) => setEditDestination(e.currentTarget.value)}
+            onChange={(e) => setEditDestination(e.currentTarget.value)} radius="md"
           />
           <DateTimePicker label="Date et heure de départ" placeholder="Choisir une date" required
-            value={editDepartureTime} onChange={setEditDepartureTime}
+            value={editDepartureTime} onChange={setEditDepartureTime} radius="md"
           />
-          <Button color="brand" fullWidth onClick={handleEditSave} size="md">Enregistrer</Button>
+          <Group justify="end" mt="md">
+            <Button variant="default" onClick={closeEditModal} radius="md">Annuler</Button>
+            <Button color="brand" onClick={handleEditSave} radius="md">Enregistrer</Button>
+          </Group>
         </Stack>
       </Modal>
 
-      <Modal opened={departOpened} onClose={closeDepart} title="Démarrer la sortie" size="sm"
+      <Modal opened={departOpened} onClose={closeDepart} title="Démarrer la sortie" size="md" radius="lg" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
       >
-        <TextInput label="Destination" value={selectedSortie?.destination || ''} disabled mb="sm" />
-        <NumberInput label="Kilométrage au départ" placeholder="Ex: 12500" min={0}
-          value={departureKm} onChange={setDepartureKm} mb="md" required
-        />
-        <Button color="brand" fullWidth onClick={handleDepart} size="md">Confirmer le départ</Button>
+        <Stack gap="md" mt="sm">
+          <TextInput label="Destination" value={selectedSortie?.destination || ''} disabled radius="md" />
+          <NumberInput label="Kilométrage au départ" placeholder="Ex: 12500" min={0}
+            value={departureKm} onChange={setDepartureKm} required radius="md"
+          />
+          <Group justify="end" mt="md">
+            <Button variant="default" onClick={closeDepart} radius="md">Annuler</Button>
+            <Button color="brand" onClick={handleDepart} radius="md">Confirmer le départ</Button>
+          </Group>
+        </Stack>
       </Modal>
 
-      <Modal opened={arriveeOpened} onClose={closeArrivee} title="Enregistrer l'arrivée" size="sm"
+      <Modal opened={arriveeOpened} onClose={closeArrivee} title="Enregistrer l'arrivée" size="md" radius="lg" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
       >
-        <TextInput label="Destination" value={selectedSortie?.destination || ''} disabled mb="sm" />
-        <NumberInput label="Kilométrage à l'arrivée" placeholder="Ex: 13000" min={0}
-          value={arrivalKm} onChange={setArrivalKm} mb="md" required
-        />
-        <Button color="brand" fullWidth onClick={handleArrivee} size="md">Confirmer l'arrivée</Button>
+        <Stack gap="md" mt="sm">
+          <TextInput label="Destination" value={selectedSortie?.destination || ''} disabled radius="md" />
+          <NumberInput label="Kilométrage à l'arrivée" placeholder="Ex: 13000" min={0}
+            value={arrivalKm} onChange={setArrivalKm} required radius="md"
+          />
+          <Group justify="end" mt="md">
+            <Button variant="default" onClick={closeArrivee} radius="md">Annuler</Button>
+            <Button color="brand" onClick={handleArrivee} radius="md">Confirmer l'arrivée</Button>
+          </Group>
+        </Stack>
       </Modal>
 
       <Modal opened={suggestOpened} onClose={closeSuggest} title="Demandes compatibles" size="lg"

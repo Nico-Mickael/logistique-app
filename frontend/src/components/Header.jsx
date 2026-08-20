@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Group, Text, ActionIcon, Popover, Stack, UnstyledButton, Badge,
-  Loader, Center, ScrollArea, Burger, Avatar, Tooltip, Divider,
+  Button, Loader, Center, ScrollArea, Burger, Avatar, Tooltip, Divider,
 } from '@mantine/core';
 import { IconBell, IconLogout } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
@@ -72,7 +72,7 @@ function Header({ opened: navOpened, onToggle }) {
   return (
     <Group h="100%" px="md" justify="space-between" wrap="nowrap" className="app-header">
       <Group gap="sm" wrap="nowrap">
-        <Burger opened={navOpened} onClick={onToggle} hiddenFrom="sm" size="sm" color="white" />
+        <Burger opened={navOpened} onClick={onToggle} hiddenFrom="lg" size="sm" color="#1a1a1a" />
         <div className="logo-badge">
           <Logo height={22} />
         </div>
@@ -92,7 +92,7 @@ function Header({ opened: navOpened, onToggle }) {
 
         <Divider orientation="vertical" color="rgba(255,255,255,0.25)" className="hide-on-mobile" />
 
-        <Popover opened={notifOpened} onChange={setNotifOpened} width={360} position="bottom-end" shadow="lg" radius="md">
+        <Popover opened={notifOpened} onChange={setNotifOpened} width={{ base: 'calc(100vw - 32px)', sm: 360 }} position="bottom-end" shadow="lg" radius="md">
           <Popover.Target>
             <ActionIcon
               variant="subtle"

@@ -7,7 +7,7 @@ import {
 import { DateTimePicker } from '@mantine/dates';
 import {
   IconCar, IconUsers, IconMapPin, IconClock, IconSend,
-  IconBuildingWarehouse, IconUser, IconHourglass,
+  IconUser, IconHourglass,
 } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
@@ -102,7 +102,7 @@ function getNextDeparture(occupants) {
 }
 
 function CountdownDisplay({ targetDate, compact }) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -234,8 +234,6 @@ function NewRequest() {
   const [nbPersonnes, setNbPersonnes] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
-  const [selectedOccupant, setSelectedOccupant] = useState(null);
-
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -316,7 +314,6 @@ function NewRequest() {
     const vd = vehiclesData.find((v) => v.id === vehicle.id);
     if (vd) setSelectedVehicle({ ...vehicle, _data: vd });
     else setSelectedVehicle(vehicle);
-    setSelectedOccupant(null);
   };
 
   const activeVehicleData = selectedVehicle
@@ -333,7 +330,7 @@ function NewRequest() {
     if (dateSouhaitee) return dateSouhaitee;
     if (myExistingRequest?.date_souhaitee) return new Date(myExistingRequest.date_souhaitee);
     return null;
-  }, [dateSouhaitee, myExistingRequest?.date_souhaitee]);
+  }, [dateSouhaitee, myExistingRequest]);
 
   if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
 
@@ -503,7 +500,6 @@ function NewRequest() {
                         onChange={(v) => {
                           const val = Number(v) || 1;
                           setNbPersonnes(Math.min(val, Math.max(1, activeVehicleData.availableSeats)));
-                          setSelectedOccupant(null);
                         }}
                         description={`Places disponibles: ${activeVehicleData.availableSeats}`}
                       />

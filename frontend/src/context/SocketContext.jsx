@@ -84,19 +84,6 @@ export function SocketProvider({ children }) {
       }
     };
 
-    const markAllRead = async () => {
-      try {
-        const { data } = await notificationService.mine();
-        const unread = data.filter((n) => !n.is_read);
-        for (const n of unread) {
-          await notificationService.markAsRead(n.id);
-        }
-        setUnreadCount(0);
-      } catch {
-        // silent
-      }
-    };
-
     checkNotifications();
     intervalRef.current = setInterval(checkNotifications, 5000);
 
@@ -116,4 +103,5 @@ export function SocketProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useSocket = () => useContext(NotificationContext);

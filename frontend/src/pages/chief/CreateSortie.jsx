@@ -24,7 +24,6 @@ function CarVisual({ vehicle, seatStates, onSeatClick, selectedSeat }) {
   const layout = getSeatLayout(vehicle.type, vehicle.capacity);
   const svgW = layout.w;
   const svgH = layout.h;
-  const cx = svgW / 2;
   const bodyW = layout.bodyW;
   const bodyH = layout.bodyH;
   const bx = (svgW - bodyW) / 2;
@@ -100,8 +99,7 @@ function CarVisual({ vehicle, seatStates, onSeatClick, selectedSeat }) {
   );
 }
 
-function VehicleCard({ vehicle, seatStates, isSelected, onClick, requestsBySeat }) {
-  const layout = getSeatLayout(vehicle.type, vehicle.capacity);
+function VehicleCard({ vehicle, seatStates, isSelected, onClick }) {
   const occupiedCount = seatStates ? Object.values(seatStates).filter((s) => s === 'occupied').length : 0;
   const availableCount = vehicle.capacity - occupiedCount;
 
@@ -486,6 +484,7 @@ function CreateSortie() {
           align-items: center;
           gap: 12px;
           margin-bottom: 24px;
+          flex-wrap: wrap;
         }
         .step-circle {
           width: 32px;
@@ -497,6 +496,7 @@ function CreateSortie() {
           font-size: 13px;
           font-weight: 700;
           transition: all 0.3s ease;
+          flex-shrink: 0;
         }
         .step-circle--done {
           background: var(--mantine-color-brand-6);
@@ -516,6 +516,7 @@ function CreateSortie() {
           height: 2px;
           background: #e9ecef;
           max-width: 80px;
+          min-width: 20px;
         }
         .step-line--done {
           background: var(--mantine-color-brand-6);
@@ -607,7 +608,6 @@ function CreateSortie() {
             const isSelected = selectedVehicle?.id === vehicle.id;
             const vehSeatStates = isSelected ? seatStates : {};
             const vehAssignments = isSelected ? seatAssignments : [];
-            const vehOccupied = vehAssignments.length;
             return (
               <VehicleCard
                 key={vehicle.id}
@@ -628,7 +628,6 @@ function CreateSortie() {
               p="lg"
               radius="lg"
               className="glass-panel"
-              style={{ gridColumn: 'span 3' }}
             >
               <Group justify="space-between" mb="md">
                 <Group gap="sm">
@@ -660,7 +659,7 @@ function CreateSortie() {
                   selectedSeat={selectedSeat}
                 />
                 {selectedSeat !== null && seatStates[selectedSeat] === 'occupied' && (
-                  <div style={{ position: 'absolute', top: '50%', right: -20, transform: 'translateY(-50%)' }}>
+                  <div style={{ position: 'absolute', top: '50%', right: 8, transform: 'translateY(-50%)' }}>
                     <SeatInfoCard
                       employee={seatAssignments.find((a) => a.seatId === selectedSeat)?.employee}
                       onClose={() => setSelectedSeat(null)}
@@ -693,7 +692,6 @@ function CreateSortie() {
               p="lg"
               radius="lg"
               className="glass-panel"
-              style={{ gridColumn: 'span 2' }}
             >
               <Text fw={600} size="sm" mb="md">
                 <IconRoute size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />

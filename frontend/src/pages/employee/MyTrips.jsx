@@ -5,7 +5,7 @@ import {
 import { DateTimePicker } from '@mantine/dates';
 import { DataTable } from 'mantine-datatable';
 import { useDisclosure } from '@mantine/hooks';
-import { IconRoute, IconMapPin, IconClock, IconGauge, IconInbox, IconFlag } from '@tabler/icons-react';
+import { IconRoute, IconMapPin, IconClock, IconGauge, IconFlag } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
-  Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal, TextInput, Select, Flex, Stack,
+  Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal, TextInput, Select, Flex, Stack, Card, SimpleGrid, Pagination,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
-import { IconPlus, IconInbox, IconEdit, IconTrash, IconUsers as IconUsersIcon, IconSearch } from '@tabler/icons-react';
+import { IconPlus, IconEdit, IconTrash, IconUsers as IconUsersIcon, IconSearch } from '@tabler/icons-react';
 import { useDisclosure } from '@mantine/hooks';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import api from '../../api/axios';
@@ -22,6 +22,34 @@ const roleColors = {
   logistics_chief: 'brand',
   employee: 'gray',
 };
+
+function UserCard({ u, onEdit, onDelete }) {
+  return (
+    <Card withBorder radius="lg" p="lg" className="user-card">
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+        background: roleColors[u.role] === 'red' ? 'var(--mantine-color-red-6)' :
+                    roleColors[u.role] === 'orange' ? 'var(--mantine-color-orange-6)' :
+                    roleColors[u.role] === 'brand' ? 'var(--mantine-color-brand-6)' :
+                    'var(--mantine-color-gray-5)',
+      }} />
+      <Group justify="space-between" mb="xs" wrap="nowrap">
+        <Text fw={600} size="md">{u.prenom} {u.nom}</Text>
+        <Badge color={roleColors[u.role] || 'gray'} variant="light">{roleLabels[u.role] || u.role}</Badge>
+      </Group>
+      <Stack gap={4} mb="md">
+        <Text size="sm"><Text span c="dimmed">Email: </Text>{u.email}</Text>
+        {u.department && <Text size="sm"><Text span c="dimmed">Département: </Text>{u.department}</Text>}
+      </Stack>
+      <Group gap="xs">
+        <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => onEdit(u)}>Modifier</Button>
+        {u.role !== 'superadmin' && (
+          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => onDelete(u)}>Supprimer</Button>
+        )}
+      </Group>
+    </Card>
+  );
+}
 
 export default function Users() {
   const [users, setUsers] = useState([]);
@@ -57,7 +85,6 @@ export default function Users() {
     );
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
   const paginatedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize);
 
   const openCreate = () => {
@@ -127,7 +154,7 @@ export default function Users() {
       accessor: 'actions', title: '',
       render: (u) => (
         <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
-          <Button size="xs" variant="subtle" leftSection={<IconEdit size={14} />} onClick={() => openEdit(u)}>Modifier</Button>
+          <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => openEdit(u)}>Modifier</Button>
           {u.role !== 'superadmin' && (
             <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(u)}>Supprimer</Button>
           )}
@@ -153,7 +180,7 @@ export default function Users() {
               value={search}
               onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
               radius="md"
-              w={280}
+              w={{ base: '100%', sm: 280 }}
             />
           )}
           <Button leftSection={<IconPlus size={16} />} color="brand" onClick={openCreate}>
@@ -181,45 +208,60 @@ export default function Users() {
           </Center>
         </Paper>
       ) : (
-        <Paper p="lg" radius="lg" withBorder className="dashboard-panel">
-          <DataTable
-            withTableBorder
-            borderRadius="md"
-            highlightOnHover
-            striped
-            verticalSpacing="sm"
-            columns={columns}
-            records={paginatedUsers}
-            idAccessor="id"
-            sortable
-            page={page}
-            onPageChange={setPage}
-            totalRecords={filteredUsers.length}
-            recordsPerPage={pageSize}
-            paginationActiveBackgroundColor="#3FA34A"
-          />
-        </Paper>
+        <>
+          <div className="hide-on-mobile">
+            <Paper p="lg" radius="lg" withBorder className="dashboard-panel">
+              <DataTable
+                withTableBorder
+                borderRadius="md"
+                highlightOnHover
+                striped
+                verticalSpacing="sm"
+                columns={columns}
+                records={paginatedUsers}
+                idAccessor="id"
+                sortable
+                page={page}
+                onPageChange={setPage}
+                totalRecords={filteredUsers.length}
+                recordsPerPage={pageSize}
+                paginationActiveBackgroundColor="#3FA34A"
+              />
+            </Paper>
+          </div>
+
+          <div className="hide-on-tablet-up">
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+              {paginatedUsers.map((u) => (
+                <UserCard key={u.id} u={u} onEdit={openEdit} onDelete={setDeleteTarget} />
+              ))}
+            </SimpleGrid>
+            <Center mt="md">
+              <Pagination total={Math.ceil(filteredUsers.length / pageSize)} value={page} onChange={setPage} color="brand" />
+            </Center>
+          </div>
+        </>
       )}
 
-      <Modal opened={opened} onClose={close} title={editUser ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'} size="md" radius="md"
+      <Modal opened={opened} onClose={close} title={editUser ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'} size="md" radius="lg" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
       >
-        <Stack gap="sm">
-          <TextInput label="Nom" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.currentTarget.value })} required />
-          <TextInput label="Prénom" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.currentTarget.value })} required />
-          <TextInput label="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} required />
+        <Stack gap="sm" mt="sm">
+          <TextInput label="Nom" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.currentTarget.value })} required radius="md" />
+          <TextInput label="Prénom" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.currentTarget.value })} required radius="md" />
+          <TextInput label="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} required radius="md" />
           <TextInput label="Mot de passe" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.currentTarget.value })}
-            placeholder={editUser ? 'Laisser vide pour conserver' : ''} required={!editUser} />
-          <TextInput label="Département" value={form.department} onChange={(e) => setForm({ ...form, department: e.currentTarget.value })} />
+            placeholder={editUser ? 'Laisser vide pour conserver' : ''} required={!editUser} radius="md" />
+          <TextInput label="Département" value={form.department} onChange={(e) => setForm({ ...form, department: e.currentTarget.value })} radius="md" />
           <Select label="Rôle" data={[
             { value: 'employee', label: 'Employé' },
             { value: 'logistics_chief', label: 'Chef logistique' },
             { value: 'admin', label: 'Admin' },
-          ]} value={form.role} onChange={(v) => setForm({ ...form, role: v || 'employee' })} required />
+          ]} value={form.role} onChange={(v) => setForm({ ...form, role: v || 'employee' })} required radius="md" />
           <Group justify="end" mt="md">
-            <Button variant="default" onClick={close}>Annuler</Button>
-            <Button onClick={handleSave} loading={saving} color="brand">
+            <Button variant="default" onClick={close} radius="md">Annuler</Button>
+            <Button onClick={handleSave} loading={saving} color="brand" radius="md">
               {editUser ? 'Enregistrer' : 'Créer'}
             </Button>
           </Group>
@@ -240,6 +282,11 @@ export default function Users() {
       <style>{`
         .page-content { animation: fade-in 0.3s ease-out; }
         .dashboard-panel { animation: panel-in 0.4s ease-out; }
+        .user-card {
+          position: relative;
+          overflow: hidden;
+          animation: panel-in 0.35s ease-out;
+        }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         @keyframes panel-in { from { opacity: 0; } to { opacity: 1; } }
       `}</style>

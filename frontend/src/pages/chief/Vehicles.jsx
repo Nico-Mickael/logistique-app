@@ -5,17 +5,18 @@ import {
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { useDisclosure } from '@mantine/hooks';
-import { IconPlus, IconTool, IconInbox, IconCar } from '@tabler/icons-react';
+import { IconPlus, IconTool, IconCar, IconEdit, IconTrash } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import { DateInput } from '@mantine/dates';
 import dayjs from '../../utils/date';
 import { vehicleService } from '../../api/vehicleService';
 import { notifySuccess, notifyError } from '../../utils/toast';
+import ConfirmModal from '../../components/ConfirmModal';
 
 const statusColor = { available: 'brand', busy: 'brandYellow', maintenance: 'red', broken: 'red' };
 const statusLabel = { available: 'Disponible', busy: 'En sortie', maintenance: 'Maintenance', broken: 'En panne' };
 
-function VehicleCard({ vehicle, onMaintenance, onAvailable }) {
+function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete }) {
   return (
     <Card withBorder radius="lg" p="lg" className="vehicle-card">
       <div className="stat-card-accent" style={{
@@ -39,6 +40,18 @@ function VehicleCard({ vehicle, onMaintenance, onAvailable }) {
         )}
       </Stack>
       <Group gap="xs">
+        {vehicle.status !== 'busy' && (
+          <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />}
+            onClick={() => onEdit(vehicle)}>
+            Modifier
+          </Button>
+        )}
+        {vehicle.status !== 'busy' && (
+          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
+            onClick={() => onDelete(vehicle)}>
+            Supprimer
+          </Button>
+        )}
         {vehicle.status !== 'maintenance' && vehicle.status !== 'busy' && (
           <Button size="xs" variant="outline" color="red" leftSection={<IconTool size={14} />}
             onClick={() => onMaintenance(vehicle)}
@@ -67,6 +80,14 @@ function Vehicles() {
   const [maintOpened, { open: openMaint, close: closeMaint }] = useDisclosure(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [maintenanceUntil, setMaintenanceUntil] = useState(null);
+
+  const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
+  const [editType, setEditType] = useState('');
+  const [editCapacity, setEditCapacity] = useState(4);
+  const [saving, setSaving] = useState(false);
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchVehicles = async () => {
     try {
@@ -111,10 +132,41 @@ function Vehicles() {
 
   const handleMakeAvailable = async (id) => {
     try {
-      await vehicleService.update(id, { status: 'available' });
+      await vehicleService.update(id, { status: 'available', maintenance_until: null });
       notifySuccess('Véhicule rendu disponible');
       fetchVehicles();
     } catch { notifyError('Erreur lors de la mise à jour'); }
+  };
+
+  const openEditModal = (v) => {
+    setSelectedVehicle(v);
+    setEditType(v.type);
+    setEditCapacity(v.capacity);
+    openEdit();
+  };
+
+  const handleEdit = async () => {
+    if (!editType || !editCapacity) { notifyError('Merci de remplir tous les champs'); return; }
+    setSaving(true);
+    try {
+      await vehicleService.update(selectedVehicle.id, { type: editType, capacity: editCapacity });
+      notifySuccess('Véhicule modifié');
+      closeEdit();
+      fetchVehicles();
+    } catch { notifyError('Erreur lors de la modification'); } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await vehicleService.remove(deleteTarget.id);
+      notifySuccess('Véhicule supprimé');
+      setDeleteTarget(null);
+      fetchVehicles();
+    } catch (err) {
+      notifyError(err.response?.data?.message || 'Erreur lors de la suppression');
+    } finally { setDeleting(false); }
   };
 
   if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
@@ -157,7 +209,15 @@ function Vehicles() {
                   {
                     accessor: 'actions', title: '',
                     render: (v) => (
-                      <Group gap="xs" wrap="nowrap">
+                      <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
+                        {v.status !== 'busy' && (
+                          <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />}
+                            onClick={() => openEditModal(v)}>Modifier</Button>
+                        )}
+                        {v.status !== 'busy' && (
+                          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
+                            onClick={() => setDeleteTarget(v)}>Supprimer</Button>
+                        )}
                         {v.status !== 'maintenance' && v.status !== 'busy' && (
                           <Button size="xs" variant="outline" color="red" leftSection={<IconTool size={14} />}
                             onClick={() => openMaintenanceModal(v)}>Maintenance</Button>
@@ -182,6 +242,7 @@ function Vehicles() {
               {vehicles.map((v) => (
                 <VehicleCard key={v.id} vehicle={v}
                   onMaintenance={openMaintenanceModal} onAvailable={handleMakeAvailable}
+                  onEdit={openEditModal} onDelete={setDeleteTarget}
                 />
               ))}
             </SimpleGrid>
@@ -189,31 +250,70 @@ function Vehicles() {
         </>
       )}
 
-      <Modal opened={createOpened} onClose={closeCreate} title="Ajouter un véhicule" size="sm"
-        fullScreen={{ base: true, sm: false }}
+      <Modal opened={createOpened} onClose={closeCreate} title="Ajouter un véhicule" size="md" radius="lg" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
       >
-        <Select label="Type" placeholder="Choisir un type"
-          data={[{ value: 'moto', label: 'Moto' }, { value: 'voiture', label: 'Voiture' }, { value: 'minibus', label: 'Minibus' }]}
-          value={type} onChange={setType} mb="sm" required
-        />
-        <NumberInput label="Capacité (nombre de personnes)" min={1} max={30} value={capacity}
-          onChange={setCapacity} mb="md" required
-        />
-        <Button color="brand" fullWidth onClick={handleCreate} size="md">Ajouter</Button>
+        <Stack gap="md" mt="sm">
+          <Select label="Type" placeholder="Choisir un type"
+            data={[{ value: 'moto', label: 'Moto' }, { value: 'voiture', label: 'Voiture' }, { value: 'minibus', label: 'Minibus' }]}
+            value={type} onChange={setType} required radius="md"
+          />
+          <NumberInput label="Capacité (nombre de personnes)" min={1} max={30} value={capacity}
+            onChange={setCapacity} required radius="md"
+          />
+          <Group justify="end" mt="md">
+            <Button variant="default" onClick={closeCreate} radius="md">Annuler</Button>
+            <Button color="brand" onClick={handleCreate} radius="md">Créer</Button>
+          </Group>
+        </Stack>
       </Modal>
 
-      <Modal opened={maintOpened} onClose={closeMaint} title="Mettre en maintenance" size="sm"
+      <Modal opened={maintOpened} onClose={closeMaint} title="Mettre en maintenance" size="md" radius="lg" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
       >
-        <TextInput label="Véhicule" value={selectedVehicle?.type || ''} disabled mb="sm" tt="capitalize" />
-        <DateInput label="Retour prévu le" value={maintenanceUntil} onChange={setMaintenanceUntil}
-          minDate={new Date()} mb="md"
-        />
-        <Button color="red" fullWidth onClick={handleSetMaintenance} size="md">Confirmer la maintenance</Button>
+        <Stack gap="md" mt="sm">
+          <TextInput label="Véhicule" value={selectedVehicle?.type || ''} disabled tt="capitalize" radius="md" />
+          <DateInput label="Retour prévu le" value={maintenanceUntil} onChange={setMaintenanceUntil}
+            minDate={new Date()} radius="md"
+          />
+          <Group justify="end" mt="md">
+            <Button variant="default" onClick={closeMaint} radius="md">Annuler</Button>
+            <Button color="red" onClick={handleSetMaintenance} radius="md">Confirmer</Button>
+          </Group>
+        </Stack>
       </Modal>
+
+      <Modal opened={editOpened} onClose={closeEdit} title="Modifier le véhicule" size="md" radius="lg" centered
+        overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
+      >
+        <Stack gap="md" mt="sm">
+          <Select label="Type" placeholder="Choisir un type"
+            data={[{ value: 'moto', label: 'Moto' }, { value: 'voiture', label: 'Voiture' }, { value: 'minibus', label: 'Minibus' }]}
+            value={editType} onChange={setEditType} required radius="md"
+          />
+          <NumberInput label="Capacité (nombre de personnes)" min={1} max={30} value={editCapacity}
+            onChange={setEditCapacity} required radius="md"
+          />
+          <Group justify="end" mt="md">
+            <Button variant="default" onClick={closeEdit} radius="md">Annuler</Button>
+            <Button color="brand" onClick={handleEdit} loading={saving} radius="md">Enregistrer</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <ConfirmModal
+        opened={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title={`Supprimer ${deleteTarget?.type || ''} (${deleteTarget?.capacity} pers.) ?`}
+        message="Cette action est irréversible."
+        confirmLabel="Supprimer"
+        variant="danger"
+        loading={deleting}
+      />
 
       <style>{`
         .vehicle-card {

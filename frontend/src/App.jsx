@@ -63,7 +63,7 @@ function App() {
               <Route
                 path="/mes-trajets"
                 element={
-                  <PrivateRoute allowedRoles={['employee', 'superadmin']}>
+                  <PrivateRoute allowedRoles={['superadmin']}>
                     <Layout>
                       <MyTrips />
                     </Layout>
@@ -145,7 +145,7 @@ function App() {
           </SocketProvider>
         </AuthProvider>
       </BrowserRouter>
-      <ToastContainer position="top-right" autoClose={3500} theme="light" />
+      <ToastContainer position={{ base: 'top-center', sm: 'top-right' }} autoClose={3500} theme="light" />
     </MantineProvider>
   );
 }

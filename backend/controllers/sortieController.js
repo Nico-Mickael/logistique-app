@@ -297,8 +297,8 @@ exports.remove = async (req, res) => {
   try {
     const sortie = await Sortie.findByPk(req.params.id);
     if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
-    if (sortie.status !== 'planned') {
-      return res.status(400).json({ message: 'Seules les sorties planifiées peuvent être supprimées' });
+    if (sortie.status !== 'planned' && sortie.status !== 'finished') {
+      return res.status(400).json({ message: 'Seules les sorties planifiées ou terminées peuvent être supprimées' });
     }
 
     const vehicle = await Vehicle.findByPk(sortie.vehicle_id);

@@ -1,8 +1,8 @@
 import { useState, useRef, useMemo } from 'react';
 import {
-  Paper, Title, Badge, Center, Text, Group, Button, Select, Stack, Code, Alert, Table, Progress, Tooltip, Flex,
+  Paper, Title, Badge, Text, Group, Button, Alert, Table, Progress,
 } from '@mantine/core';
-import { IconUpload, IconFileDownload, IconCheck, IconX, IconAlertCircle, IconArrowRight, IconRefresh } from '@tabler/icons-react';
+import { IconUpload, IconCheck, IconX, IconAlertCircle, IconRefresh } from '@tabler/icons-react';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import api from '../../api/axios';
 
@@ -142,6 +142,7 @@ export default function Import() {
               </Badge>
             </Group>
 
+            <div style={{ overflowX: 'auto' }}>
             <Table striped highlightOnHover mb="md" fontSize="sm">
               <Table.Thead>
                 <Table.Tr>
@@ -193,6 +194,7 @@ export default function Import() {
                 ))}
               </Table.Tbody>
             </Table>
+            </div>
 
             <Progress value={analysis.confidence * 100} color={analysis.confidence >= 1 ? 'brand' : 'yellow'} size="sm" mb="md" />
           </Paper>
@@ -259,6 +261,7 @@ export default function Import() {
           {result.details?.created?.length > 0 && (
             <>
               <Text size="sm" fw={500} mb="xs">Importés :</Text>
+              <div style={{ overflowX: 'auto' }}>
               <Table striped highlightOnHover mb="md" fontSize="xs">
                 <Table.Thead><Table.Tr>
                   {Object.keys(result.details.created[0]).map(k => <Table.Th key={k}>{k}</Table.Th>)}
@@ -269,6 +272,7 @@ export default function Import() {
                   ))}
                 </Table.Tbody>
               </Table>
+              </div>
             </>
           )}
           {result.details?.errors?.length > 0 && (

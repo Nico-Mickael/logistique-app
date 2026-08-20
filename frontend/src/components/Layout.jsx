@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AppShell, NavLink, Stack, Text, Avatar, Divider, Group, ScrollArea, Tooltip, UnstyledButton } from '@mantine/core';
+import { AppShell, NavLink, Stack, Text, Divider, Group, ScrollArea, Tooltip, UnstyledButton } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconLayoutDashboard,
@@ -7,7 +7,6 @@ import {
   IconRoute,
   IconCar,
   IconPlus,
-  IconCalendarEvent,
   IconCaravan,
   IconUsers,
   IconDatabaseImport,
@@ -22,25 +21,20 @@ const navConfig = {
   chief: [
     { label: 'Tableau de bord', path: '/', icon: IconLayoutDashboard },
     { label: 'Demandes à valider', path: '/valider-demandes', icon: IconFileText },
-    { label: 'Créer une sortie', path: '/creer-sortie', icon: IconPlus },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
-    { label: 'Planning', path: '/planning', icon: IconCalendarEvent },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
   ],
   employee: [
     { label: 'Tableau de bord', path: '/', icon: IconLayoutDashboard },
     { label: 'Mes demandes', path: '/mes-demandes', icon: IconFileText },
     { label: 'Nouvelle demande', path: '/nouvelle-demande', icon: IconPlus },
-    { label: 'Mes trajets', path: '/mes-trajets', icon: IconRoute },
   ],
   superadmin: [
     { label: 'Tableau de bord', path: '/', icon: IconLayoutDashboard },
     { label: 'Gestion utilisateurs', path: '/utilisateurs', icon: IconUsers },
     { label: 'Importation', path: '/importation', icon: IconDatabaseImport },
     { label: 'Demandes à valider', path: '/valider-demandes', icon: IconFileText },
-    { label: 'Créer une sortie', path: '/creer-sortie', icon: IconPlus },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
-    { label: 'Planning', path: '/planning', icon: IconCalendarEvent },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
   ],
 };
@@ -48,28 +42,24 @@ const navConfig = {
 function Layout({ children }) {
   const [opened, { toggle }] = useDisclosure();
   const [collapsed, setCollapsed] = useState(false);
+  const [openParents, setOpenParents] = useState({});
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isChief = user?.role === 'logistics_chief' || user?.role === 'admin';
+  const isChief = user?.role === 'logistics_chief' || user?.role === 'admin' || user?.role === 'superadmin';
   const isSuperadmin = user?.role === 'superadmin';
   const navItems = useMemo(() => {
     if (isSuperadmin) return navConfig.superadmin;
     return isChief ? navConfig.chief : navConfig.employee;
   }, [isChief, isSuperadmin]);
 
-  const initials = useMemo(() => {
-    if (!user) return '?';
-    return `${user.prenom?.[0] || ''}${user.nom?.[0] || ''}`.toUpperCase();
-  }, [user]);
-
   const navbarWidth = collapsed ? 72 : 260;
 
   return (
     <AppShell
       header={{ height: 56 }}
-      navbar={{ width: navbarWidth, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      navbar={{ width: navbarWidth, breakpoint: 'lg', collapsed: { mobile: !opened } }}
       padding={{ base: 'sm', sm: 'md', lg: 'lg' }}
     >
       <AppShell.Header style={{ border: 'none' }}>
@@ -107,18 +97,76 @@ function Layout({ children }) {
         <AppShell.Section grow component={ScrollArea}>
           <Stack gap={2}>
             {navItems.map((item) => {
-              const active = item.path === '/'
-                ? location.pathname === '/'
-                : location.pathname.startsWith(item.path);
+              const isActive = item.children
+                ? item.children.some((c) => location.pathname.startsWith(c.path))
+                : item.path === '/'
+                  ? location.pathname === '/'
+                  : location.pathname.startsWith(item.path);
+
+              const isParentOpen = isActive || openParents[item.label];
+
+              if (item.children) {
+                const navLink = (
+                  <NavLink
+                    key={item.label}
+                    label={collapsed ? undefined : item.label}
+                    leftSection={<item.icon size={18} />}
+                    active={isActive}
+                    color="brand"
+                    variant={isActive ? 'light' : 'subtle'}
+                    opened={collapsed ? undefined : isParentOpen}
+                    onClick={() => {
+                      if (collapsed) {
+                        navigate(item.children[0].path);
+                        if (opened) toggle();
+                      } else {
+                        setOpenParents((prev) => ({ ...prev, [item.label]: !prev[item.label] }));
+                      }
+                    }}
+                    style={{ borderRadius: 8, justifyContent: collapsed ? 'center' : undefined }}
+                    p={collapsed ? 'sm' : undefined}
+                  >
+                    {!collapsed && item.children.map((child) => {
+                      const childActive = child.path === '/'
+                        ? location.pathname === '/'
+                        : location.pathname.startsWith(child.path);
+                      return (
+                        <NavLink
+                          key={child.path}
+                          label={child.label}
+                          leftSection={<child.icon size={16} />}
+                          active={childActive}
+                          color="brand"
+                          variant={childActive ? 'light' : 'subtle'}
+                          onClick={() => {
+                            navigate(child.path);
+                            if (opened) toggle();
+                          }}
+                          style={{ borderRadius: 8 }}
+                        />
+                      );
+                    })}
+                  </NavLink>
+                );
+
+                if (collapsed) {
+                  return (
+                    <Tooltip key={item.label} label={item.label} position="right" withArrow>
+                      {navLink}
+                    </Tooltip>
+                  );
+                }
+                return navLink;
+              }
 
               const navLink = (
                 <NavLink
                   key={item.path}
                   label={collapsed ? undefined : item.label}
                   leftSection={<item.icon size={18} />}
-                  active={active}
+                  active={isActive}
                   color="brand"
-                  variant={active ? 'light' : 'subtle'}
+                  variant={isActive ? 'light' : 'subtle'}
                   onClick={() => {
                     navigate(item.path);
                     if (opened) toggle();

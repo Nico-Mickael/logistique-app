@@ -1,7 +1,7 @@
 import { createTheme } from '@mantine/core';
 
 export const theme = createTheme({
-  primaryColor: 'brand',
+  primaryColor: 'brandYellow',
   colors: {
     brand: [
       '#E8F5E9',
@@ -66,7 +66,8 @@ export const theme = createTheme({
     Modal: {
       defaultProps: {
         overlayProps: { backgroundOpacity: 0.5, blur: 4 },
-        transitionProps: { transition: 'fade', duration: 200 },
+        transitionProps: { transition: 'pop', duration: 200 },
+        radius: 'lg',
       },
     },
   },

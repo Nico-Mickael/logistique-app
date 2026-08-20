@@ -1,11 +1,39 @@
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .hide-on-mobile {
     display: none !important;
   }
 }
 
-@media (min-width: 769px) {
+@media (min-width: 1025px) {
   .hide-on-tablet-up {
     display: none !important;
   }
+}
+
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+.mantine-Card-root,
+.mantine-Paper-root {
+  border: none !important;
+  border-top: 3px solid var(--mantine-color-brand-6) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  transition: box-shadow 0.2s ease !important;
+}
+
+.mantine-Card-root:hover,
+.mantine-Paper-root:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+}
+
+.mantine-Card-root {
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+
+.mantine-Paper-root[data-with-border] {
+  border-radius: 12px !important;
 }
