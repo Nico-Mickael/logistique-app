@@ -16,9 +16,7 @@ import { sortieService } from '../../api/sortieService';
 import { requestService } from '../../api/requestService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import { getSeatLayout, getSeatColor } from '../../utils/seatLayout';
-
-const statusColor = { available: 'brand', busy: 'red', maintenance: 'gray' };
-const statusLabel = { available: 'Disponible', busy: 'En mission', maintenance: 'Maintenance' };
+import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor } from '../../utils/labels';
 
 function CarVisual({ vehicle, seatStates, onSeatClick, selectedSeat }) {
   const layout = getSeatLayout(vehicle.type, vehicle.capacity);
@@ -575,7 +573,7 @@ function CreateSortie() {
         }
       `}</style>
 
-      <Group justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowgap={4}>
+      <Group justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
         <div>
           <Title order={3}>Créer une sortie</Title>
           <Text size="sm" c="dimmed" mt={2}>

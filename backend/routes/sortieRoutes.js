@@ -3,11 +3,12 @@ const router = express.Router();
 const sortieController = require('../controllers/sortieController');
 const auth = require('../middlewares/auth');
 const checkRole = require('../middlewares/checkRole');
+const { CHIEF_ROLES } = require('../utils/constants');
 
 router.get('/mine', auth, sortieController.mine);
 router.patch('/:id/return', auth, sortieController.employeeReturn);
 
-router.use(auth, checkRole(['logistics_chief', 'admin', 'superadmin']));
+router.use(auth, checkRole(CHIEF_ROLES));
 
 router.get('/', sortieController.getAll);
 router.get('/last/:vehicleId', sortieController.lastForVehicle);

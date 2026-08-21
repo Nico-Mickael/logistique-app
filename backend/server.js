@@ -10,6 +10,7 @@ const sortieRoutes = require('./routes/sortieRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const importRoutes = require('./routes/importRoutes');
+const statsRoutes = require('./routes/statsRoutes');
 const { setupSocket } = require('./services/socketService');
 
 if (!process.env.JWT_SECRET) {
@@ -32,6 +33,7 @@ app.use('/api/sorties', sortieRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/import', importRoutes);
+app.use('/api/stats', statsRoutes);
 
 app.use((err, req, res, next) => {
   console.error('Erreur non gérée:', err);

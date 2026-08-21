@@ -10,9 +10,7 @@ import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { notifySuccess, notifyError } from '../../utils/toast';
-
-const statusColor = { planned: 'gray', ongoing: 'brand', pending_return: 'orange', finished: 'brandYellow' };
-const statusLabel = { planned: 'Planifiée', ongoing: 'En cours', pending_return: 'Retour à valider', finished: 'Terminée' };
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor } from '../../utils/labels';
 
 function TripCard({ sortie, onReturn }) {
   return (
@@ -148,7 +146,7 @@ function MyTrips() {
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowgap={4}>
+      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
         <div>
           <Title order={3}>Mes trajets</Title>
           <Text size="sm" c="dimmed" mt={2}>

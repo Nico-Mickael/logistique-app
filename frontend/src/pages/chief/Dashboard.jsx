@@ -10,16 +10,9 @@ import { requestService } from '../../api/requestService';
 import { sortieService } from '../../api/sortieService';
 import { vehicleService } from '../../api/vehicleService';
 import { notifyError } from '../../utils/toast';
+import { requestStatusLabel as statusLabel } from '../../utils/labels';
 
-const statusLabel = { pending: 'En attente', approved: 'Validée', rescheduled: 'Replanifiée', rejected: 'Refusée', cancelled: 'Annulée' };
-
-const iconBgMap = {
-  brand: '#2e7d32',
-  yellow: '#F5B301',
-  gray: '#757575',
-};
-
-function StatCard({ label, value, icon: Icon, color, delay }) {
+function StatCard({ label, value, icon: Icon, delay }) {
   return (
     <Paper
       p="md"
@@ -136,7 +129,7 @@ function Dashboard() {
 
   return (
     <div className="dashboard">
-      <Flex justify="space-between" align="flex-end" mb="xl" wrap="wrap" rowgap={4}>
+      <Flex justify="space-between" align="flex-end" mb="xl" wrap="wrap" rowGap={4}>
         <div>
           <Title order={3} fw={700}>
             {greeting()}{user?.prenom ? `, ${user.prenom}` : ''}

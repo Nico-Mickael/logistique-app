@@ -10,6 +10,7 @@ import '@mantine/dates/styles.css';
 import '@mantine/charts/styles.css';
 import 'mantine-datatable/styles.css';
 import './App.css';
+import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

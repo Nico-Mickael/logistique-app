@@ -7,7 +7,9 @@ import { notifySuccess, notifyInfo, notifyWarning } from '../utils/toast';
 const NotificationContext = createContext(null);
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-const WS_URL = API_BASE.replace(/\/api\/?$/, '') || 'http://localhost:5000';
+const WS_URL = API_BASE.startsWith('http')
+  ? (API_BASE.replace(/\/api\/?$/, '') || window.location.origin)
+  : window.location.origin;
 
 export function SocketProvider({ children }) {
   const { user } = useAuth();

@@ -14,9 +14,8 @@ import { vehicleService } from '../../api/vehicleService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import { useNavigate } from 'react-router-dom';
-
-const statusColor = { planned: 'gray', ongoing: 'brand', pending_return: 'orange', finished: 'brandYellow' };
-const statusLabel = { planned: 'Planifiée', ongoing: 'En cours', pending_return: 'Retour à valider', finished: 'Terminée' };
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor } from '../../utils/labels';
+import { downloadCSV } from '../../utils/csv';
 
 const statusFilterOptions = [
   { label: 'Toutes', value: 'all' },
@@ -121,14 +120,6 @@ function Sorties() {
   const [page, setPage] = useState(1);
   const limit = 20;
 
-  const [createOpened, { close: closeCreate }] = useDisclosure(false);
-  const [vehicleId, setVehicleId] = useState('');
-  const [driverName, setDriverName] = useState('');
-  const [destination, setDestination] = useState('');
-  const [departureTime, setDepartureTime] = useState(null);
-  const [createDepartureKm, setCreateDepartureKm] = useState('');
-  const [lastSortieLoading, setLastSortieLoading] = useState(false);
-
   const [editOpened, { open: openEditModal, close: closeEditModal }] = useDisclosure(false);
   const [editSortie, setEditSortie] = useState(null);
   const [editVehicleId, setEditVehicleId] = useState('');
@@ -179,50 +170,18 @@ function Sorties() {
     try { const { data } = await vehicleService.getAll(); setVehicles(data || []); } catch { /* ignore */ }
   };
 
-  useEffect(() => { fetchSorties(1); fetchVehicles(); }, []);
-  useEffect(() => { fetchSorties(); }, [page]);
+  useEffect(() => { fetchVehicles(); }, []);
 
   useEffect(() => {
-    setPage(1);
-    fetchSorties(1);
-  }, [statusFilter, vehicleFilter, dateFrom, dateTo]);
-
-  useEffect(() => {
-    if (!vehicleId) return;
-    setLastSortieLoading(true);
-    sortieService.lastForVehicle(vehicleId)
-      .then(({ data }) => {
-        setCreateDepartureKm(data && data.return_km != null ? String(data.return_km) : '');
-      })
-      .catch(() => setCreateDepartureKm(''))
-      .finally(() => setLastSortieLoading(false));
-  }, [vehicleId]);
+    const t = setTimeout(() => { fetchSorties(); }, 250);
+    return () => clearTimeout(t);
+  }, [fetchSorties]);
 
   const clearFilters = () => {
     setStatusFilter('all'); setVehicleFilter(''); setSearchQuery(''); setDateFrom(null); setDateTo(null);
     setPage(1);
   };
   const hasFilters = statusFilter !== 'all' || vehicleFilter || searchQuery || dateFrom || dateTo;
-
-  const handleCreate = async () => {
-    if (!vehicleId || !driverName || !destination || !departureTime) {
-      notifyError('Merci de remplir tous les champs'); return;
-    }
-    try {
-      const { data } = await sortieService.create({
-        vehicle_id: parseInt(vehicleId, 10), driver_name: driverName,
-        destination, departure_time: departureTime,
-        departure_km: createDepartureKm || null,
-      });
-      notifySuccess('Sortie créée');
-      closeCreate();
-      setVehicleId(''); setDriverName(''); setDestination(''); setDepartureTime(null); setCreateDepartureKm('');
-      fetchSorties(1);
-      openSuggestionsModal(data.id);
-    } catch (err) {
-      notifyError(err.response?.data?.message || 'Erreur lors de la création');
-    }
-  };
 
   const openEdit = (s) => {
     setEditSortie(s);
@@ -318,15 +277,12 @@ function Sorties() {
       const { data } = await sortieService.getAll(params);
       const allSorties = data.data || [];
 
-      const headers = ['Destination;Conducteur;Véhicule;Départ prévu;Statut;Km départ;Km arrivée;Distance'];
-      const rows = allSorties.map((s) =>
-        `${s.destination};${s.driver_name};${s.Vehicle?.type || ''};${dayjs(s.departure_time).format('DD/MM/YYYY HH:mm')};${statusLabel[s.status] || s.status};${s.departure_km || ''};${s.arrival_km || ''};${s.distance_km || ''}`
+      downloadCSV('sorties.csv',
+        ['Destination', 'Conducteur', 'Véhicule', 'Départ prévu', 'Statut', 'Km départ', 'Km arrivée', 'Distance'],
+        allSorties.map((s) =>
+          [s.destination, s.driver_name, s.Vehicle?.type || '', dayjs(s.departure_time).format('DD/MM/YYYY HH:mm'), statusLabel[s.status] || s.status, s.departure_km || '', s.arrival_km || '', s.distance_km || ''].join(';')
+        )
       );
-      const csv = [headers, ...rows].join('\n');
-      const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'sorties.csv'; a.click();
-      URL.revokeObjectURL(url);
     } catch {
       notifyError("Erreur lors de l'export CSV");
     }
@@ -395,7 +351,7 @@ function Sorties() {
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowgap={4}>
+      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
         <div>
           <Title order={3}>Sorties</Title>
           <Text size="sm" c="dimmed" mt={2}>
@@ -482,34 +438,6 @@ function Sorties() {
           </div>
         </>
       )}
-
-      <Modal opened={createOpened} onClose={closeCreate} title="Nouvelle sortie" size="md" radius="lg" centered
-        overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'pop', duration: 200 }}
-      >
-        <Stack gap="md" mt="sm">
-          <Select label="Véhicule" placeholder="Choisir un véhicule"
-            data={vehicles.map((v) => ({ value: String(v.id), label: `${v.type} (${v.capacity} pers.)` }))}
-            value={vehicleId} onChange={setVehicleId} required radius="md"
-          />
-          <TextInput label="Conducteur" placeholder="Nom du conducteur" required value={driverName}
-            onChange={(e) => setDriverName(e.currentTarget.value)} radius="md"
-          />
-          <TextInput label="Destination" placeholder="Antananarivo" required value={destination}
-            onChange={(e) => setDestination(e.currentTarget.value)} radius="md"
-          />
-          <DateTimePicker label="Date et heure de départ" placeholder="Choisir une date" required
-            value={departureTime} onChange={setDepartureTime} minDate={new Date()} radius="md"
-          />
-          <NumberInput label="Kilométrage départ" placeholder={lastSortieLoading ? 'Chargement...' : 'km compteur au départ'}
-            value={createDepartureKm} onChange={setCreateDepartureKm} min={0} disabled={lastSortieLoading} radius="md"
-          />
-          <Group justify="end" mt="md">
-            <Button variant="default" onClick={closeCreate} radius="md">Annuler</Button>
-            <Button color="brand" onClick={handleCreate} radius="md">Créer la sortie</Button>
-          </Group>
-        </Stack>
-      </Modal>
 
       <Modal opened={editOpened} onClose={closeEditModal} title="Modifier la sortie" size="md" radius="lg" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}

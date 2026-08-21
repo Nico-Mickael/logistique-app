@@ -10,6 +10,7 @@ import {
   IconCaravan,
   IconUsers,
   IconDatabaseImport,
+  IconReportAnalytics,
   IconChevronsLeft,
   IconChevronsRight,
 } from '@tabler/icons-react';
@@ -23,11 +24,13 @@ const navConfig = {
     { label: 'Demandes à valider', path: '/valider-demandes', icon: IconFileText },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
+    { label: 'Rapports', path: '/rapports', icon: IconReportAnalytics },
   ],
   employee: [
     { label: 'Tableau de bord', path: '/', icon: IconLayoutDashboard },
     { label: 'Mes demandes', path: '/mes-demandes', icon: IconFileText },
     { label: 'Nouvelle demande', path: '/nouvelle-demande', icon: IconPlus },
+    { label: 'Mes trajets', path: '/mes-trajets', icon: IconRoute },
   ],
   superadmin: [
     { label: 'Tableau de bord', path: '/', icon: IconLayoutDashboard },
@@ -36,6 +39,7 @@ const navConfig = {
     { label: 'Demandes à valider', path: '/valider-demandes', icon: IconFileText },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
+    { label: 'Rapports', path: '/rapports', icon: IconReportAnalytics },
   ],
 };
 

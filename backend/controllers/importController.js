@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const { parse: csvParse } = require('csv-parse/sync');
 const XLSX = require('xlsx');
 const { Employee, Vehicle } = require('../models');
+const { ASSIGNABLE_ROLES, VEHICLE_STATUSES } = require('../utils/constants');
 
 // ── Field definitions per entity ──
 const entities = {
@@ -110,113 +111,132 @@ function applyMapping(row, mapping, entityDef) {
   return out;
 }
 
-// ── Analyze file ──
-exports.analyze = async (req, res) => {
+function isPasswordError(err) {
+  return Boolean(err?.message?.toLowerCase().includes('password'));
+}
+
+// Enrobe un handler d'import : les fichiers protégés par mot de passe
+// renvoient un 400 explicite, le reste part vers le middleware d'erreurs.
+const fileErrorHandler = (fn) => async (req, res, next) => {
   try {
-    if (!req.file) return res.status(400).json({ message: 'Fichier requis' });
-    console.log('[import] File received:', req.file.originalname, req.file.size, 'bytes');
-    const rows = parseFile(req.file.buffer, req.file.originalname);
-    console.log('[import] Rows parsed:', rows.length);
-    if (rows.length === 0) return res.status(400).json({ message: 'Fichier vide' });
-
-    const columns = Object.keys(rows[0]);
-    const entityType = detectEntityType(columns);
-    const entityDef = entities[entityType];
-    const mapping = buildMapping(columns, entityDef);
-
-    const preview = rows.slice(0, 20).map(r => applyMapping(r, mapping, entityDef));
-
-    res.json({
-      entity: entityType,
-      entityLabel: entityType === 'employees' ? 'Utilisateurs' : 'Véhicules',
-      columns,
-      detected: columns.length,
-      totalRows: rows.length,
-      mapping: entityDef.fields.map(f => ({
-        key: f.key,
-        label: f.label,
-        required: f.required,
-        detectedColumn: mapping[f.key] || null,
-        detected: !!mapping[f.key],
-      })),
-      preview,
-      confidence: Object.keys(mapping).length / entityDef.fields.filter(f => f.required).length,
-    });
+    await fn(req, res);
   } catch (err) {
-    console.error('[import] Analyze error:', err);
-    if (err.message && err.message.toLowerCase().includes('password')) {
+    if (isPasswordError(err)) {
       return res.status(400).json({ message: 'Le fichier est protégé par mot de passe. Veuillez le déprotéger et réessayer.' });
     }
-    res.status(500).json({ message: 'Erreur d\'analyse', error: err.message });
+    next(err);
   }
 };
+
+// ── Analyze file ──
+exports.analyze = fileErrorHandler(async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'Fichier requis' });
+  console.log('[import] File received:', req.file.originalname, req.file.size, 'bytes');
+
+  const rows = parseFile(req.file.buffer, req.file.originalname);
+  console.log('[import] Rows parsed:', rows.length);
+  if (rows.length === 0) return res.status(400).json({ message: 'Fichier vide' });
+
+  const columns = Object.keys(rows[0]);
+  const entityType = detectEntityType(columns);
+  const entityDef = entities[entityType];
+  const mapping = buildMapping(columns, entityDef);
+
+  const preview = rows.slice(0, 20).map(r => applyMapping(r, mapping, entityDef));
+
+  res.json({
+    entity: entityType,
+    entityLabel: entityType === 'employees' ? 'Utilisateurs' : 'Véhicules',
+    columns,
+    detected: columns.length,
+    totalRows: rows.length,
+    mapping: entityDef.fields.map(f => ({
+      key: f.key,
+      label: f.label,
+      required: f.required,
+      detectedColumn: mapping[f.key] || null,
+      detected: !!mapping[f.key],
+    })),
+    preview,
+    confidence: Object.keys(mapping).length / entityDef.fields.filter(f => f.required).length,
+  });
+});
 
 // ── Import with confirmed mapping ──
-exports.execute = async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ message: 'Fichier requis' });
-    const { mapping: mappingInput, entity } = req.body;
+exports.execute = fileErrorHandler(async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'Fichier requis' });
 
-    if (!mappingInput || !entity) return res.status(400).json({ message: 'Mapping et entité requis' });
-    const entityDef = entities[entity];
-    if (!entityDef) return res.status(400).json({ message: 'Entité inconnue' });
+  const { mapping: mappingInput, entity } = req.body;
+  if (!mappingInput || !entity) return res.status(400).json({ message: 'Mapping et entité requis' });
 
-    const rows = parseFile(req.file.buffer, req.file.originalname);
-    const parsedMapping = typeof mappingInput === 'string'
-      ? (() => { try { return JSON.parse(mappingInput); } catch { return null; } })()
-      : mappingInput;
+  const entityDef = entities[entity];
+  if (!entityDef) return res.status(400).json({ message: 'Entité inconnue' });
 
-    if (!parsedMapping) return res.status(400).json({ message: 'Mapping invalide' });
+  const rows = parseFile(req.file.buffer, req.file.originalname);
+  const parsedMapping = typeof mappingInput === 'string'
+    ? (() => { try { return JSON.parse(mappingInput); } catch { return null; } })()
+    : mappingInput;
 
-    const errors = [];
-    const created = [];
+  if (!parsedMapping) return res.status(400).json({ message: 'Mapping invalide' });
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = applyMapping(rows[i], parsedMapping, entityDef);
-      const lineNum = i + 2;
+  const errors = [];
+  const created = [];
 
-      try {
-        if (entity === 'employees') {
-          const { nom, prenom, email, password, department, role } = row;
-          if (!nom || !prenom || !email || !password) {
-            errors.push(`Ligne ${lineNum} (${email || '?'}) : nom, prénom, email et mot de passe obligatoires`);
-            continue;
-          }
-          const existing = await Employee.findOne({ where: { email } });
-          if (existing) { errors.push(`Ligne ${lineNum} : ${email} existe déjà`); continue; }
-          const h = await bcrypt.hash(password, 10);
-          const validRoles = ['employee', 'logistics_chief', 'admin'];
-          const finalRole = validRoles.includes(role) ? role : 'employee';
-          const e = await Employee.create({ nom, prenom, email, password: h, department, role: finalRole });
-          created.push({ email: e.email, nom: e.nom, prenom: e.prenom, role: e.role });
-        } else if (entity === 'vehicles') {
-          const type = (row.type || '').toLowerCase();
-          const capacity = parseInt(row.capacity, 10);
-          const status = row.status || 'available';
-          if (!type) { errors.push(`Ligne ${lineNum} : type obligatoire`); continue; }
-          if (!capacity || capacity < 1) { errors.push(`Ligne ${lineNum} : capacité invalide`); continue; }
-          const v = await Vehicle.create({ type, capacity, status });
-          created.push({ type: v.type, capacity: v.capacity, status: v.status });
-        }
-      } catch (err) {
-        errors.push(`Ligne ${lineNum} : ${err.message}`);
+  for (let i = 0; i < rows.length; i++) {
+    const row = applyMapping(rows[i], parsedMapping, entityDef);
+    const lineNum = i + 2;
+
+    try {
+      if (entity === 'employees') {
+        const result = await importEmployee(row);
+        if (result.error) { errors.push(`Ligne ${lineNum} : ${result.error}`); continue; }
+        created.push(result.employee);
+      } else if (entity === 'vehicles') {
+        const result = await importVehicle(row);
+        if (result.error) { errors.push(`Ligne ${lineNum} : ${result.error}`); continue; }
+        created.push(result.vehicle);
       }
+    } catch (err) {
+      errors.push(`Ligne ${lineNum} : ${err.message}`);
     }
-
-    res.json({
-      total: rows.length,
-      imported: created.length,
-      errors: errors.length,
-      details: { created, errors },
-    });
-  } catch (err) {
-    console.error('[import] Execute error:', err);
-    if (err.message && err.message.toLowerCase().includes('password')) {
-      return res.status(400).json({ message: 'Le fichier est protégé par mot de passe. Veuillez le déprotéger et réessayer.' });
-    }
-    res.status(500).json({ message: 'Erreur d\'import', error: err.message });
   }
-};
+
+  res.json({
+    total: rows.length,
+    imported: created.length,
+    errors: errors.length,
+    details: { created, errors },
+  });
+});
+
+async function importEmployee(row) {
+  const { nom, prenom, email, password, department, role } = row;
+
+  if (!nom || !prenom || !email || !password) {
+    return { error: 'nom, prénom, email et mot de passe obligatoires' };
+  }
+
+  const existing = await Employee.findOne({ where: { email } });
+  if (existing) return { error: `${email} existe déjà` };
+
+  const h = await bcrypt.hash(password, 10);
+  const finalRole = ASSIGNABLE_ROLES.includes(role) ? role : 'employee';
+
+  const e = await Employee.create({ nom, prenom, email, password: h, department, role: finalRole });
+  return { employee: { email: e.email, nom: e.nom, prenom: e.prenom, role: e.role } };
+}
+
+async function importVehicle(row) {
+  const type = (row.type || '').toLowerCase();
+  const capacity = parseInt(row.capacity, 10);
+
+  if (!type) return { error: 'type obligatoire' };
+  if (!capacity || capacity < 1) return { error: 'capacité invalide' };
+
+  const status = VEHICLE_STATUSES.includes(row.status) ? row.status : 'available';
+  const v = await Vehicle.create({ type, capacity, status });
+  return { vehicle: { type: v.type, capacity: v.capacity, status: v.status } };
+}
 
 // ── Templates ──
 exports.templates = (req, res) => {
@@ -224,13 +244,13 @@ exports.templates = (req, res) => {
     employees: {
       columns: ['nom', 'prenom', 'email', 'password', 'department', 'role'],
       example: 'nom,prenom,email,password,department,role\nDupont,Jean,jean.dupont@example.com,password123,Logistique,employee',
-      roles: ['employee', 'logistics_chief', 'admin'],
+      roles: ASSIGNABLE_ROLES,
     },
     vehicles: {
       columns: ['type', 'capacity', 'status'],
       example: 'type,capacity,status\nvoiture,5,available\nmoto,2,maintenance',
       types: ['voiture', 'moto', 'minibus', 'camion'],
-      statuses: ['available', 'busy', 'maintenance'],
+      statuses: VEHICLE_STATUSES,
     },
   });
 };

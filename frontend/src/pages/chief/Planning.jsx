@@ -13,9 +13,7 @@ import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import VehicleIcon from '../../components/VehicleIcon';
-
-const statusColor = { planned: 'gray', ongoing: 'brand', pending_return: 'orange', finished: 'brandYellow' };
-const statusLabel = { planned: 'Planifiée', ongoing: 'En cours', pending_return: 'Retour à valider', finished: 'Terminée' };
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor } from '../../utils/labels';
 
 const vehicleTypeOptions = [
   { value: 'all', label: 'Tous les véhicules' },

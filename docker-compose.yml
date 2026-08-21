@@ -39,7 +39,7 @@ services:
       db:
         condition: service_healthy
     command: >
-      sh -c "npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all && npm run dev"
+      sh -c "npx sequelize-cli db:migrate && node scripts/seed-if-empty.js && npm run dev"
 
   frontend:
     build:

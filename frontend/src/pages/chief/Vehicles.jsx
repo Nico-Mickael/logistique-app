@@ -12,9 +12,7 @@ import dayjs from '../../utils/date';
 import { vehicleService } from '../../api/vehicleService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
-
-const statusColor = { available: 'brand', busy: 'brandYellow', maintenance: 'red', broken: 'red' };
-const statusLabel = { available: 'Disponible', busy: 'En sortie', maintenance: 'Maintenance', broken: 'En panne' };
+import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor } from '../../utils/labels';
 
 function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete }) {
   return (
@@ -173,7 +171,7 @@ function Vehicles() {
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowgap={4}>
+      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
         <div>
           <Title order={3}>Véhicules</Title>
           <Text size="sm" c="dimmed" mt={2}>{vehicles.length} véhicule{vehicles.length !== 1 ? 's' : ''} dans la flotte</Text>

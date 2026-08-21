@@ -11,9 +11,7 @@ import dayjs from '../../utils/date';
 import { requestService } from '../../api/requestService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
-
-const statusColor = { pending: 'gray', approved: 'brand', rescheduled: 'brandYellow', rejected: 'red', cancelled: 'gray' };
-const statusLabel = { pending: 'En attente', approved: 'Validée', rescheduled: 'Replanifiée', rejected: 'Refusée', cancelled: 'Annulée' };
+import { requestStatusLabel as statusLabel, requestStatusColor as statusColor } from '../../utils/labels';
 
 function RequestCard({ request, onRespond, onCancel, onEdit, onDetail }) {
   const canCancel = ['pending', 'approved'].includes(request.status);
@@ -217,7 +215,7 @@ function MyRequests() {
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowgap={4}>
+      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
         <div>
           <Title order={3}>Mes demandes</Title>
           <Text size="sm" c="dimmed" mt={2}>{requests.length} demande{requests.length !== 1 ? 's' : ''}</Text>

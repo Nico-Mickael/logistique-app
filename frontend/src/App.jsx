@@ -16,6 +16,7 @@ import Sorties from './pages/chief/Sorties';
 import CreateSortie from './pages/chief/CreateSortie';
 import Vehicles from './pages/chief/Vehicles';
 import Planning from './pages/chief/Planning';
+import Reports from './pages/chief/Reports';
 import MyTrips from './pages/employee/MyTrips';
 import Users from './pages/superadmin/Users';
 import Import from './pages/superadmin/Import';
@@ -63,7 +64,7 @@ function App() {
               <Route
                 path="/mes-trajets"
                 element={
-                  <PrivateRoute allowedRoles={['superadmin']}>
+                  <PrivateRoute allowedRoles={['employee', 'superadmin']}>
                     <Layout>
                       <MyTrips />
                     </Layout>
@@ -121,6 +122,16 @@ function App() {
                 }
               />
               <Route
+                path="/rapports"
+                element={
+                  <PrivateRoute allowedRoles={['logistics_chief', 'admin', 'superadmin']}>
+                    <Layout>
+                      <Reports />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/utilisateurs"
                 element={
                   <PrivateRoute allowedRoles={['superadmin']}>
@@ -145,7 +156,7 @@ function App() {
           </SocketProvider>
         </AuthProvider>
       </BrowserRouter>
-      <ToastContainer position={{ base: 'top-center', sm: 'top-right' }} autoClose={3500} theme="light" />
+      <ToastContainer position="top-right" autoClose={3500} theme="light" />
     </MantineProvider>
   );
 }

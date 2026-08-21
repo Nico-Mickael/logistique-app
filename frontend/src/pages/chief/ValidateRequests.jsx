@@ -11,9 +11,8 @@ import dayjs from '../../utils/date';
 import { requestService } from '../../api/requestService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
-
-const statusColor = { pending: 'gray', approved: 'brand', rescheduled: 'brandYellow', rejected: 'red' };
-const statusLabel = { pending: 'En attente', approved: 'Validée', rescheduled: 'Replanifiée', rejected: 'Refusée' };
+import { requestStatusLabel as statusLabel, requestStatusColor as statusColor } from '../../utils/labels';
+import { downloadCSV } from '../../utils/csv';
 
 const statusOptions = [
   { value: '', label: 'Tous' },
@@ -92,7 +91,10 @@ function ValidateRequests() {
     }
   }, [statusFilter, destinationFilter, dateFrom, dateTo, page]);
 
-  useEffect(() => { fetchRequests(1); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => { fetchRequests(); }, 250);
+    return () => clearTimeout(t);
+  }, [fetchRequests]);
 
   const applyFilters = () => { setPage(1); };
   const clearFilters = () => {
@@ -100,8 +102,6 @@ function ValidateRequests() {
     setPage(1);
   };
   const hasFilters = statusFilter || destinationFilter || dateFrom || dateTo;
-
-  useEffect(() => { fetchRequests(page); }, [page]);
 
   const handleApprove = async (id) => {
     try {
@@ -149,15 +149,12 @@ function ValidateRequests() {
       const { data } = await requestService.all(params);
       const allRequests = data.data || [];
 
-      const headers = ['Employé;Département;Destination;Motif;Date souhaitée;Personnes;Statut'];
-      const rows = allRequests.map((r) =>
-        `${r.Employee?.prenom} ${r.Employee?.nom};${r.Employee?.department || ''};${r.destination};${r.motif};${dayjs(r.date_souhaitee).format('DD/MM/YYYY HH:mm')};${r.nb_personnes};${statusLabel[r.status] || r.status}`
+      downloadCSV('demandes.csv',
+        ['Employé', 'Département', 'Destination', 'Motif', 'Date souhaitée', 'Personnes', 'Statut'],
+        allRequests.map((r) =>
+          [`${r.Employee?.prenom} ${r.Employee?.nom}`, r.Employee?.department || '', r.destination, r.motif, dayjs(r.date_souhaitee).format('DD/MM/YYYY HH:mm'), r.nb_personnes, statusLabel[r.status] || r.status].join(';')
+        )
       );
-      const csv = [headers, ...rows].join('\n');
-      const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'demandes.csv'; a.click();
-      URL.revokeObjectURL(url);
     } catch {
       notifyError("Erreur lors de l'export CSV");
     }
@@ -204,7 +201,7 @@ function ValidateRequests() {
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowgap={4}>
+      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
         <div>
           <Title order={3}>Demandes à valider</Title>
           <Text size="sm" c="dimmed" mt={2}>{total} demande{total !== 1 ? 's' : ''} au total</Text>
@@ -219,11 +216,11 @@ function ValidateRequests() {
       <Paper p="md" radius="lg" withBorder mb="md" className="filters-panel">
         <Group gap="sm" wrap="wrap" align="flex-end">
           <Select placeholder="Statut" data={statusOptions} value={statusFilter}
-            onChange={setStatusFilter} clearable size="xs" w={140} />
+            onChange={(v) => { setStatusFilter(v || ''); setPage(1); }} clearable size="xs" w={140} />
           <TextInput placeholder="Destination..." leftSection={<IconSearch size={14} />}
-            value={destinationFilter} onChange={(e) => setDestinationFilter(e.currentTarget.value)} size="xs" w={{ base: '100%', sm: 180 }} />
-          <DateTimePicker placeholder="Du" value={dateFrom} onChange={setDateFrom} size="xs" w={{ base: '100%', sm: 140 }} clearable />
-          <DateTimePicker placeholder="Au" value={dateTo} onChange={setDateTo} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+            value={destinationFilter} onChange={(e) => { setDestinationFilter(e.currentTarget.value); setPage(1); }} size="xs" w={{ base: '100%', sm: 180 }} />
+          <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+          <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
           <Button color="brand" size="xs" onClick={applyFilters}>Filtrer</Button>
           {hasFilters && (
             <Button variant="subtle" color="gray" size="xs" leftSection={<IconClear size={14} />} onClick={clearFilters}>
