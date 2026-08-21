@@ -1,13 +1,13 @@
 import { MantineProvider } from '@mantine/core';
 import { ToastContainer } from 'react-toastify';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import { theme } from './theme';
 
 import Login from './pages/Login';
 import Layout from './components/Layout';
-import Dashboard from './pages/chief/Dashboard';
+
 import PrivateRoute from './routes/PrivateRoute';
 import MyRequests from './pages/employee/MyRequests';
 import NewRequest from './pages/employee/NewRequest';
@@ -22,6 +22,14 @@ import Users from './pages/superadmin/Users';
 import Import from './pages/superadmin/Import';
 
 
+function HomeRedirect() {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  const isSuperadmin = user.role === 'superadmin';
+  const isChief = user.role === 'logistics_chief' || user.role === 'admin';
+  return <Navigate to={isSuperadmin ? '/utilisateurs' : isChief ? '/valider-demandes' : '/mes-demandes'} replace />;
+}
+
 function App() {
   return (
     <MantineProvider theme={theme}>
@@ -31,16 +39,7 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
 
-              <Route
-                path="/"
-                element={
-                  <PrivateRoute allowedRoles={['employee', 'logistics_chief', 'admin', 'superadmin']}>
-                    <Layout>
-                      <Dashboard />
-                    </Layout>
-                  </PrivateRoute>
-                }
-              />
+              <Route path="/" element={<HomeRedirect />} />
               <Route
                 path="/mes-demandes"
                 element={

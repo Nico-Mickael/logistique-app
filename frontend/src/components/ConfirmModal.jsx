@@ -27,18 +27,23 @@ export default function ConfirmModal({
   loading = false,
 }) {
   return (
-    <Modal opened={opened} onClose={onClose} size="sm" radius="md" centered
-      fullScreen={{ base: true, sm: false }}
-      title={null}
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      size="sm"
+      radius="md"
+      centered
+      zIndex={1000}
+      withCloseButton={false}
       overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-      transitionProps={{ transition: 'fade', duration: 200 }}
+      transitionProps={{ transition: 'pop', duration: 200 }}
     >
-      <Stack gap="md" align="center" py="sm">
+      <Stack gap="md" align="center" py="md">
         {iconMap[variant]}
         {title && <Text fw={600} ta="center">{title}</Text>}
         {message && <Text size="sm" ta="center" c="dimmed">{message}</Text>}
         <Group justify="center" gap="sm" w="100%" mt="sm">
-          <Button variant="default" onClick={onClose} radius="md" px="xl">{cancelLabel}</Button>
+          <Button variant="default" onClick={onClose} radius="md" px="xl" disabled={loading}>{cancelLabel}</Button>
           <Button color={colorMap[variant]} onClick={onConfirm} loading={loading} radius="md" px="xl">
             {confirmLabel}
           </Button>

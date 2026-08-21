@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { AppShell, NavLink, Stack, Text, Divider, Group, ScrollArea, Tooltip, UnstyledButton } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
-  IconLayoutDashboard,
   IconFileText,
   IconRoute,
   IconCar,
@@ -20,20 +19,17 @@ import Header from './Header';
 
 const navConfig = {
   chief: [
-    { label: 'Tableau de bord', path: '/', icon: IconLayoutDashboard },
     { label: 'Demandes à valider', path: '/valider-demandes', icon: IconFileText },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
     { label: 'Rapports', path: '/rapports', icon: IconReportAnalytics },
   ],
   employee: [
-    { label: 'Tableau de bord', path: '/', icon: IconLayoutDashboard },
     { label: 'Mes demandes', path: '/mes-demandes', icon: IconFileText },
     { label: 'Nouvelle demande', path: '/nouvelle-demande', icon: IconPlus },
     { label: 'Mes trajets', path: '/mes-trajets', icon: IconRoute },
   ],
   superadmin: [
-    { label: 'Tableau de bord', path: '/', icon: IconLayoutDashboard },
     { label: 'Gestion utilisateurs', path: '/utilisateurs', icon: IconUsers },
     { label: 'Importation', path: '/importation', icon: IconDatabaseImport },
     { label: 'Demandes à valider', path: '/valider-demandes', icon: IconFileText },
