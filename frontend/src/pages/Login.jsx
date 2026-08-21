@@ -3,6 +3,7 @@ import { Paper, TextInput, PasswordInput, Button, Title, Text, Stack, Divider } 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { notifySuccess, notifyError } from '../utils/toast';
+import { markConfetti } from '../utils/confetti';
 import Logo from '../components/Logo';
 
 function Login() {
@@ -22,6 +23,7 @@ function Login() {
     try {
       const user = await login(email, password);
       notifySuccess(`Bienvenue ${user.prenom}`);
+      markConfetti();
       navigate('/');
     } catch (err) {
       notifyError(err.response?.data?.message || 'Identifiants incorrects');

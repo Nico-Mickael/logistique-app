@@ -29,7 +29,7 @@ const yearOptions = Array.from({ length: currentYear - 2023 }, (_, i) => String(
 
 function StatCard({ label, value, icon: Icon }) {
   return (
-    <Paper p="md" radius="lg" withBorder style={{ background: '#fff' }}>
+    <Paper p="md" radius="lg" withBorder>
       <Group justify="space-between" wrap="nowrap" align="flex-start">
         <div>
           <Text size="xs" fw={500} tt="uppercase" c="dimmed" mb={4}>{label}</Text>
@@ -246,7 +246,7 @@ function StackGapList({ destinations }) {
   return (
     <div>
       {destinations.map(({ destination, count }, i) => (
-        <Group key={destination} justify="space-between" py={6} style={{ borderBottom: i < destinations.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+        <Group key={destination} justify="space-between" py={6} style={{ borderBottom: i < destinations.length - 1 ? '1px solid var(--mantine-color-default-border)' : 'none' }}>
           <Group gap="sm">
             <Badge variant="light" color="gray" size="sm">{i + 1}</Badge>
             <Text size="sm">{destination}</Text>

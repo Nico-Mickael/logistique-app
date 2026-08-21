@@ -15,8 +15,8 @@ exports.register = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Format d\'email invalide' });
   }
 
-  if (password.length < 6) {
-    return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 6 caractères' });
+  if (password.length < 4) {
+    return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 4 caractères' });
   }
 
   const existing = await Employee.findOne({ where: { email } });

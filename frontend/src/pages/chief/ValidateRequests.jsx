@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
-  TextInput, Stack, Flex, Select, Card, SimpleGrid, Pagination,
+  TextInput, Stack, Flex, Select, Card, SimpleGrid, Pagination, SegmentedControl,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
@@ -72,6 +72,7 @@ function ValidateRequests() {
 
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [viewMode, setViewMode] = useState('table');
   const limit = 20;
 
   const fetchRequests = useCallback(async (p = page) => {
@@ -207,6 +208,16 @@ function ValidateRequests() {
           <Text size="sm" c="dimmed" mt={2}>{total} demande{total !== 1 ? 's' : ''} au total</Text>
         </div>
         <Group gap="xs">
+          <SegmentedControl
+            value={viewMode}
+            onChange={setViewMode}
+            data={[
+              { label: 'Cartes', value: 'cards' },
+              { label: 'Tableau', value: 'table' },
+            ]}
+            size="xs"
+            color="brand"
+          />
           <Button variant="subtle" color="gray" leftSection={<IconDownload size={16} />} onClick={exportCSV} size="sm">
             Export CSV
           </Button>
@@ -241,7 +252,7 @@ function ValidateRequests() {
         </Paper>
       ) : (
         <>
-          <div className="hide-on-mobile">
+          {viewMode === 'table' ? (
             <Paper p="lg" radius="lg" withBorder className="dashboard-panel">
               <DataTable
                 withTableBorder
@@ -260,21 +271,21 @@ function ValidateRequests() {
                 paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
               />
             </Paper>
-          </div>
-
-          <div className="hide-on-tablet-up">
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-              {requests.map((r) => (
-                <ValidateRequestCard key={r.id} r={r}
-                  onApprove={handleApprove} onReject={(r) => setRejectTarget(r)}
-                  onReschedule={openRescheduleModal} onDetail={openDetail}
-                />
-              ))}
-            </SimpleGrid>
-            <Center mt="md">
-              <Pagination total={Math.ceil(total / limit)} value={page} onChange={setPage} color="brand" />
-            </Center>
-          </div>
+          ) : (
+            <>
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+                {requests.map((r) => (
+                  <ValidateRequestCard key={r.id} r={r}
+                    onApprove={handleApprove} onReject={(r) => setRejectTarget(r)}
+                    onReschedule={openRescheduleModal} onDetail={openDetail}
+                  />
+                ))}
+              </SimpleGrid>
+              <Center mt="md">
+                <Pagination total={Math.ceil(total / limit)} value={page} onChange={setPage} color="brand" />
+              </Center>
+            </>
+          )}
         </>
       )}
 

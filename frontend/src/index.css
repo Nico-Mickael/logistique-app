@@ -9,8 +9,8 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f5f7f5;
-  color: #1f1f1f;
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-text);
 }
 
 #root {
@@ -27,10 +27,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c8c8c8;
+  background: light-dark(#c8c8c8, #555555);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a0a0a0;
+  background: light-dark(#a0a0a0, #777777);
 }

@@ -62,7 +62,7 @@ export default function Accueil() {
 
       {/* ── Timeline horizontale : 25 ans de parcours ── */}
       <div ta="center" className="hero-title">
-        <Text size="xs" fw={700} tt="uppercase" ls={2} c="#B8860B">Notre histoire</Text>
+        <Text size="xs" fw={700} tt="uppercase" ls={2} c="light-dark(#B8860B, #D4920A)">Notre histoire</Text>
         <Title order={3} mt={4}>25 ans de parcours</Title>
         <Text size="sm" c="dimmed" mt={4}>Les grandes étapes qui ont façonné l'ADES</Text>
       </div>
@@ -88,13 +88,13 @@ export default function Accueil() {
 
       {/* ── Message de clôture ── */}
       <Flex align="center" gap="md" mt="xl" className="hero-text" style={{ animationDelay: '0.7s', marginBottom: '0.5rem' }}>
-        <Divider style={{ flex: 1 }} color="#F0E6C8" />
+        <Divider style={{ flex: 1 }} color="light-dark(#F0E6C8, #3F3A28)" />
         <Group gap={8} wrap="nowrap">
           <IconConfetti size={16} color="#D4920A" />
-          <Text fw={600} size="sm" c="#8A6A00">Merci de faire partie de l'aventure</Text>
+          <Text fw={600} size="sm" c="light-dark(#8A6A00, #F5C542)">Merci de faire partie de l'aventure</Text>
           <IconConfetti size={16} color="#D4920A" />
         </Group>
-        <Divider style={{ flex: 1 }} color="#F0E6C8" />
+        <Divider style={{ flex: 1 }} color="light-dark(#F0E6C8, #3F3A28)" />
       </Flex>
     </div>
   );

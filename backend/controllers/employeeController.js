@@ -20,8 +20,8 @@ exports.create = asyncHandler(async (req, res) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ message: 'Format d\'email invalide' });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 6 caractères' });
+  if (password.length < 4) {
+    return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 4 caractères' });
   }
 
   const existing = await Employee.findOne({ where: { email } });
@@ -67,7 +67,7 @@ exports.update = asyncHandler(async (req, res) => {
     employee.role = role;
   }
   if (password) {
-    if (password.length < 6) return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 6 caractères' });
+    if (password.length < 4) return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 4 caractères' });
     employee.password = await bcrypt.hash(password, 10);
   }
 

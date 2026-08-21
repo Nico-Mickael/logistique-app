@@ -165,7 +165,7 @@ export default function Import() {
                           value={override || ''}
                           onChange={e => setMapping(m.key, e.target.value || null)}
                           style={{
-                            padding: '4px 8px', borderRadius: 6, border: '1px solid #ddd',
+                            padding: '4px 8px', borderRadius: 6, border: '1px solid var(--mantine-color-default-border)',
                             width: '100%', maxWidth: 280, fontSize: 13,
                           }}
                         >

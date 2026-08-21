@@ -136,7 +136,7 @@ function CountdownDisplay({ targetDate, compact }) {
         <IconHourglass size={20} color="var(--mantine-color-brandYellow-6)" />
         <div style={{ textAlign: 'center' }}>
           {d > 0 && <Text size="xs" c="dimmed" mb={2}>Départ dans {d} jour{d > 1 ? 's' : ''}</Text>}
-          <Text size="xl" fw={700} c={h < 1 ? '#D32F2F' : '#1f1f1f'}
+          <Text size="xl" fw={700} c={h < 1 ? '#D32F2F' : 'var(--mantine-color-text)'}
             style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: 2 }}
           >
             {String(h).padStart(2, '0')}:{String(m).padStart(2, '0')}:{String(s).padStart(2, '0')}
@@ -161,8 +161,8 @@ function VehicleSelectCard({ vehicle, isSelected, onSelect, seatStates, nextDepa
       onClick={onSelect}
       style={{
         cursor: 'pointer',
-        border: isSelected ? '2px solid var(--mantine-color-brand-6)' : '1px solid #e0e0e0',
-        background: isSelected ? 'rgba(46,125,50,0.03)' : '#fff',
+        border: isSelected ? '2px solid var(--mantine-color-brand-6)' : '1px solid var(--mantine-color-default-border)',
+        background: isSelected ? 'rgba(46,125,50,0.03)' : 'var(--mantine-color-body)',
         transition: 'all 0.3s ease',
         position: 'relative',
         overflow: 'hidden',
@@ -341,7 +341,7 @@ function NewRequest() {
         .vehicle-select-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.1); }
         .vehicle-select-card--selected { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.12); }
         .glass-panel { background: rgba(255,255,255,0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.3); }
-        .capacity-bar { height: 6px; border-radius: 3px; background: #e9ecef; overflow: hidden; margin-top: 4px; }
+        .capacity-bar { height: 6px; border-radius: 3px; background: light-dark(#e9ecef, #373A40); overflow: hidden; margin-top: 4px; }
         .capacity-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
         .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
         .detail-car { height: 200px; display: flex; align-items: center; justify-content: center; padding: 8px; }
@@ -381,7 +381,7 @@ function NewRequest() {
                     nextDeparture={nextDep}
                   />
                   {isSelected && vd.occupants?.length > 0 && (
-                    <Paper p="xs" radius="md" withBorder mt={4} style={{ background: '#fafafa' }}>
+                    <Paper p="xs" radius="md" withBorder mt={4} style={{ background: 'light-dark(#fafafa, rgba(255,255,255,0.04))' }}>
                       <Text size="xs" c="dimmed" fw={600} mb={4}>Occupants actuels</Text>
                       {vd.occupants.map((occ) => (
                         <Group key={occ.id} gap={4} mb={2}>
@@ -433,7 +433,7 @@ function NewRequest() {
                 {countdownTarget && <CountdownDisplay targetDate={countdownTarget} />}
 
                 {activeVehicleData.occupants?.length > 0 && (
-                  <Paper p="sm" radius="md" withBorder mt="sm" style={{ background: '#fafafa' }}>
+                  <Paper p="sm" radius="md" withBorder mt="sm" style={{ background: 'light-dark(#fafafa, rgba(255,255,255,0.04))' }}>
                     <Text size="xs" fw={600} c="dimmed" mb="xs">Détails occupants</Text>
                     <Stack gap={4}>
                       {activeVehicleData.occupants.map((occ) => (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
-  TextInput, Select, NumberInput, Card, SimpleGrid, Stack, Flex,
+  TextInput, Select, NumberInput, Card, SimpleGrid, Stack, Flex, SegmentedControl,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { useDisclosure } from '@mantine/hooks';
@@ -70,6 +70,7 @@ function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete }) 
 function Vehicles() {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('table');
 
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [type, setType] = useState('');
@@ -176,9 +177,21 @@ function Vehicles() {
           <Title order={3}>Véhicules</Title>
           <Text size="sm" c="dimmed" mt={2}>{vehicles.length} véhicule{vehicles.length !== 1 ? 's' : ''} dans la flotte</Text>
         </div>
-        <Button color="brand" leftSection={<IconPlus size={16} />} onClick={openCreate}>
-          Ajouter un véhicule
-        </Button>
+        <Group gap="xs">
+          <SegmentedControl
+            value={viewMode}
+            onChange={setViewMode}
+            data={[
+              { label: 'Cartes', value: 'cards' },
+              { label: 'Tableau', value: 'table' },
+            ]}
+            size="xs"
+            color="brand"
+          />
+          <Button color="brand" leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            Ajouter un véhicule
+          </Button>
+        </Group>
       </Flex>
 
       {vehicles.length === 0 ? (
@@ -192,7 +205,7 @@ function Vehicles() {
         </Paper>
       ) : (
         <>
-          <div className="hide-on-mobile">
+          {viewMode === 'table' ? (
             <Paper p="lg" radius="lg" withBorder className="dashboard-panel">
               <DataTable
                 withTableBorder
@@ -233,10 +246,8 @@ function Vehicles() {
                 idAccessor="id"
               />
             </Paper>
-          </div>
-
-          <div className="hide-on-tablet-up">
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+          ) : (
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
               {vehicles.map((v) => (
                 <VehicleCard key={v.id} vehicle={v}
                   onMaintenance={openMaintenanceModal} onAvailable={handleMakeAvailable}
@@ -244,7 +255,7 @@ function Vehicles() {
                 />
               ))}
             </SimpleGrid>
-          </div>
+          )}
         </>
       )}
 

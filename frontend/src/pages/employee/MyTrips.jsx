@@ -23,7 +23,7 @@ function TripCard({ sortie, onReturn }) {
       }} />
       <Group justify="space-between" mb="xs" wrap="nowrap">
         <Group gap="sm">
-          <IconRoute size={20} color="var(--mantine-color-brand-6)" />
+          <IconRoute size={20} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
           <Text fw={600} size="md">{sortie.destination}</Text>
         </Group>
         <Badge color={statusColor[sortie.status]} variant="light">

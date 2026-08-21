@@ -118,6 +118,7 @@ function Sorties() {
   const [vehicles, setVehicles] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [viewMode, setViewMode] = useState('table');
   const limit = 20;
 
   const [editOpened, { open: openEditModal, close: closeEditModal }] = useDisclosure(false);
@@ -360,6 +361,16 @@ function Sorties() {
           </Text>
         </div>
         <Group gap="xs">
+          <SegmentedControl
+            value={viewMode}
+            onChange={setViewMode}
+            data={[
+              { label: 'Cartes', value: 'cards' },
+              { label: 'Tableau', value: 'table' },
+            ]}
+            size="xs"
+            color="brand"
+          />
           <Button variant="subtle" color="gray" leftSection={<IconDownload size={16} />} onClick={exportCSV} size="sm">
             Export CSV
           </Button>
@@ -402,7 +413,7 @@ function Sorties() {
         </Paper>
       ) : (
         <>
-          <div className="hide-on-mobile">
+          {viewMode === 'table' ? (
             <Paper p="lg" radius="lg" withBorder className="dashboard-panel">
               <DataTable
                 withTableBorder
@@ -420,22 +431,22 @@ function Sorties() {
                 paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
               />
             </Paper>
-          </div>
-
-          <div className="hide-on-tablet-up">
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-              {sorties.map((s) => (
-                <SortieCard key={s.id} sortie={s}
-                  onDepart={openDepartModal} onSuggestions={openSuggestionsModal}
-                  onEdit={openEdit} onDelete={() => setDeleteTarget(s)} onValidateReturn={() => setValidateReturnTarget(s)}
-                  onArrivee={openArriveeModal} actionLoading={actionLoading}
-                />
-              ))}
-            </SimpleGrid>
-            <Center mt="md">
-              <Pagination total={Math.ceil(total / limit)} value={page} onChange={setPage} color="brand" />
-            </Center>
-          </div>
+          ) : (
+            <>
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+                {sorties.map((s) => (
+                  <SortieCard key={s.id} sortie={s}
+                    onDepart={openDepartModal} onSuggestions={openSuggestionsModal}
+                    onEdit={openEdit} onDelete={() => setDeleteTarget(s)} onValidateReturn={() => setValidateReturnTarget(s)}
+                    onArrivee={openArriveeModal} actionLoading={actionLoading}
+                  />
+                ))}
+              </SimpleGrid>
+              <Center mt="md">
+                <Pagination total={Math.ceil(total / limit)} value={page} onChange={setPage} color="brand" />
+              </Center>
+            </>
+          )}
         </>
       )}
 

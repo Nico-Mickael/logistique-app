@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal, TextInput, Select, Flex, Stack, Card, SimpleGrid, Pagination,
+  Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal, TextInput, Select, Flex, Stack, Card, SimpleGrid, Pagination, SegmentedControl,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { IconPlus, IconEdit, IconTrash, IconUsers as IconUsersIcon, IconSearch } from '@tabler/icons-react';
@@ -59,6 +59,7 @@ export default function Users() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [viewMode, setViewMode] = useState('table');
   const pageSize = 10;
 
   const [form, setForm] = useState({ nom: '', prenom: '', email: '', password: '', department: '', role: 'employee' });
@@ -173,6 +174,16 @@ export default function Users() {
           <Text size="sm" c="dimmed" mt={2}>{filteredUsers.length} utilisateur{filteredUsers.length !== 1 ? 's' : ''}</Text>
         </div>
         <Group gap="sm" wrap="wrap">
+          <SegmentedControl
+            value={viewMode}
+            onChange={setViewMode}
+            data={[
+              { label: 'Cartes', value: 'cards' },
+              { label: 'Tableau', value: 'table' },
+            ]}
+            size="xs"
+            color="brand"
+          />
           {users.length > 0 && (
             <TextInput
               placeholder="Rechercher..."
@@ -209,7 +220,7 @@ export default function Users() {
         </Paper>
       ) : (
         <>
-          <div className="hide-on-mobile">
+          {viewMode === 'table' ? (
             <Paper p="lg" radius="lg" withBorder className="dashboard-panel">
               <DataTable
                 withTableBorder
@@ -228,18 +239,18 @@ export default function Users() {
                 paginationActiveBackgroundColor="#3FA34A"
               />
             </Paper>
-          </div>
-
-          <div className="hide-on-tablet-up">
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-              {paginatedUsers.map((u) => (
-                <UserCard key={u.id} u={u} onEdit={openEdit} onDelete={setDeleteTarget} />
-              ))}
-            </SimpleGrid>
-            <Center mt="md">
-              <Pagination total={Math.ceil(filteredUsers.length / pageSize)} value={page} onChange={setPage} color="brand" />
-            </Center>
-          </div>
+          ) : (
+            <>
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+                {paginatedUsers.map((u) => (
+                  <UserCard key={u.id} u={u} onEdit={openEdit} onDelete={setDeleteTarget} />
+                ))}
+              </SimpleGrid>
+              <Center mt="md">
+                <Pagination total={Math.ceil(filteredUsers.length / pageSize)} value={page} onChange={setPage} color="brand" />
+              </Center>
+            </>
+          )}
         </>
       )}
 

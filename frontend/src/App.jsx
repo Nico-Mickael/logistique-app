@@ -8,6 +8,7 @@ import { theme } from './theme';
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import Accueil from './pages/Accueil';
+import LoginConfetti from './components/LoginConfetti';
 
 import PrivateRoute from './routes/PrivateRoute';
 import MyRequests from './pages/employee/MyRequests';
@@ -158,6 +159,7 @@ function App() {
         </AuthProvider>
       </BrowserRouter>
       <ToastContainer position="top-right" autoClose={3500} theme="light" />
+      <LoginConfetti />
     </MantineProvider>
   );
 }

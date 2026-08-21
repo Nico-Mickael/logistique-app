@@ -110,8 +110,8 @@ function VehicleCard({ vehicle, seatStates, isSelected, onClick }) {
       onClick={onClick}
       style={{
         cursor: 'pointer',
-        border: isSelected ? '2px solid var(--mantine-color-brand-6)' : '1px solid #e0e0e0',
-        background: isSelected ? 'rgba(46,125,50,0.03)' : '#fff',
+        border: isSelected ? '2px solid var(--mantine-color-brand-6)' : '1px solid var(--mantine-color-default-border)',
+        background: isSelected ? 'rgba(46,125,50,0.03)' : 'var(--mantine-color-body)',
         transition: 'all 0.3s ease',
         position: 'relative',
         overflow: 'hidden',
@@ -120,7 +120,7 @@ function VehicleCard({ vehicle, seatStates, isSelected, onClick }) {
       <Group justify="space-between" mb="sm" wrap="nowrap">
         <Group gap="sm">
           <div className="vehicle-icon-container">
-            <VehicleIcon type={vehicle.type} size={22} color="var(--mantine-color-brand-6)" />
+            <VehicleIcon type={vehicle.type} size={22} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
           </div>
           <div>
             <Text fw={600} size="sm" tt="capitalize">{vehicle.type}</Text>
@@ -506,13 +506,13 @@ function CreateSortie() {
           box-shadow: 0 0 0 4px rgba(245,179,1,0.2);
         }
         .step-circle--pending {
-          background: #e9ecef;
-          color: #868e96;
+          background: light-dark(#e9ecef, #373A40);
+          color: light-dark(#868e96, #909296);
         }
         .step-line {
           flex: 1;
           height: 2px;
-          background: #e9ecef;
+          background: light-dark(#e9ecef, #373A40);
           max-width: 80px;
           min-width: 20px;
         }
@@ -544,7 +544,7 @@ function CreateSortie() {
           align-items: center;
           gap: 10px;
           padding: 10px 0;
-          border-bottom: 1px solid #f0f0f0;
+          border-bottom: 1px solid var(--mantine-color-default-border);
         }
         .info-row:last-child {
           border-bottom: none;
@@ -562,7 +562,7 @@ function CreateSortie() {
         .capacity-bar {
           height: 6px;
           border-radius: 3px;
-          background: #e9ecef;
+          background: light-dark(#e9ecef, #373A40);
           overflow: hidden;
           margin-top: 4px;
         }
@@ -589,12 +589,12 @@ function CreateSortie() {
         </Text>
         <div className={`step-line ${selectedVehicle ? 'step-line--done' : ''}`} />
         <div className={`step-circle ${createdSortie ? 'step-circle--done' : selectedVehicle ? 'step-circle--active' : 'step-circle--pending'}`}>2</div>
-        <Text size="sm" fw={createdSortie ? 400 : selectedVehicle ? 600 : 400} c={createdSortie ? 'dimmed' : selectedVehicle ? '#1f1f1f' : 'dimmed'}>
+        <Text size="sm" fw={createdSortie ? 400 : selectedVehicle ? 600 : 400} c={createdSortie ? 'dimmed' : selectedVehicle ? 'var(--mantine-color-text)' : 'dimmed'}>
           Configuration
         </Text>
         <div className={`step-line ${createdSortie ? 'step-line--done' : ''}`} />
         <div className={`step-circle ${createdSortie ? 'step-circle--active' : 'step-circle--pending'}`}>3</div>
-        <Text size="sm" fw={createdSortie ? 600 : 400} c={createdSortie ? '#1f1f1f' : 'dimmed'}>
+        <Text size="sm" fw={createdSortie ? 600 : 400} c={createdSortie ? 'var(--mantine-color-text)' : 'dimmed'}>
           Affectation
         </Text>
       </div>
@@ -629,7 +629,7 @@ function CreateSortie() {
             >
               <Group justify="space-between" mb="md">
                 <Group gap="sm">
-                  <VehicleIcon type={selectedVehicle.type} size={20} color="var(--mantine-color-brand-6)" />
+                  <VehicleIcon type={selectedVehicle.type} size={20} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
                   <Text fw={600} size="md" tt="capitalize">
                     {selectedVehicle.type}
                   </Text>
@@ -667,7 +667,7 @@ function CreateSortie() {
               </div>
 
               {seatAssignments.length > 0 && (
-                <Paper p="sm" radius="md" withBorder mt="sm" style={{ background: '#fafafa' }}>
+                <Paper p="sm" radius="md" withBorder mt="sm" style={{ background: 'light-dark(#fafafa, rgba(255,255,255,0.04))' }}>
                   <Text size="xs" fw={600} c="dimmed" mb="xs">Occupants</Text>
                   <Group gap="xs" wrap="wrap">
                     {seatAssignments.map((a) => (
@@ -747,21 +747,21 @@ function CreateSortie() {
               ) : (
                 <Stack gap={4}>
                   <div className="info-row">
-                    <div className="info-icon"><IconSteeringWheel size={16} color="var(--mantine-color-brand-6)" /></div>
+                    <div className="info-icon"><IconSteeringWheel size={16} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" /></div>
                     <div>
                       <Text size="xs" c="dimmed">Conducteur</Text>
                       <Text size="sm" fw={500}>{createdSortie.driver_name}</Text>
                     </div>
                   </div>
                   <div className="info-row">
-                    <div className="info-icon"><IconMapPin size={16} color="var(--mantine-color-brand-6)" /></div>
+                    <div className="info-icon"><IconMapPin size={16} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" /></div>
                     <div>
                       <Text size="xs" c="dimmed">Destination</Text>
                       <Text size="sm" fw={500}>{createdSortie.destination}</Text>
                     </div>
                   </div>
                   <div className="info-row">
-                    <div className="info-icon"><IconClock size={16} color="var(--mantine-color-brand-6)" /></div>
+                    <div className="info-icon"><IconClock size={16} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" /></div>
                     <div>
                       <Text size="xs" c="dimmed">Départ prévu</Text>
                       <Text size="sm" fw={500}>{dayjs(createdSortie.departure_time).format('DD/MM/YYYY HH:mm')}</Text>
@@ -769,7 +769,7 @@ function CreateSortie() {
                   </div>
                   {createdSortie.departure_km != null && (
                     <div className="info-row">
-                      <div className="info-icon"><IconGauge size={16} color="var(--mantine-color-brand-6)" /></div>
+                      <div className="info-icon"><IconGauge size={16} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" /></div>
                       <div>
                         <Text size="xs" c="dimmed">Km départ</Text>
                         <Text size="sm" fw={500}>{createdSortie.departure_km.toLocaleString()} km</Text>
@@ -777,7 +777,7 @@ function CreateSortie() {
                     </div>
                   )}
                   <div className="info-row">
-                    <div className="info-icon"><IconGauge size={16} color="var(--mantine-color-brand-6)" /></div>
+                    <div className="info-icon"><IconGauge size={16} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" /></div>
                     <div style={{ flex: 1 }}>
                       <Group justify="space-between">
                         <Text size="xs" c="dimmed">Capacité</Text>
@@ -805,7 +805,7 @@ function CreateSortie() {
             <>
               <Group justify="space-between" mb="md">
                 <Group gap="sm">
-                  <IconUsers size={20} color="var(--mantine-color-brand-6)" />
+                  <IconUsers size={20} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
                   <Text fw={600}>Demandes compatibles</Text>
                   <Badge color="brandYellow" variant="light" size="sm">
                     {compatibleRequests.length} disponible{compatibleRequests.length !== 1 ? 's' : ''}

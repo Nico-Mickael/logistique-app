@@ -193,7 +193,7 @@ function Planning() {
         </Paper>
         <Paper p="sm" radius="md" withBorder>
           <Group gap="xs">
-            <IconMotorbike size={18} color="var(--mantine-color-brand-6)" />
+            <IconMotorbike size={18} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
             <div>
               <Text size="xs" c="dimmed">En cours</Text>
               <Text fw={700} size="lg" c="brand">{monthStats.ongoing}</Text>

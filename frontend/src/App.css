@@ -226,3 +226,27 @@
   .htl-item:hover .htl-dot { transform: scale(1.15); }
   .htl-title { margin-top: 4px; }
 }
+
+/* ── Mode sombre ── */
+[data-mantine-color-scheme="dark"] .htl-year { color: #7BC88A; }
+[data-mantine-color-scheme="dark"] .htl-item.final .htl-year { color: #F5C542; }
+[data-mantine-color-scheme="dark"] .htl-title { color: #f1f3f5; }
+[data-mantine-color-scheme="dark"] .htl-dot { background: #1A1B1E; }
+[data-mantine-color-scheme="dark"] .htl-item.final .htl-dot { border-color: #1A1B1E; }
+
+[data-mantine-color-scheme="dark"] .rdt_TableHeadRow {
+  background-color: transparent;
+  border-bottom-color: #373A40;
+}
+[data-mantine-color-scheme="dark"] .rdt_TableRow {
+  background-color: transparent;
+  color: var(--mantine-color-text);
+}
+[data-mantine-color-scheme="dark"] .rdt_TableCell,
+[data-mantine-color-scheme="dark"] .rdt_TableCol {
+  color: var(--mantine-color-text);
+}
+[data-mantine-color-scheme="dark"] .rdt_Pagination {
+  background-color: transparent;
+  color: var(--mantine-color-text);
+}

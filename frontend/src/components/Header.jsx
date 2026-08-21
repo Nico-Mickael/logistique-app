@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import {
   Group, Text, ActionIcon, Popover, Stack, UnstyledButton, Badge,
   Button, Loader, Center, ScrollArea, Burger, Avatar, Tooltip, Divider,
+  useMantineColorScheme,
 } from '@mantine/core';
 import { IconBell, IconLogout } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { notificationService } from '../api/notificationService';
-import Logo from './Logo';
 
 function initials(user) {
   if (!user) return '';
@@ -18,6 +18,8 @@ function initials(user) {
 function Header({ opened: navOpened, onToggle }) {
   const { logout, user } = useAuth();
   const { unreadCount } = useSocket();
+  const { colorScheme } = useMantineColorScheme();
+  const dark = colorScheme === 'dark';
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loadingNotif, setLoadingNotif] = useState(false);
@@ -72,10 +74,7 @@ function Header({ opened: navOpened, onToggle }) {
   return (
     <Group h="100%" px="md" justify="space-between" wrap="nowrap" className="app-header">
       <Group gap="sm" wrap="nowrap">
-        <Burger opened={navOpened} onClick={onToggle} hiddenFrom="lg" size="sm" color="#1a1a1a" />
-        <div className="logo-badge">
-          <Logo height={22} />
-        </div>
+        <Burger opened={navOpened} onClick={onToggle} hiddenFrom="lg" size="sm" color={dark ? '#fff' : '#1a1a1a'} />
       </Group>
 
       <Group gap="md" wrap="nowrap">
@@ -164,16 +163,9 @@ function Header({ opened: navOpened, onToggle }) {
 
       <style>{`
         .app-header {
-          background: linear-gradient(135deg, #ffffff 0%, #ffffff 50%, #164d18 100%);
-        }
-
-        .logo-badge {
-          background: #fff;
-          border-radius: 8px;
-          padding: 4px 10px;
-          display: inline-flex;
-          align-items: center;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+          background: ${dark
+    ? 'linear-gradient(135deg, #1A1B1E 0%, #1A1B1E 50%, #164d18 100%)'
+    : 'linear-gradient(135deg, #ffffff 0%, #ffffff 50%, #164d18 100%)'};
         }
 
         .notif-badge {
