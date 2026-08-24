@@ -225,6 +225,9 @@ export default function Reports() {
               verticalSpacing="sm"
               idAccessor="id"
               records={kmRows}
+              recordsPerPage={10}
+              paginationSize="sm"
+              paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
               columns={[
                 { accessor: 'departure_time', title: 'Date', render: (s) => dayjs(s.departure_time).format('DD/MM/YYYY') },
                 { accessor: 'vehicle', title: 'Véhicule', render: (s) => <Text tt="capitalize">{s.Vehicle?.type}</Text> },

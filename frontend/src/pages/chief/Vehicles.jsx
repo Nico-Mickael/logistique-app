@@ -244,6 +244,9 @@ function Vehicles() {
                 ]}
                 records={vehicles}
                 idAccessor="id"
+                recordsPerPage={10}
+                paginationSize="sm"
+                paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
               />
             </Paper>
           ) : (

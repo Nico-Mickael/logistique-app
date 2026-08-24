@@ -211,6 +211,9 @@ function MyTrips() {
                     ]}
                     records={finished}
                     idAccessor="id"
+                    recordsPerPage={10}
+                    paginationSize="sm"
+                    paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
                   />
                 </Paper>
               </div>

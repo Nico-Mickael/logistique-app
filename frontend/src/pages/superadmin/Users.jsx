@@ -88,6 +88,12 @@ export default function Users() {
 
   const paginatedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize);
 
+  // Si la page courante dépasse la dernière page (dernier élément supprimé), revenir en arrière
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+    if (page > maxPage) setPage(maxPage);
+  }, [filteredUsers, page]);
+
   const openCreate = () => {
     setEditUser(null);
     setForm({ nom: '', prenom: '', email: '', password: '', department: '', role: 'employee' });

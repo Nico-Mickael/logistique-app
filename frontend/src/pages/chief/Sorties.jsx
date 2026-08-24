@@ -160,6 +160,9 @@ function Sorties() {
       const { data } = await sortieService.getAll(params);
       setSorties(data.data || []);
       setTotal(data.total || 0);
+      // Si la page courante dépasse la dernière page (dernier élément supprimé), revenir en arrière
+      const totalPages = Math.max(1, Math.ceil((data.total || 0) / limit));
+      if (p > totalPages) setPage(totalPages);
     } catch {
       notifyError('Impossible de charger les sorties');
     } finally {

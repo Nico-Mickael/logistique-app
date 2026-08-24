@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
   TextInput, Stack, Flex, Select, Card, SimpleGrid, Pagination, SegmentedControl,
-  ActionIcon,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
@@ -52,9 +51,7 @@ function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail, o
         ) : (
           <Button size="xs" variant="subtle" color="brand" leftSection={<IconEye size={14} />} onClick={() => onDetail(r)}>Détail</Button>
         )}
-        {r.status !== 'approved' && (
-          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => onDelete(r)}>Supprimer</Button>
-        )}
+        <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => onDelete(r)}>Supprimer</Button>
       </Group>
     </Card>
   );
@@ -91,6 +88,9 @@ function ValidateRequests() {
       const { data } = await requestService.all(params);
       setRequests(data.data || []);
       setTotal(data.total || 0);
+      // Si la page courante dépasse la dernière page (dernier élément supprimé/validé), revenir en arrière
+      const totalPages = Math.max(1, Math.ceil((data.total || 0) / limit));
+      if (p > totalPages) setPage(totalPages);
     } catch {
       notifyError('Impossible de charger les demandes');
     } finally {
@@ -212,11 +212,7 @@ function ValidateRequests() {
           ) : (
             <Button size="xs" variant="subtle" color="brand" leftSection={<IconEye size={14} />} onClick={() => openDetail(r)}>Détail</Button>
           )}
-          {r.status !== 'approved' && (
-            <ActionIcon variant="subtle" color="red" onClick={() => setDeleteTarget(r)} aria-label="Supprimer">
-              <IconTrash size={16} />
-            </ActionIcon>
-          )}
+          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(r)}>Supprimer</Button>
         </Group>
       ),
     },
@@ -398,7 +394,9 @@ function ValidateRequests() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Supprimer cette demande ?"
-        message={`La demande de ${deleteTarget?.Employee?.prenom || ''} ${deleteTarget?.Employee?.nom || ''} vers ${deleteTarget?.destination || ''} sera définitivement supprimée. L'employé sera notifié.`}
+        message={deleteTarget?.status === 'approved'
+          ? `La demande validée de ${deleteTarget?.Employee?.prenom || ''} ${deleteTarget?.Employee?.nom || ''} vers ${deleteTarget?.destination || ''} sera supprimée. Sa sortie associée sera mise à jour si elle n'emporte plus personne.`
+          : `La demande de ${deleteTarget?.Employee?.prenom || ''} ${deleteTarget?.Employee?.nom || ''} vers ${deleteTarget?.destination || ''} sera définitivement supprimée. L'employé sera notifié.`}
         confirmLabel="Oui, supprimer"
         variant="danger"
         loading={deleting}

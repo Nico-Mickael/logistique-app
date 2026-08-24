@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Paper, Title, Badge, Loader, Center, Text, Group, Button, Card,
-  SimpleGrid, Stack, Flex, Modal, TextInput, Textarea, NumberInput, SegmentedControl,
+  SimpleGrid, Stack, Flex, Modal, TextInput, Textarea, NumberInput, SegmentedControl, Pagination,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
@@ -15,7 +15,6 @@ import { requestStatusLabel as statusLabel, requestStatusColor as statusColor } 
 
 function RequestCard({ request, onRespond, onCancel, onEdit, onDetail, onDelete }) {
   const canCancel = ['pending', 'approved'].includes(request.status);
-  const canDelete = ['pending', 'rejected', 'cancelled', 'rescheduled'].includes(request.status);
 
   return (
     <Card withBorder radius="lg" p="lg" className="request-card" style={{ cursor: 'pointer' }} onClick={() => onDetail && onDetail(request)}>
@@ -66,11 +65,9 @@ function RequestCard({ request, onRespond, onCancel, onEdit, onDetail, onDelete 
             onClick={onCancel}
           >Annuler</Button>
         )}
-        {canDelete && (
-          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
-            onClick={onDelete}
-          >Supprimer</Button>
-        )}
+        <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
+          onClick={onDelete}
+        >Supprimer</Button>
       </Group>
     </Card>
   );
@@ -80,6 +77,16 @@ function MyRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('cards');
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  const paginatedRequests = requests.slice((page - 1) * pageSize, page * pageSize);
+
+  // Si la page courante dépasse la dernière page (dernier élément supprimé), revenir en arrière
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(requests.length / pageSize));
+    if (page > maxPage) setPage(maxPage);
+  }, [requests, page]);
 
   const fetchRequests = async () => {
     try {
@@ -181,7 +188,6 @@ function MyRequests() {
   const openDetail = (r) => { setDetailRequest(r); setDetailOpened(true); };
 
   const canCancel = (r) => ['pending', 'approved'].includes(r.status);
-  const canDelete = (r) => ['pending', 'rejected', 'cancelled', 'rescheduled'].includes(r.status);
 
   const columns = [
     { accessor: 'destination', title: 'Destination', sortable: true },
@@ -228,11 +234,9 @@ function MyRequests() {
               onClick={() => setCancelTarget(r)}
             >Annuler</Button>
           )}
-          {canDelete(r) && (
-            <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
-              onClick={() => setDeleteTarget(r)}
-            >Supprimer</Button>
-          )}
+          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
+            onClick={() => setDeleteTarget(r)}
+          >Supprimer</Button>
         </Group>
       ),
     },
@@ -268,11 +272,18 @@ function MyRequests() {
       ) : (
         <>
           {viewMode === 'cards' ? (
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-              {requests.map((r) => (
-                <RequestCard key={r.id} request={r} onRespond={(accepted) => { setRespondTarget(r); setRespondAccepted(accepted); }} onCancel={() => setCancelTarget(r)} onEdit={openEdit} onDetail={openDetail} onDelete={() => setDeleteTarget(r)} />
-              ))}
-            </SimpleGrid>
+            <>
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+                {paginatedRequests.map((r) => (
+                  <RequestCard key={r.id} request={r} onRespond={(accepted) => { setRespondTarget(r); setRespondAccepted(accepted); }} onCancel={() => setCancelTarget(r)} onEdit={openEdit} onDetail={openDetail} onDelete={() => setDeleteTarget(r)} />
+                ))}
+              </SimpleGrid>
+              {requests.length > pageSize && (
+                <Center mt="md">
+                  <Pagination total={Math.ceil(requests.length / pageSize)} value={page} onChange={setPage} color="brand" />
+                </Center>
+              )}
+            </>
           ) : (
             <Paper p="lg" radius="lg" withBorder className="dashboard-panel">
               <DataTable
@@ -282,8 +293,14 @@ function MyRequests() {
                 striped
                 verticalSpacing="sm"
                 columns={columns}
-                records={requests}
+                records={paginatedRequests}
                 idAccessor="id"
+                page={page}
+                onPageChange={setPage}
+                totalRecords={requests.length}
+                recordsPerPage={pageSize}
+                paginationSize="sm"
+                paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
                 onRowClick={({ record }) => openDetail(record)}
               />
             </Paper>
@@ -373,7 +390,9 @@ function MyRequests() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Supprimer cette demande ?"
-        message="Cette action est définitive : la demande disparaîtra de votre historique."
+        message={deleteTarget?.status === 'approved'
+          ? "Cette demande est validée : sa sortie associée sera mise à jour, ou supprimée si elle n'emporte plus personne."
+          : 'Cette action est définitive : la demande disparaîtra de votre historique.'}
         confirmLabel="Oui, supprimer"
         variant="danger"
         loading={deleting}

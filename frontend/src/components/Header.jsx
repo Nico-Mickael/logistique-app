@@ -90,22 +90,20 @@ function Header({ opened: navOpened, onToggle }) {
 
         <Popover opened={notifOpened} onChange={setNotifOpened} width={{ base: 'calc(100vw - 32px)', sm: 360 }} position="bottom-end" shadow="lg" radius="md">
           <Popover.Target>
-            <ActionIcon
-              variant="subtle"
-              color="white"
-              className={unreadCount > 0 ? 'bell-active' : ''}
-              onClick={() => setNotifOpened((o) => !o)}
-              aria-label="Notifications"
-            >
-              <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative' }}>
+              <ActionIcon
+                variant="subtle"
+                color="white"
+                className={unreadCount > 0 ? 'bell-active' : ''}
+                onClick={() => setNotifOpened((o) => !o)}
+                aria-label="Notifications"
+              >
                 <IconBell size={19} />
-                {unreadCount > 0 && (
-                  <Badge size="xs" color="red" variant="filled" className="notif-badge">
-                    {unreadCount}
-                  </Badge>
-                )}
-              </div>
-            </ActionIcon>
+              </ActionIcon>
+              {unreadCount > 0 && (
+                <div className="notif-badge">{unreadCount}</div>
+              )}
+            </div>
           </Popover.Target>
 
           <Popover.Dropdown p="xs">
@@ -167,12 +165,19 @@ function Header({ opened: navOpened, onToggle }) {
 
         .notif-badge {
           position: absolute;
-          top: -6px;
-          right: -8px;
+          top: -7px;
+          right: -9px;
+          z-index: 5;
+          pointer-events: none;
           min-width: 16px;
           height: 16px;
-          padding: 0;
+          border-radius: 8px;
+          background: var(--mantine-color-red-filled);
+          color: #fff;
           font-size: 10px;
+          font-weight: 700;
+          line-height: 1;
+          padding: 0 4px;
           display: flex;
           align-items: center;
           justify-content: center;

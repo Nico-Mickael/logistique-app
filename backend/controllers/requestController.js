@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
 const { ACTIVE_REQUEST_STATUSES, CHIEF_ROLES } = require('../utils/constants');
 const { createNotification, notifyChiefsDb } = require('./notificationController');
+const { notifyChiefs } = require('../services/socketService');
 const { autoCreateSortie } = require('../services/sortieService');
 const vehicleService = require('../services/vehicleService');
 
@@ -238,7 +239,9 @@ exports.respondReschedule = asyncHandler(async (req, res) => {
   res.json(request);
 });
 
-// Supprimer une demande (propriétaire ou chef) — interdit si validée
+// Supprimer une demande (propriétaire ou chef)
+// Si la demande est validée : met à jour la sortie liée (supprimée si elle
+// n'emporte plus personne) et libère le véhicule.
 exports.remove = asyncHandler(async (req, res) => {
   const request = await Request.findByPk(req.params.id);
   if (!request) return res.status(404).json({ message: 'Demande introuvable' });
@@ -250,7 +253,21 @@ exports.remove = asyncHandler(async (req, res) => {
   }
 
   if (request.status === 'approved') {
-    return res.status(400).json({ message: "Une demande validée doit d'abord être annulée avant d'être supprimée" });
+    const links = await SortieRequest.findAll({ where: { request_id: request.id } });
+    const sortieIds = [...new Set(links.map((l) => l.sortie_id))];
+
+    for (const sortieId of sortieIds) {
+      await SortieRequest.destroy({ where: { sortie_id: sortieId, request_id: request.id } });
+      const remaining = await SortieRequest.count({ where: { sortie_id: sortieId } });
+      if (remaining === 0) {
+        const sortie = await Sortie.findByPk(sortieId);
+        if (sortie && ['planned', 'ongoing', 'pending_return'].includes(sortie.status)) {
+          await vehicleService.setAvailable(sortie.vehicle_id);
+          await sortie.destroy();
+          notifyChiefs('sortie_updated', { id: sortie.id, deleted: true });
+        }
+      }
+    }
   }
 
   await SortieRequest.destroy({ where: { request_id: request.id } });
