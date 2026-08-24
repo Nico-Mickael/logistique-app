@@ -5,7 +5,7 @@ import {
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
-import { IconCheck, IconX, IconTrash, IconInbox, IconEdit, IconSend } from '@tabler/icons-react';
+import { IconCheck, IconX, IconTrash, IconInbox, IconEdit, IconSend, IconBan } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
 import { requestService } from '../../api/requestService';
@@ -13,8 +13,9 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import { requestStatusLabel as statusLabel, requestStatusColor as statusColor } from '../../utils/labels';
 
-function RequestCard({ request, onRespond, onCancel, onEdit, onDetail }) {
+function RequestCard({ request, onRespond, onCancel, onEdit, onDetail, onDelete }) {
   const canCancel = ['pending', 'approved'].includes(request.status);
+  const canDelete = ['pending', 'rejected', 'cancelled', 'rescheduled'].includes(request.status);
 
   return (
     <Card withBorder radius="lg" p="lg" className="request-card" style={{ cursor: 'pointer' }} onClick={() => onDetail && onDetail(request)}>
@@ -61,9 +62,14 @@ function RequestCard({ request, onRespond, onCancel, onEdit, onDetail }) {
           </>
         )}
         {canCancel && (
-          <Button size="xs" variant="outline" color="gray" leftSection={<IconTrash size={14} />}
+          <Button size="xs" variant="outline" color="gray" leftSection={<IconBan size={14} />}
             onClick={onCancel}
           >Annuler</Button>
+        )}
+        {canDelete && (
+          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
+            onClick={onDelete}
+          >Supprimer</Button>
         )}
       </Group>
     </Card>
@@ -99,6 +105,8 @@ function MyRequests() {
   const [responding, setResponding] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelling, setCancelling] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const openEdit = (r) => {
     setEditRequest(r);
@@ -155,11 +163,25 @@ function MyRequests() {
     finally { setCancelling(false); }
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await requestService.remove(deleteTarget.id);
+      notifySuccess('Demande supprimée');
+      setDeleteTarget(null);
+      fetchRequests();
+    } catch (err) {
+      notifyError(err.response?.data?.message || 'Erreur lors de la suppression');
+    } finally { setDeleting(false); }
+  };
+
   const [detailRequest, setDetailRequest] = useState(null);
   const [detailOpened, setDetailOpened] = useState(false);
   const openDetail = (r) => { setDetailRequest(r); setDetailOpened(true); };
 
   const canCancel = (r) => ['pending', 'approved'].includes(r.status);
+  const canDelete = (r) => ['pending', 'rejected', 'cancelled', 'rescheduled'].includes(r.status);
 
   const columns = [
     { accessor: 'destination', title: 'Destination', sortable: true },
@@ -202,9 +224,14 @@ function MyRequests() {
             </>
           )}
           {canCancel(r) && (
-            <Button size="xs" variant="outline" color="gray" leftSection={<IconTrash size={14} />}
+            <Button size="xs" variant="outline" color="gray" leftSection={<IconBan size={14} />}
               onClick={() => setCancelTarget(r)}
             >Annuler</Button>
+          )}
+          {canDelete(r) && (
+            <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
+              onClick={() => setDeleteTarget(r)}
+            >Supprimer</Button>
           )}
         </Group>
       ),
@@ -243,7 +270,7 @@ function MyRequests() {
           {viewMode === 'cards' ? (
             <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
               {requests.map((r) => (
-                <RequestCard key={r.id} request={r} onRespond={(accepted) => { setRespondTarget(r); setRespondAccepted(accepted); }} onCancel={() => setCancelTarget(r)} onEdit={openEdit} onDetail={openDetail} />
+                <RequestCard key={r.id} request={r} onRespond={(accepted) => { setRespondTarget(r); setRespondAccepted(accepted); }} onCancel={() => setCancelTarget(r)} onEdit={openEdit} onDetail={openDetail} onDelete={() => setDeleteTarget(r)} />
               ))}
             </SimpleGrid>
           ) : (
@@ -335,10 +362,21 @@ function MyRequests() {
         title="Annuler cette demande ?"
         message={cancelTarget?.status === 'approved'
           ? "Cette demande est déjà validée. L'annuler libérera la place sur le véhicule."
-          : 'Votre demande sera supprimée et la place libérée.'}
+          : 'Votre demande sera annulée et la place libérée.'}
         confirmLabel="Oui, annuler"
         variant="danger"
         loading={cancelling}
+      />
+
+      <ConfirmModal
+        opened={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Supprimer cette demande ?"
+        message="Cette action est définitive : la demande disparaîtra de votre historique."
+        confirmLabel="Oui, supprimer"
+        variant="danger"
+        loading={deleting}
       />
 
       <style>{`

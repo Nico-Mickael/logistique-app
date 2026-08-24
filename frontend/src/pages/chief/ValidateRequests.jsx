@@ -2,11 +2,12 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
   TextInput, Stack, Flex, Select, Card, SimpleGrid, Pagination, SegmentedControl,
+  ActionIcon,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
-import { IconCheck, IconX, IconCalendar, IconInbox, IconSearch, IconDownload, IconX as IconClear, IconEye } from '@tabler/icons-react';
+import { IconCheck, IconX, IconCalendar, IconInbox, IconSearch, IconDownload, IconX as IconClear, IconEye, IconTrash } from '@tabler/icons-react';
 import dayjs from '../../utils/date';
 import { requestService } from '../../api/requestService';
 import { notifySuccess, notifyError } from '../../utils/toast';
@@ -22,7 +23,7 @@ const statusOptions = [
   { value: 'rescheduled', label: 'Replanifiée' },
 ];
 
-function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail }) {
+function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail, onDelete }) {
   return (
     <Card withBorder radius="lg" p="lg" className="validate-request-card">
       <div style={{
@@ -51,6 +52,9 @@ function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail })
         ) : (
           <Button size="xs" variant="subtle" color="brand" leftSection={<IconEye size={14} />} onClick={() => onDetail(r)}>Détail</Button>
         )}
+        {r.status !== 'approved' && (
+          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => onDelete(r)}>Supprimer</Button>
+        )}
       </Group>
     </Card>
   );
@@ -69,6 +73,8 @@ function ValidateRequests() {
   const [dateTo, setDateTo] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejecting, setRejecting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -122,6 +128,19 @@ function ValidateRequests() {
       fetchRequests(page);
     } catch { notifyError('Erreur lors du refus'); }
     finally { setRejecting(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await requestService.remove(deleteTarget.id);
+      notifySuccess('Demande supprimée');
+      setDeleteTarget(null);
+      fetchRequests(page);
+    } catch (err) {
+      notifyError(err.response?.data?.message || 'Erreur lors de la suppression');
+    } finally { setDeleting(false); }
   };
 
   const openRescheduleModal = (request) => {
@@ -192,6 +211,11 @@ function ValidateRequests() {
             </>
           ) : (
             <Button size="xs" variant="subtle" color="brand" leftSection={<IconEye size={14} />} onClick={() => openDetail(r)}>Détail</Button>
+          )}
+          {r.status !== 'approved' && (
+            <ActionIcon variant="subtle" color="red" onClick={() => setDeleteTarget(r)} aria-label="Supprimer">
+              <IconTrash size={16} />
+            </ActionIcon>
           )}
         </Group>
       ),
@@ -278,6 +302,7 @@ function ValidateRequests() {
                   <ValidateRequestCard key={r.id} r={r}
                     onApprove={handleApprove} onReject={(r) => setRejectTarget(r)}
                     onReschedule={openRescheduleModal} onDetail={openDetail}
+                    onDelete={(req) => setDeleteTarget(req)}
                   />
                 ))}
               </SimpleGrid>
@@ -366,6 +391,17 @@ function ValidateRequests() {
         confirmLabel="Refuser"
         variant="danger"
         loading={rejecting}
+      />
+
+      <ConfirmModal
+        opened={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Supprimer cette demande ?"
+        message={`La demande de ${deleteTarget?.Employee?.prenom || ''} ${deleteTarget?.Employee?.nom || ''} vers ${deleteTarget?.destination || ''} sera définitivement supprimée. L'employé sera notifié.`}
+        confirmLabel="Oui, supprimer"
+        variant="danger"
+        loading={deleting}
       />
 
       <style>{`

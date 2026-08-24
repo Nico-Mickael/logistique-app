@@ -12,5 +12,6 @@ router.patch('/:id/status', auth, checkRole(CHIEF_ROLES), requestController.upda
 router.patch('/:id/cancel', auth, requestController.cancel);
 router.patch('/:id/reschedule/respond', auth, requestController.respondReschedule);
 router.put('/:id', auth, requestController.update);
+router.delete('/:id', auth, requestController.remove);
 
 module.exports = router;

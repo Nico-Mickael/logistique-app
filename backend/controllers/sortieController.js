@@ -4,8 +4,21 @@ const asyncHandler = require('../utils/asyncHandler');
 const { SORTIE_STATUSES } = require('../utils/constants');
 const sortieService = require('../services/sortieService');
 const vehicleService = require('../services/vehicleService');
-const { createNotification } = require('./notificationController');
+const { createNotification, notifyChiefsDb } = require('./notificationController');
 const { notifyChiefs } = require('../services/socketService');
+
+// Notifie (une seule fois chacun) les employés liés à une sortie.
+const notifySortieEmployees = async (sortie, message, type) => {
+  const links = await SortieRequest.findAll({ where: { sortie_id: sortie.id } });
+  const notified = new Set();
+  for (const link of links) {
+    const request = await Request.findByPk(link.request_id);
+    if (request && !notified.has(request.employee_id)) {
+      notified.add(request.employee_id);
+      await createNotification({ user_id: request.employee_id, message, type });
+    }
+  }
+};
 
 // Créer une sortie + assigner véhicule/conducteur
 exports.create = asyncHandler(async (req, res) => {
@@ -26,6 +39,11 @@ exports.create = asyncHandler(async (req, res) => {
   await vehicle.save();
 
   notifyChiefs('sortie_created', sortie);
+  await notifyChiefsDb({
+    message: `Nouvelle sortie planifiée vers ${sortie.destination}`,
+    type: 'sortie_created',
+    excludeUserId: req.user.id,
+  });
 
   res.status(201).json(sortie);
 });
@@ -113,6 +131,13 @@ exports.updateStatus = asyncHandler(async (req, res) => {
   // Libère le véhicule quand la sortie est terminée
   if (status === 'finished') {
     await vehicleService.setAvailable(sortie.vehicle_id);
+  }
+
+  // Informe les employés liés à la sortie de l'évolution de son statut
+  if (status === 'ongoing') {
+    await notifySortieEmployees(sortie, `Votre sortie vers ${sortie.destination} a démarré`, 'sortie_ongoing');
+  } else if (status === 'finished') {
+    await notifySortieEmployees(sortie, `La sortie vers ${sortie.destination} est terminée`, 'sortie_finished');
   }
 
   res.json(sortie);
@@ -212,6 +237,8 @@ exports.arrivee = asyncHandler(async (req, res) => {
   // Libérer le véhicule
   await vehicleService.setAvailable(sortie.vehicle_id);
 
+  await notifySortieEmployees(sortie, `La sortie vers ${sortie.destination} est terminée`, 'sortie_finished');
+
   notifyChiefs('sortie_updated', sortie);
 
   res.json(sortie);
@@ -303,6 +330,13 @@ exports.employeeReturn = asyncHandler(async (req, res) => {
     message: `Retour marqué pour la sortie vers ${sortie.destination}. En attente de validation.`,
     type: 'return_marked',
   });
+
+  await notifyChiefsDb({
+    message: `Retour marqué par un employé pour la sortie vers ${sortie.destination}. En attente de validation.`,
+    type: 'return_marked',
+    excludeUserId: req.user.id,
+  });
+
   notifyChiefs('sortie_updated', sortie);
 
   res.json(sortie);
@@ -328,17 +362,11 @@ exports.validateReturn = asyncHandler(async (req, res) => {
   await vehicleService.setAvailable(sortie.vehicle_id);
 
   // Notifier les employés liés à la sortie
-  const sortieRequests = await SortieRequest.findAll({ where: { sortie_id: sortie.id } });
-  for (const sr of sortieRequests) {
-    const request = await Request.findByPk(sr.request_id);
-    if (request) {
-      await createNotification({
-        user_id: request.employee_id,
-        message: `La sortie vers ${sortie.destination} est terminée et validée.`,
-        type: 'sortie_finished',
-      });
-    }
-  }
+  await notifySortieEmployees(
+    sortie,
+    `La sortie vers ${sortie.destination} est terminée et validée.`,
+    'sortie_finished'
+  );
 
   notifyChiefs('sortie_updated', sortie);
   res.json(sortie);

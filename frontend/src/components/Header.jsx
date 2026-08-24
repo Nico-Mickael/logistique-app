@@ -56,10 +56,7 @@ function Header({ opened: navOpened, onToggle }) {
 
   const handleMarkAllRead = async () => {
     try {
-      const unread = notifications.filter((n) => !n.is_read);
-      for (const n of unread) {
-        await notificationService.markAsRead(n.id);
-      }
+      await notificationService.markAllRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     } catch {
       // silent

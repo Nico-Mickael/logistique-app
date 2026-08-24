@@ -1,6 +1,7 @@
 const { Vehicle, Request, Employee } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const { VEHICLE_STATUSES } = require('../utils/constants');
+const { notifyChiefsDb } = require('./notificationController');
 
 exports.getAll = asyncHandler(async (req, res) => {
   const vehicles = await Vehicle.findAll();
@@ -67,6 +68,7 @@ exports.update = asyncHandler(async (req, res) => {
 
   if (type) vehicle.type = type;
   if (capacity) vehicle.capacity = capacity;
+  const previousStatus = vehicle.status;
   if (status) {
     if (!VEHICLE_STATUSES.includes(status)) {
       return res.status(400).json({ message: 'Statut invalide' });
@@ -77,6 +79,18 @@ exports.update = asyncHandler(async (req, res) => {
   if (maintenance_until !== undefined) vehicle.maintenance_until = maintenance_until;
 
   await vehicle.save();
+
+  // Alerte les chefs quand un véhicule devient indisponible (panne / maintenance)
+  if (status && status !== previousStatus && ['broken', 'maintenance'].includes(status)) {
+    await notifyChiefsDb({
+      message: `Véhicule #${vehicle.id} (${vehicle.type}) ${
+        status === 'broken' ? 'en panne' : 'en maintenance'
+      }`,
+      type: 'vehicle_alert',
+      excludeUserId: req.user.id,
+    });
+  }
+
   res.json(vehicle);
 });
 

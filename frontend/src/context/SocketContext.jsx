@@ -11,6 +11,16 @@ const WS_URL = API_BASE.startsWith('http')
   ? (API_BASE.replace(/\/api\/?$/, '') || window.location.origin)
   : window.location.origin;
 
+const toastForType = (type, message) => {
+  if (type === 'approved' || type === 'sortie_assignment') {
+    notifySuccess(message);
+  } else if (type === 'rejected' || type === 'cancelled' || type === 'vehicle_alert') {
+    notifyWarning(message);
+  } else {
+    notifyInfo(message);
+  }
+};
+
 export function SocketProvider({ children }) {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -53,6 +63,16 @@ export function SocketProvider({ children }) {
       socket.on('connect_error', () => {
         // silent — polling fallback handles notifications
       });
+
+      // Réception instantanée (le polling reste en filet de sécurité)
+      socket.on('notification', (notif) => {
+        if (!notif?.id) return;
+        if (lastIdRef.current !== null && notif.id > lastIdRef.current) {
+          lastIdRef.current = notif.id;
+        }
+        setUnreadCount((c) => c + 1);
+        toastForType(notif.type, notif.message);
+      });
     }
 
     const checkNotifications = async () => {
@@ -71,13 +91,7 @@ export function SocketProvider({ children }) {
         );
         if (newNotifs.length > 0) {
           for (const n of newNotifs) {
-            if (n.type === 'approved' || n.type === 'sortie_assignment') {
-              notifySuccess(n.message);
-            } else if (n.type === 'rejected' || n.type === 'cancelled') {
-              notifyWarning(n.message);
-            } else {
-              notifyInfo(n.message);
-            }
+            toastForType(n.type, n.message);
           }
           lastIdRef.current = Math.max(...newNotifs.map((n) => n.id));
         }

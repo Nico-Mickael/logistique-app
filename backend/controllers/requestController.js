@@ -1,8 +1,8 @@
 const { Request, Employee, Vehicle, Sortie, SortieRequest } = require('../models');
 const { Op } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
-const { ACTIVE_REQUEST_STATUSES } = require('../utils/constants');
-const { createNotification } = require('./notificationController');
+const { ACTIVE_REQUEST_STATUSES, CHIEF_ROLES } = require('../utils/constants');
+const { createNotification, notifyChiefsDb } = require('./notificationController');
 const { autoCreateSortie } = require('../services/sortieService');
 const vehicleService = require('../services/vehicleService');
 
@@ -44,6 +44,13 @@ exports.create = asyncHandler(async (req, res) => {
     date_souhaitee,
     nb_personnes,
     status: 'pending',
+  });
+
+  const creator = await Employee.findByPk(req.user.id, { attributes: ['id', 'nom', 'prenom'] });
+  await notifyChiefsDb({
+    message: `Nouvelle demande de ${creator ? `${creator.prenom} ${creator.nom}` : 'un employé'} vers ${request.destination}`,
+    type: 'new_request',
+    excludeUserId: req.user.id,
   });
 
   res.status(201).json(request);
@@ -130,7 +137,7 @@ exports.updateStatus = asyncHandler(async (req, res) => {
     user_id: request.employee_id,
     message: `Votre demande vers ${request.destination} a été ${
       status === 'approved' ? 'validée' :
-      status === 'rejected' ? 'refusée' : 'replanifiée'
+      status === 'rejected' ? 'refusée' : `replanifiée au ${new Date(request.date_souhaitee).toLocaleString('fr-FR')}`
     }`,
     type: status,
   });
@@ -167,6 +174,12 @@ exports.cancel = asyncHandler(async (req, res) => {
     user_id: request.employee_id,
     message: `Votre demande vers ${request.destination} a été annulée`,
     type: 'cancelled',
+  });
+
+  await notifyChiefsDb({
+    message: `Demande vers ${request.destination} annulée par un employé`,
+    type: 'cancelled',
+    excludeUserId: req.user.id,
   });
 
   res.json(request);
@@ -223,4 +236,39 @@ exports.respondReschedule = asyncHandler(async (req, res) => {
   });
 
   res.json(request);
+});
+
+// Supprimer une demande (propriétaire ou chef) — interdit si validée
+exports.remove = asyncHandler(async (req, res) => {
+  const request = await Request.findByPk(req.params.id);
+  if (!request) return res.status(404).json({ message: 'Demande introuvable' });
+
+  const isOwner = request.employee_id === req.user.id;
+  const isChief = CHIEF_ROLES.includes(req.user.role);
+  if (!isOwner && !isChief) {
+    return res.status(403).json({ message: 'Action non autorisée' });
+  }
+
+  if (request.status === 'approved') {
+    return res.status(400).json({ message: "Une demande validée doit d'abord être annulée avant d'être supprimée" });
+  }
+
+  await SortieRequest.destroy({ where: { request_id: request.id } });
+  await request.destroy();
+
+  if (isOwner && !isChief) {
+    await notifyChiefsDb({
+      message: `Demande vers ${request.destination} supprimée par un employé`,
+      type: 'deleted',
+      excludeUserId: req.user.id,
+    });
+  } else if (isChief && !isOwner) {
+    await createNotification({
+      user_id: request.employee_id,
+      message: `Votre demande vers ${request.destination} a été supprimée par la logistique`,
+      type: 'deleted',
+    });
+  }
+
+  res.json({ message: 'Demande supprimée' });
 });

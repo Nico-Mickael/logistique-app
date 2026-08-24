@@ -8,4 +8,5 @@ export const requestService = {
   cancel: (id) => api.patch(`/requests/${id}/cancel`),
   respondReschedule: (id, accepted) => api.patch(`/requests/${id}/reschedule/respond`, { accepted }),
   update: (id, payload) => api.put(`/requests/${id}`, payload),
+  remove: (id) => api.delete(`/requests/${id}`),
 };
