@@ -20,6 +20,7 @@ import Vehicles from './pages/chief/Vehicles';
 import Planning from './pages/chief/Planning';
 import Reports from './pages/chief/Reports';
 import MyTrips from './pages/employee/MyTrips';
+import MyReports from './pages/employee/MyReports';
 import Users from './pages/superadmin/Users';
 import Import from './pages/superadmin/Import';
 
@@ -69,6 +70,16 @@ function App() {
                   <PrivateRoute allowedRoles={['employee', 'superadmin']}>
                     <Layout>
                       <MyTrips />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/mes-rapports"
+                element={
+                  <PrivateRoute allowedRoles={['employee', 'superadmin']}>
+                    <Layout>
+                      <MyReports />
                     </Layout>
                   </PrivateRoute>
                 }

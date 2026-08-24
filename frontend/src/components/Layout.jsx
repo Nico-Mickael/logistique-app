@@ -37,6 +37,7 @@ const navConfig = {
     { label: 'Mes demandes', path: '/mes-demandes', icon: IconFileText },
     { label: 'Nouvelle demande', path: '/nouvelle-demande', icon: IconPlus },
     { label: 'Mes trajets', path: '/mes-trajets', icon: IconRoute },
+    { label: 'Mes rapports', path: '/mes-rapports', icon: IconReportAnalytics },
   ],
   superadmin: [
     { label: 'Accueil', path: '/', icon: IconHome },
