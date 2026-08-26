@@ -34,3 +34,44 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: light-dark(#a0a0a0, #777777);
 }
+
+
+/* ── Ajout : titre par-dessus la vidéo du hero ── */
+/* Ces classes sont nouvelles, elles ne redéfinissent aucune règle existante. */
+
+.hero-overlay-caption {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  z-index: 3;
+  max-width: 60%;
+  padding: 10px 14px;
+  background: rgba(20, 14, 4, 0.45);
+  backdrop-filter: blur(3px);
+  border-radius: 10px;
+}
+
+.hero-overlay-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #F5C542;
+  margin-bottom: 4px;
+}
+
+.hero-overlay-title {
+  font-size: clamp(1.1rem, 2.6vw, 1.6rem);
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.2;
+}
+
+@media (max-width: 640px) {
+  .hero-overlay-caption {
+    max-width: 85%;
+    left: 16px;
+    bottom: 16px;
+    padding: 8px 12px;
+  }
+}

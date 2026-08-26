@@ -18,6 +18,7 @@ import {
   IconChevronsRight,
   IconMoon,
   IconSun,
+  IconDeviceDesktop,
 } from '@tabler/icons-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -31,12 +32,14 @@ const navConfig = {
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
     { label: 'Rapports', path: '/rapports', icon: IconReportAnalytics },
+    { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
   ],
   employee: [
     { label: 'Accueil', path: '/', icon: IconHome },
     { label: 'Mes demandes', path: '/mes-demandes', icon: IconFileText },
     { label: 'Nouvelle demande', path: '/nouvelle-demande', icon: IconPlus },
     { label: 'Mes trajets', path: '/mes-trajets', icon: IconRoute },
+    { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
   ],
   superadmin: [
     { label: 'Accueil', path: '/', icon: IconHome },
@@ -46,6 +49,7 @@ const navConfig = {
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
     { label: 'Rapports', path: '/rapports', icon: IconReportAnalytics },
+    { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
   ],
 };
 

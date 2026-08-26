@@ -1,21 +1,23 @@
 import { Title, Text, Flex, Group, Divider } from '@mantine/core';
 import {
-  IconConfetti, IconTrophy, IconFlag, IconRoute, IconUsers,
+  IconConfetti, IconFlag, IconRoute, IconUsers,
   IconRocket, IconShieldCheck,
 } from '@tabler/icons-react';
+import logo25 from '../assets/Logo_25ème_ADES-removebg.png';
+import backVideo from '../assets/BackVideo.mp4';
 
 const milestones = [
   {
     year: '2001',
     icon: IconFlag,
     title: 'Les débuts',
-    text: 'Création de l’ADES : une équipe fondatrice, une première flotte et les premiers trajets.',
+    text: "Création de l'ADES : une équipe fondatrice, une première flotte et les premiers trajets.",
   },
   {
     year: '2006',
     icon: IconRoute,
     title: 'Première expansion',
-    text: 'La flotte s’agrandit pour desservir davantage de destinations à travers le pays.',
+    text: "La flotte s'agrandit pour desservir davantage de destinations à travers le pays.",
   },
   {
     year: '2011',
@@ -33,7 +35,7 @@ const milestones = [
     year: '2021',
     icon: IconShieldCheck,
     title: 'Résilience',
-    text: 'L’ADES s’adapte et continue d’assurer les déplacements essentiels dans toutes les circonstances.',
+    text: "L'ADES s'adapte et continue d'assurer les déplacements essentiels dans toutes les circonstances.",
   },
   {
     year: '2026',
@@ -48,22 +50,43 @@ export default function Accueil() {
     <div className="page-content">
       {/* ── Hero anniversaire ── */}
       <div className="anniv-hero hero-panel" style={{ marginBottom: '1.5rem' }}>
-        <div className="trophy-ring hero-badge">
-          <IconTrophy size={22} color="#F5C542" stroke={1.5} />
+        <video
+          className="hero-video"
+          autoPlay
+          muted
+          loop
+          playsInline
+        >
+          <source src={backVideo} type="video/mp4" />
+        </video>
+
+        {/* ── Titre par-dessus la vidéo (nouveau bloc, sans toucher au reste) ── */}
+        <div className="hero-overlay-caption">
+          <Text className="hero-overlay-eyebrow">Depuis 2001 · Madagascar</Text>
+          <Title className="hero-overlay-title">25 ans d'énergie durable</Title>
         </div>
-        <div className="ht-medal hero-medal">
-          <Text fz={28} fw={800} c="#6E4E00" lh={1}>25</Text>
-          <Text fz={9} fw={700} c="#6E4E00" tt="uppercase" ls={2}>ans</Text>
+
+        <div className="hero-marquee">
+          <div className="hero-marquee-inner">
+            <span>ADES contribue à renforcer les moyens de subsistance</span>
+            <span>des populations tout en préservant les forêts de Madagascar.</span>
+            <span>Nous associons protection du climat et de l'environnement,</span>
+            <span>création de valeur locale et aide à l'autonomisation.</span>
+          </div>
         </div>
-        <Text mt={6} size="xs" fw={600} tt="uppercase" ls={2} c="rgba(255,255,255,0.65)">
-          Anniversaire ADES
-        </Text>
+        <div className="hero-logo-wrap">
+          <img
+            src={logo25}
+            alt="25ème anniversaire ADES"
+            className="hero-logo"
+          />
+        </div>
       </div>
 
       {/* ── Timeline horizontale : 25 ans de parcours ── */}
       <div ta="center" className="hero-title">
         <Text size="xs" fw={700} tt="uppercase" ls={2} c="light-dark(#B8860B, #D4920A)">Notre histoire</Text>
-        <Title order={3} mt={4}>25 ans de parcours</Title>
+        {/* <Title order={3} mt={4}>25 ans de parcours</Title> */}
         <Text size="sm" c="dimmed" mt={4}>Les grandes étapes qui ont façonné l'ADES</Text>
       </div>
 

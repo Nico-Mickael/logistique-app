@@ -43,7 +43,7 @@ export function SocketProvider({ children }) {
       return;
     }
 
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('accessToken');
     if (token) {
       const socket = io(WS_URL, { query: { token } });
       socketRef.current = socket;

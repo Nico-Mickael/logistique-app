@@ -10,21 +10,32 @@ export function AuthProvider({ children }) {
       return stored ? JSON.parse(stored) : null;
     } catch {
       localStorage.removeItem('user');
-      localStorage.removeItem('token');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
       return null;
     }
   });
 
   const login = async (email, password) => {
     const { data } = await authService.login(email, password);
-    localStorage.setItem('token', data.token);
+    localStorage.setItem('accessToken', data.accessToken);
+    localStorage.setItem('refreshToken', data.refreshToken);
     localStorage.setItem('user', JSON.stringify(data.user));
     setUser(data.user);
     return data.user;
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
+  const logout = async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    try {
+      if (refreshToken) {
+        await authService.logout(refreshToken);
+      }
+    } catch {
+      // proceed with local cleanup even if server call fails
+    }
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     setUser(null);
   };

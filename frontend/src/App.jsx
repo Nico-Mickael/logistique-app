@@ -22,6 +22,8 @@ import Reports from './pages/chief/Reports';
 import MyTrips from './pages/employee/MyTrips';
 import Users from './pages/superadmin/Users';
 import Import from './pages/superadmin/Import';
+import Sessions from './pages/Sessions';
+import ErrorPage from './pages/ErrorPage';
 
 
 function App() {
@@ -153,7 +155,17 @@ function App() {
                   </PrivateRoute>
                 }
               />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route
+                path="/sessions"
+                element={
+                  <PrivateRoute allowedRoles={['employee', 'logistics_chief', 'admin', 'superadmin']}>
+                    <Layout>
+                      <Sessions />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route path="*" element={<ErrorPage code={404} />} />
             </Routes>
           </SocketProvider>
         </AuthProvider>
