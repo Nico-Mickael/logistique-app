@@ -1,4 +1,4 @@
-const { Sortie, Request, Vehicle } = require('../models');
+const { Sortie, Request, Vehicle, SortieRequest } = require('../models');
 const { Op, fn, col } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -59,6 +59,69 @@ exports.overview = asyncHandler(async (req, res) => {
     requests: toMap(requestsByStatus),
     sorties: toMap(sortiesByStatus),
     vehicles: toMap(vehiclesByStatus),
+    totalKm,
+    kmByMonth,
+    topDestinations,
+  });
+});
+
+// GET /api/stats/mine?year=2026 — statistiques personnelles de l'employé connecté
+exports.mine = asyncHandler(async (req, res) => {
+  const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+  const [start, end] = yearRange(year);
+
+  const myRequests = await Request.findAll({
+    where: { employee_id: req.user.id },
+    attributes: ['id', 'status'],
+    raw: true,
+  });
+
+  const requestsByStatus = {};
+  for (const r of myRequests) {
+    requestsByStatus[r.status] = (requestsByStatus[r.status] || 0) + 1;
+  }
+
+  // Sorties liées aux demandes de l'employé
+  const links = myRequests.length
+    ? await SortieRequest.findAll({ where: { request_id: myRequests.map((r) => r.id) }, attributes: ['sortie_id'], raw: true })
+    : [];
+  const sortieIds = [...new Set(links.map((l) => l.sortie_id))];
+
+  const sorties = sortieIds.length
+    ? await Sortie.findAll({
+        where: { id: { [Op.in]: sortieIds } },
+        attributes: ['destination', 'status', 'distance_km', 'departure_time'],
+        raw: true,
+      })
+    : [];
+
+  const kmByMonth = MONTH_LABELS.map((month) => ({ month, km: 0 }));
+  const destinationCounts = {};
+  let totalKm = 0;
+  let sortiesOfYear = 0;
+
+  for (const s of sorties) {
+    const departure = new Date(s.departure_time);
+    if (departure < start || departure >= end) continue;
+    sortiesOfYear += 1;
+
+    const km = Number(s.distance_km || 0);
+    if (s.status === 'finished' && km > 0) {
+      totalKm += km;
+      kmByMonth[departure.getMonth()].km += km;
+    }
+    destinationCounts[s.destination] = (destinationCounts[s.destination] || 0) + 1;
+  }
+
+  const topDestinations = Object.entries(destinationCounts)
+    .map(([destination, count]) => ({ destination, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  res.json({
+    year,
+    requests: requestsByStatus,
+    totalSorties: sortiesOfYear,
     totalKm,
     kmByMonth,
     topDestinations,

@@ -40,6 +40,7 @@ const navConfig = {
     { label: 'Nouvelle demande', path: '/nouvelle-demande', icon: IconPlus },
     { label: 'Mes trajets', path: '/mes-trajets', icon: IconRoute },
     { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
+    { label: 'Mes rapports', path: '/mes-rapports', icon: IconReportAnalytics },
   ],
   superadmin: [
     { label: 'Accueil', path: '/', icon: IconHome },
