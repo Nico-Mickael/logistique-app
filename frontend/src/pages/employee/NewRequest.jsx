@@ -1,20 +1,21 @@
-import { useEffect, useState, useMemo } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useEffect, useState } from 'react';
 import {
-  Paper, Title, Text, Group, Stack, Badge, Button, TextInput, Textarea,
+  Paper, Title, Text, Group, Stack, Badge, TextInput, Textarea,
   NumberInput, Loader, Center, Avatar, SimpleGrid,
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import {
-  IconCar, IconUsers, IconMapPin, IconClock, IconSend,
+  IconCar, IconUsers, IconMapPin, IconClock,
   IconUser, IconHourglass,
 } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
+import VehicleModal from '../../components/VehicleModal';
 import dayjs from '../../utils/date';
 import { vehicleService } from '../../api/vehicleService';
 import { requestService } from '../../api/requestService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import { getSeatLayout, getSeatColor } from '../../utils/seatLayout';
+import { vehicleStatusLabel, vehicleStatusColor } from '../../utils/labels';
 
 function CarVisual({ vehicle, seatStates, compact, onClick }) {
   const layout = getSeatLayout(vehicle.type, vehicle.capacity);
@@ -148,78 +149,127 @@ function CountdownDisplay({ targetDate, compact }) {
   );
 }
 
-function VehicleSelectCard({ vehicle, isSelected, onSelect, seatStates, nextDeparture }) {
+function VehicleSelectCard({ vehicle, isSelected, onSelect, seatStates, nextDeparture, occupants = [] }) {
   const occupied = Object.values(seatStates).filter((s) => s === 'occupied').length;
   const reserved = Object.values(seatStates).filter((s) => s === 'reserved').length;
   const available = Object.values(seatStates).filter((s) => s === 'available').length;
 
   return (
-    <Paper
-      p="md"
-      radius="lg"
-      withBorder
-      onClick={onSelect}
-      style={{
-        cursor: 'pointer',
-        border: isSelected ? '2px solid var(--mantine-color-brand-6)' : '1px solid var(--mantine-color-default-border)',
-        background: isSelected ? 'rgba(46,125,50,0.03)' : 'var(--mantine-color-body)',
-        transition: 'all 0.3s ease',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      <Group justify="space-between" mb="xs" wrap="nowrap">
-        <Group gap="sm">
-          <div style={{
-            width: 38, height: 38, borderRadius: 10,
-            background: 'rgba(46,125,50,0.08)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <VehicleIcon type={vehicle.type} size={20} color="var(--mantine-color-brand-6)" />
-          </div>
-          <div>
-            <Text fw={600} size="sm" tt="capitalize">{vehicle.type}</Text>
-            <Group gap={4}>
-              <IconUsers size={12} color="var(--mantine-color-dimmed)" />
-              <Text size="xs" c="dimmed">{vehicle.capacity} places</Text>
+    <div className={`vehicle-flip ${isSelected ? 'vehicle-flip--selected' : ''}`}>
+      <div className="vehicle-flip-inner" onClick={onSelect}>
+        <div className="vehicle-flip-face vehicle-flip-front">
+          <Paper
+            p="md"
+            radius="lg"
+            withBorder
+            className="vehicle-card"
+            style={{
+              cursor: 'pointer',
+              border: '1px solid var(--mantine-color-default-border)',
+              background: 'var(--mantine-color-body)',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: '100%',
+            }}
+          >
+            <Group justify="space-between" mb="xs" wrap="nowrap">
+              <Group gap="sm">
+                <div style={{
+                  width: 38, height: 38, borderRadius: 10,
+                  background: 'rgba(46,125,50,0.08)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <VehicleIcon type={vehicle.type} size={20} color="var(--mantine-color-brand-6)" />
+                </div>
+                <div>
+                  <Text fw={600} size="sm" tt="capitalize">{vehicle.type}</Text>
+                  <Group gap={4}>
+                    <IconUsers size={12} color="var(--mantine-color-dimmed)" />
+                    <Text size="xs" c="dimmed">{vehicle.capacity} places</Text>
+                  </Group>
+                </div>
+              </Group>
+              <Badge color={vehicleStatusColor[vehicle.status] || 'gray'} variant="light" size="sm">
+                {vehicleStatusLabel[vehicle.status] || vehicle.status || '—'}
+              </Badge>
             </Group>
-          </div>
-        </Group>
-        <Badge color={vehicle.status === 'available' ? 'brand' : 'gray'} variant="light" size="sm">
-          {vehicle.status === 'available' ? 'Disponible' : vehicle.status === 'maintenance' ? 'Maintenance' : 'Occupé'}
-        </Badge>
-      </Group>
 
-      {vehicle.status === 'available' && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
-          <CarVisual vehicle={vehicle} seatStates={seatStates} compact />
+            {vehicle.status === 'available' && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
+                <CarVisual vehicle={vehicle} seatStates={seatStates} compact />
+              </div>
+            )}
+
+            {vehicle.status === 'available' && (
+              <Group gap="xs" mt="xs" justify="center" wrap="wrap">
+                {available > 0 && (
+                  <Text size="xs" c="dimmed">{available} libre{available > 1 ? 's' : ''}</Text>
+                )}
+                {reserved > 0 && (
+                  <Text size="xs" c="dimmed">{reserved} réservée{reserved > 1 ? 's' : ''}</Text>
+                )}
+                {occupied > 0 && (
+                  <Text size="xs" c="dimmed">{occupied} occupée{occupied > 1 ? 's' : ''}</Text>
+                )}
+              </Group>
+            )}
+
+            {nextDeparture && (
+              <Group gap={4} mt="xs" justify="center">
+                <IconClock size={12} color="var(--mantine-color-dimmed)" />
+                <CountdownDisplay targetDate={nextDeparture} compact />
+              </Group>
+            )}
+          </Paper>
         </div>
-      )}
 
-      {vehicle.status === 'available' && (
-        <Group gap="xs" mt="xs" justify="center" wrap="wrap">
-          {available > 0 && (
-            <><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4CAF50', display: 'inline-block' }} />
-              <Text size="xs" c="dimmed">{available} libre{available > 1 ? 's' : ''}</Text></>
+        <div className="vehicle-flip-face vehicle-flip-back">
+          <Group justify="space-between" align="center" mb="sm">
+            <Group gap={6}>
+              <IconUsers size={15} color="var(--mantine-color-brand-6)" />
+              <Text size="sm" fw={600}>Personnes à bord</Text>
+            </Group>
+            <Badge size="sm" variant="light" color="brand">
+              {occupants.length}
+            </Badge>
+          </Group>
+          {occupants.length === 0 ? (
+            <Text c="dimmed" size="sm">Aucune personne à bord</Text>
+          ) : (
+            <Stack gap={6}>
+              {occupants.map((occ) => (
+                <Paper
+                  key={occ.id}
+                  p="xs"
+                  radius="md"
+                  withBorder
+                  style={{ background: 'light-dark(#f6f7f9, rgba(255,255,255,0.05))' }}
+                >
+                  <Group gap="sm" wrap="nowrap">
+                    <Avatar color="brand" radius="xl" size="sm">
+                      {`${occ.employee?.prenom?.[0] || ''}${occ.employee?.nom?.[0] || ''}`}
+                    </Avatar>
+                    <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                      <Text size="sm" fw={600} truncate>
+                        {occ.employee?.prenom} {occ.employee?.nom}
+                      </Text>
+                      {occ.employee?.department && (
+                        <Text size="xs" c="dimmed" truncate>{occ.employee.department}</Text>
+                      )}
+                    </div>
+                    <Badge size="sm" variant="light" color={occ.status === 'approved' ? 'red' : 'yellow'} leftSection={<IconUser size={11} />}>
+                      {occ.nb_personnes}
+                    </Badge>
+                  </Group>
+                </Paper>
+              ))}
+            </Stack>
           )}
-          {reserved > 0 && (
-            <><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F5B301', display: 'inline-block' }} />
-              <Text size="xs" c="dimmed">{reserved} réservée{reserved > 1 ? 's' : ''}</Text></>
-          )}
-          {occupied > 0 && (
-            <><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#D32F2F', display: 'inline-block' }} />
-              <Text size="xs" c="dimmed">{occupied} occupée{occupied > 1 ? 's' : ''}</Text></>
-          )}
-        </Group>
-      )}
-
-      {nextDeparture && (
-        <Group gap={4} mt="xs" justify="center">
-          <IconClock size={12} color="var(--mantine-color-dimmed)" />
-          <CountdownDisplay targetDate={nextDeparture} compact />
-        </Group>
-      )}
-    </Paper>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -228,6 +278,7 @@ function NewRequest() {
   const [loading, setLoading] = useState(true);
 
   const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [configModalOpen, setConfigModalOpen] = useState(false);
   const [destination, setDestination] = useState('');
   const [motif, setMotif] = useState('');
   const [dateSouhaitee, setDateSouhaitee] = useState(null);
@@ -299,6 +350,7 @@ function NewRequest() {
         vehicle_id: selectedVehicle.id,
       });
       notifySuccess('Demande envoyée avec succès');
+      setConfigModalOpen(false);
       setDestination(''); setMotif(''); setDateSouhaitee(null);
       setNbPersonnes(1); setSelectedVehicle(null);
       const { data } = await vehicleService.getOccupancy();
@@ -314,23 +366,12 @@ function NewRequest() {
     const vd = vehiclesData.find((v) => v.id === vehicle.id);
     if (vd) setSelectedVehicle({ ...vehicle, _data: vd });
     else setSelectedVehicle(vehicle);
+    setConfigModalOpen(true);
   };
 
   const activeVehicleData = selectedVehicle
     ? vehiclesData.find((v) => v.id === selectedVehicle.id)
     : null;
-
-  const { user } = useAuth();
-  const myExistingRequest = useMemo(
-    () => activeVehicleData?.occupants?.find((o) => o.employee_id === user?.id) || null,
-    [activeVehicleData, user?.id]
-  );
-
-  const countdownTarget = useMemo(() => {
-    if (dateSouhaitee) return dateSouhaitee;
-    if (myExistingRequest?.date_souhaitee) return new Date(myExistingRequest.date_souhaitee);
-    return null;
-  }, [dateSouhaitee, myExistingRequest]);
 
   if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
 
@@ -340,14 +381,92 @@ function NewRequest() {
         .vehicle-select-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .vehicle-select-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.1); }
         .vehicle-select-card--selected { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.12); }
+        .vehicle-flip { perspective: 1200px; height: 100%; }
+        .vehicle-flip--selected .vehicle-flip-front .vehicle-card { border: 2px solid var(--mantine-color-brand-6); background: rgba(46,125,50,0.04); }
+        .vehicle-flip-inner {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          text-align: center;
+          transition: transform 0.6s;
+          transform-style: preserve-3d;
+          cursor: pointer;
+        }
+        .vehicle-flip:hover .vehicle-flip-inner { transform: rotateY(180deg); }
+        .vehicle-flip-face {
+          width: 100%;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+        }
+        .vehicle-flip-front { position: relative; z-index: 2; height: 100%; }
+        .vehicle-flip-back {
+          position: absolute;
+          top: 0;
+          left: 0;
+          height: 100%;
+          width: 100%;
+          transform: rotateY(180deg);
+          background: light-dark(#ffffff, #2E2E33);
+          border: 1px solid var(--mantine-color-default-border);
+          border-radius: 12px;
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
+          text-align: left;
+          overflow-y: auto;
+        }
         .glass-panel { background: rgba(255,255,255,0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.3); }
         .capacity-bar { height: 6px; border-radius: 3px; background: light-dark(#e9ecef, #373A40); overflow: hidden; margin-top: 4px; }
         .capacity-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
         .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .step-indicator { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+        .step-circle {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 13px;
+          font-weight: 700;
+          transition: all 0.3s ease;
+          flex-shrink: 0;
+        }
+        .step-circle--done { background: var(--mantine-color-brand-6); color: #fff; }
+        .step-circle--active {
+          background: var(--mantine-color-brandYellow-5);
+          color: #1f1f1f;
+          box-shadow: 0 0 0 4px rgba(245,179,1,0.2);
+        }
+        .step-circle--pending {
+          background: light-dark(#e9ecef, #373A40);
+          color: light-dark(#868e96, #909296);
+        }
+        .step-line {
+          flex: 1;
+          height: 2px;
+          background: light-dark(#e9ecef, #373A40);
+          max-width: 80px;
+          min-width: 20px;
+        }
+        .step-line--done { background: var(--mantine-color-brand-6); }
         .detail-car { height: 200px; display: flex; align-items: center; justify-content: center; padding: 8px; }
       `}</style>
 
       <Title order={4} mb="lg">Nouvelle demande de sortie</Title>
+
+      <div className="step-indicator">
+        <div className={`step-circle ${selectedVehicle ? 'step-circle--done' : 'step-circle--active'}`}>1</div>
+        <Text size="sm" fw={selectedVehicle ? 400 : 600} c={selectedVehicle ? 'dimmed' : '#1f1f1f'}>
+          Véhicule
+        </Text>
+        <div className={`step-line ${selectedVehicle ? 'step-line--done' : ''}`} />
+        <div className={`step-circle ${selectedVehicle ? 'step-circle--active' : 'step-circle--pending'}`}>2</div>
+        <Text size="sm" fw={selectedVehicle ? 600 : 400} c={selectedVehicle ? 'var(--mantine-color-text)' : 'dimmed'}>
+          Détails de la demande
+        </Text>
+      </div>
 
       {vehiclesData.length === 0 ? (
         <Paper p="xl" radius="lg" withBorder>
@@ -360,10 +479,22 @@ function NewRequest() {
         </Paper>
       ) : (
         <>
-          <Text size="sm" fw={600} mb="sm">
-            <IconCar size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-            Choisissez un véhicule
-          </Text>
+          <Group justify="space-between" mb="sm" wrap="wrap" rowGap={4}>
+            <Text size="sm" fw={600}>
+              <IconCar size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+              Choisissez un véhicule
+            </Text>
+            <Group gap="xs" wrap="wrap">
+              <span className="dot" style={{ background: '#4CAF50' }} />
+              <Text size="xs" c="dimmed">Libre</Text>
+              <span className="dot" style={{ background: '#F5B301' }} />
+              <Text size="xs" c="dimmed">Réservé</Text>
+              <span className="dot" style={{ background: '#D32F2F' }} />
+              <Text size="xs" c="dimmed">Occupé</Text>
+              <span className="dot" style={{ background: '#2196F3' }} />
+              <Text size="xs" c="dimmed">Votre place</Text>
+            </Group>
+          </Group>
 
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" mb="xl">
             {vehiclesData.map((vd) => {
@@ -379,6 +510,7 @@ function NewRequest() {
                     onSelect={() => handleSelectVehicle(vd)}
                     seatStates={buildSeatStates(vd, vd)}
                     nextDeparture={nextDep}
+                    occupants={vd.occupants || []}
                   />
                   {isSelected && vd.occupants?.length > 0 && (
                     <Paper p="xs" radius="md" withBorder mt={4} style={{ background: 'light-dark(#fafafa, rgba(255,255,255,0.04))' }}>
@@ -401,142 +533,81 @@ function NewRequest() {
             })}
           </SimpleGrid>
 
-          {selectedVehicle && activeVehicleData && (
-            <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" mb="xl">
-              <Paper p="lg" radius="lg" className="glass-panel">
-                <Group justify="space-between" mb="md">
-                  <Group gap="sm">
-                    <Text fw={600} size="md" tt="capitalize">{selectedVehicle.type}</Text>
-                    <Badge color="brand" variant="light" size="sm">
-                      {activeVehicleData.availableSeats} libre{activeVehicleData.availableSeats > 1 ? 's' : ''}
-                    </Badge>
-                  </Group>
-                  <Group gap="xs">
-                    <span className="dot" style={{ background: '#4CAF50' }} />
-                    <Text size="xs" c="dimmed">Libre</Text>
-                    <span className="dot" style={{ background: '#F5B301' }} />
-                    <Text size="xs" c="dimmed">Réservé</Text>
-                    <span className="dot" style={{ background: '#D32F2F' }} />
-                    <Text size="xs" c="dimmed">Occupé</Text>
-                    <span className="dot" style={{ background: '#2196F3' }} />
-                    <Text size="xs" c="dimmed">Votre place</Text>
-                  </Group>
-                </Group>
-
-                <div className="detail-car" style={{ position: 'relative' }}>
-                  <CarVisual
-                    vehicle={selectedVehicle}
-                    seatStates={buildSeatStates(selectedVehicle, activeVehicleData)}
-                  />
-                </div>
-
-                {countdownTarget && <CountdownDisplay targetDate={countdownTarget} />}
-
-                {activeVehicleData.occupants?.length > 0 && (
-                  <Paper p="sm" radius="md" withBorder mt="sm" style={{ background: 'light-dark(#fafafa, rgba(255,255,255,0.04))' }}>
-                    <Text size="xs" fw={600} c="dimmed" mb="xs">Détails occupants</Text>
-                    <Stack gap={4}>
-                      {activeVehicleData.occupants.map((occ) => (
-                        <Group key={occ.id} gap="sm" wrap="nowrap">
-                          <Avatar color="brand" radius="xl" size="sm">
-                            {`${occ.employee?.prenom?.[0] || ''}${occ.employee?.nom?.[0] || ''}`}
-                          </Avatar>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <Text size="xs" fw={500} truncate>
-                              {occ.employee?.prenom} {occ.employee?.nom}
-                            </Text>
-                            <Text size="xs" c="dimmed" truncate>
-                              {occ.destination} · {occ.employee?.department}
-                            </Text>
-                          </div>
-                          <Badge size="xs" color={occ.status === 'approved' ? 'brand' : 'brandYellow'} variant="light">
-                            {occ.status === 'approved' ? 'Validé' : 'En attente'}
-                          </Badge>
-                        </Group>
-                      ))}
-                    </Stack>
-                  </Paper>
-                )}
-              </Paper>
-
-              <Paper p="lg" radius="lg" className="glass-panel">
-                <Text fw={600} size="sm" mb="md">
-                  <IconSend size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                  Détails de votre demande
-                </Text>
-                <form onSubmit={handleSubmit}>
-                  <Stack gap="sm">
-                    <TextInput
-                      label="Destination"
-                      placeholder="Antananarivo"
-                      required
-                      value={destination}
-                      onChange={(e) => setDestination(e.currentTarget.value)}
-                      leftSection={<IconMapPin size={16} />}
-                    />
-                    <Textarea
-                      label="Motif"
-                      placeholder="Réunion client, livraison..."
-                      required
-                      minRows={3}
-                      value={motif}
-                      onChange={(e) => setMotif(e.currentTarget.value)}
-                    />
-                    <DateTimePicker
-                      label="Date et heure de départ souhaitées"
-                      placeholder="Choisir une date"
-                      required
-                      value={dateSouhaitee}
-                      onChange={setDateSouhaitee}
-                      minDate={new Date()}
-                    />
-                    <div>
-                      <NumberInput
-                        label="Nombre de personnes"
-                        min={1}
-                        max={Math.max(1, activeVehicleData.availableSeats)}
-                        required
-                        value={nbPersonnes}
-                        onChange={(v) => {
-                          const val = Number(v) || 1;
-                          setNbPersonnes(Math.min(val, Math.max(1, activeVehicleData.availableSeats)));
-                        }}
-                        description={`Places disponibles: ${activeVehicleData.availableSeats}`}
-                      />
-                      <div className="capacity-bar" style={{ marginTop: 6 }}>
-                        <div className="capacity-fill"
-                          style={{
-                            width: `${Math.min(100, ((activeVehicleData.occupiedSeats + nbPersonnes) / selectedVehicle.capacity) * 100)}%`,
-                            background: (activeVehicleData.occupiedSeats + nbPersonnes) > selectedVehicle.capacity
-                              ? '#D32F2F' : 'var(--mantine-color-brand-6)',
-                          }}
-                        />
-                      </div>
-                      <Group justify="space-between" mt={2}>
-                        <Text size="xs" c="dimmed">
-                          {activeVehicleData.occupiedSeats + nbPersonnes}/{selectedVehicle.capacity} places
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {activeVehicleData.availableSeats - nbPersonnes} restante{(activeVehicleData.availableSeats - nbPersonnes) > 1 ? 's' : ''}
-                        </Text>
-                      </Group>
-                    </div>
-                    <Button
-                      type="submit" color="brand"
-                      loading={submitting}
-                      mt="sm" size="md"
-                      leftSection={<IconSend size={16} />}
-                      fullWidth
-                    >
-                      Envoyer la demande
-                    </Button>
-                  </Stack>
-                </form>
-              </Paper>
-            </SimpleGrid>
-          )}
         </>
       )}
+
+      <VehicleModal
+        opened={configModalOpen}
+        onClose={() => setConfigModalOpen(false)}
+        vehicle={selectedVehicle}
+        onConfirm={() => document.getElementById('newRequestForm')?.requestSubmit()}
+        confirmLabel="Envoyer la demande"
+        loading={submitting}
+      >
+        {selectedVehicle && activeVehicleData && (
+          <form id="newRequestForm" onSubmit={handleSubmit}>
+            <TextInput
+              label="Destination"
+              placeholder="Antananarivo"
+              required
+              value={destination}
+              onChange={(e) => setDestination(e.currentTarget.value)}
+              radius="md"
+              leftSection={<IconMapPin size={16} />}
+            />
+            <Textarea
+              label="Motif"
+              placeholder="Réunion client, livraison..."
+              required
+              minRows={3}
+              value={motif}
+              onChange={(e) => setMotif(e.currentTarget.value)}
+              radius="md"
+            />
+            <DateTimePicker
+              label="Date et heure de départ souhaitées"
+              placeholder="Choisir une date"
+              required
+              value={dateSouhaitee}
+              onChange={setDateSouhaitee}
+              minDate={new Date()}
+              radius="md"
+            />
+            <div>
+              <NumberInput
+                label="Nombre de personnes"
+                min={1}
+                max={Math.max(1, activeVehicleData.availableSeats)}
+                required
+                value={nbPersonnes}
+                onChange={(v) => {
+                  const val = Number(v) || 1;
+                  setNbPersonnes(Math.min(val, Math.max(1, activeVehicleData.availableSeats)));
+                }}
+                radius="md"
+                description={`Places disponibles: ${activeVehicleData.availableSeats}`}
+              />
+              <div className="capacity-bar" style={{ marginTop: 6 }}>
+                <div className="capacity-fill"
+                  style={{
+                    width: `${Math.min(100, ((activeVehicleData.occupiedSeats + nbPersonnes) / selectedVehicle.capacity) * 100)}%`,
+                    background: (activeVehicleData.occupiedSeats + nbPersonnes) > selectedVehicle.capacity
+                      ? '#D32F2F' : 'var(--mantine-color-brand-6)',
+                  }}
+                />
+              </div>
+              <Group justify="space-between" mt={2}>
+                <Text size="xs" c="dimmed">
+                  {activeVehicleData.occupiedSeats + nbPersonnes}/{selectedVehicle.capacity} places
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {activeVehicleData.availableSeats - nbPersonnes} restante{(activeVehicleData.availableSeats - nbPersonnes) > 1 ? 's' : ''}
+                </Text>
+              </Group>
+            </div>
+          </form>
+        )}
+      </VehicleModal>
     </div>
   );
 }

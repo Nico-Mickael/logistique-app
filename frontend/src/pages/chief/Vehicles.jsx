@@ -36,6 +36,11 @@ function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete }) 
         {vehicle.maintenance_until && (
           <Text size="sm">Retour prévu: {dayjs(vehicle.maintenance_until).format('DD/MM/YYYY')}</Text>
         )}
+        {vehicle.status === 'available' && (
+          <Text size="sm">
+            <strong>{vehicle.availableSeats ?? vehicle.capacity}</strong> place{(vehicle.availableSeats ?? vehicle.capacity) !== 1 ? 's' : ''} libre(s) / {vehicle.capacity}
+          </Text>
+        )}
       </Stack>
       <Group gap="xs">
         {vehicle.status !== 'busy' && (
@@ -90,7 +95,7 @@ function Vehicles() {
 
   const fetchVehicles = async () => {
     try {
-      const { data } = await vehicleService.getAll();
+      const { data } = await vehicleService.getOccupancy();
       setVehicles(data);
     } catch {
       notifyError('Impossible de charger les véhicules');
@@ -215,6 +220,7 @@ function Vehicles() {
                 columns={[
                   { accessor: 'type', title: 'Type', sortable: true, render: (v) => <Text tt="capitalize">{v.type}</Text> },
                   { accessor: 'capacity', title: 'Capacité', render: (v) => `${v.capacity} pers.` },
+                  { accessor: 'occupied', title: 'Occupé', render: (v) => v.status === 'available' ? ((v.occupiedSeats ?? 0) + ' / ' + v.capacity) : '—' },
                   { accessor: 'status', title: 'Statut', render: (v) => <Badge color={statusColor[v.status]} variant="light">{statusLabel[v.status]}</Badge> },
                   { accessor: 'maintenance_until', title: 'Maintenance jusqu\'au', render: (v) => v.maintenance_until ? dayjs(v.maintenance_until).format('DD/MM/YYYY') : '—' },
                   {

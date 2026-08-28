@@ -1,15 +1,16 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
-  Paper, Title, Text, Group, Stack, Badge, Button, TextInput, Select,
+  Paper, Title, Text, Group, Stack, Badge, Button, TextInput,
   Loader, Center, Avatar, SimpleGrid, NumberInput,
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import {
-  IconRoute, IconUsers, IconPlus,
+  IconUsers, IconPlus,
   IconSteeringWheel, IconMapPin, IconClock, IconUser,
   IconBuildingWarehouse, IconGauge,
 } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
+import VehicleModal from '../../components/VehicleModal';
 import dayjs from '../../utils/date';
 import { vehicleService } from '../../api/vehicleService';
 import { sortieService } from '../../api/sortieService';
@@ -97,68 +98,119 @@ function CarVisual({ vehicle, seatStates, onSeatClick, selectedSeat }) {
   );
 }
 
-function VehicleCard({ vehicle, seatStates, isSelected, onClick }) {
+function VehicleCard({ vehicle, seatStates, isSelected, onClick, requestsBySeat = [] }) {
   const occupiedCount = seatStates ? Object.values(seatStates).filter((s) => s === 'occupied').length : 0;
   const availableCount = vehicle.capacity - occupiedCount;
 
   return (
-    <Paper
-      p="lg"
-      radius="lg"
-      withBorder
-      className={`vehicle-card ${isSelected ? 'vehicle-card--selected' : ''}`}
-      onClick={onClick}
-      style={{
-        cursor: 'pointer',
-        border: isSelected ? '2px solid var(--mantine-color-brand-6)' : '1px solid var(--mantine-color-default-border)',
-        background: isSelected ? 'rgba(46,125,50,0.03)' : 'var(--mantine-color-body)',
-        transition: 'all 0.3s ease',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      <Group justify="space-between" mb="sm" wrap="nowrap">
-        <Group gap="sm">
-          <div className="vehicle-icon-container">
-            <VehicleIcon type={vehicle.type} size={22} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
-          </div>
-          <div>
-            <Text fw={600} size="sm" tt="capitalize">{vehicle.type}</Text>
-            <Group gap={4}>
-              <IconUsers size={12} color="var(--mantine-color-dimmed)" />
-              <Text size="xs" c="dimmed">{vehicle.capacity} places</Text>
+    <div className={`vehicle-flip ${isSelected ? 'vehicle-flip--selected' : ''}`}>
+      <div className="vehicle-flip-inner" onClick={onClick}>
+        <div className="vehicle-flip-face vehicle-flip-front">
+          <Paper
+            p="lg"
+            radius="lg"
+            withBorder
+            className="vehicle-card"
+            style={{
+              cursor: 'pointer',
+              border: '1px solid var(--mantine-color-default-border)',
+              background: 'var(--mantine-color-body)',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: '100%',
+            }}
+          >
+            <Group justify="space-between" mb="sm" wrap="nowrap">
+              <Group gap="sm">
+                <div className="vehicle-icon-container">
+                  <VehicleIcon type={vehicle.type} size={22} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
+                </div>
+                <div>
+                  <Text fw={600} size="sm" tt="capitalize">{vehicle.type}</Text>
+                  <Group gap={4}>
+                    <IconUsers size={12} color="var(--mantine-color-dimmed)" />
+                    <Text size="xs" c="dimmed">{vehicle.capacity} places</Text>
+                  </Group>
+                </div>
+              </Group>
+              <Badge color={statusColor[vehicle.status]} variant="light" size="sm">
+                {statusLabel[vehicle.status]}
+              </Badge>
             </Group>
-          </div>
-        </Group>
-        <Badge color={statusColor[vehicle.status]} variant="light" size="sm">
-          {statusLabel[vehicle.status]}
-        </Badge>
-      </Group>
 
-      {vehicle.status === 'available' && (
-        <div className="car-preview">
-          <CarVisual
-            vehicle={vehicle}
-            seatStates={seatStates || {}}
-            onSeatClick={() => {}}
-            selectedSeat={null}
-          />
+            {vehicle.status === 'available' && (
+              <div className="car-preview">
+                <CarVisual
+                  vehicle={vehicle}
+                  seatStates={seatStates || {}}
+                  onSeatClick={() => {}}
+                  selectedSeat={null}
+                />
+              </div>
+            )}
+
+            {vehicle.status === 'available' && (
+              <Group gap={6} mt="sm" justify="center">
+                <span className="seat-dot" style={{ background: '#4CAF50' }} />
+                <Text size="xs" c="dimmed">{availableCount} libre{availableCount !== 1 ? 's' : ''}</Text>
+                {occupiedCount > 0 && (
+                  <>
+                    <span className="seat-dot" style={{ background: '#D32F2F' }} />
+                    <Text size="xs" c="dimmed">{occupiedCount} occupée{occupiedCount !== 1 ? 's' : ''}</Text>
+                  </>
+                )}
+              </Group>
+            )}
+          </Paper>
         </div>
-      )}
 
-      {vehicle.status === 'available' && (
-        <Group gap={6} mt="sm" justify="center">
-          <span className="seat-dot" style={{ background: '#4CAF50' }} />
-          <Text size="xs" c="dimmed">{availableCount} libre{availableCount !== 1 ? 's' : ''}</Text>
-          {occupiedCount > 0 && (
-            <>
-              <span className="seat-dot" style={{ background: '#D32F2F' }} />
-              <Text size="xs" c="dimmed">{occupiedCount} occupée{occupiedCount !== 1 ? 's' : ''}</Text>
-            </>
+        <div className="vehicle-flip-face vehicle-flip-back">
+          <Group justify="space-between" align="center" mb="sm">
+            <Group gap={6}>
+              <IconUsers size={15} color="var(--mantine-color-brand-6)" />
+              <Text size="sm" fw={600}>Personnes à bord</Text>
+            </Group>
+            <Badge size="sm" variant="light" color="brand">
+              {requestsBySeat.length}
+            </Badge>
+          </Group>
+          {requestsBySeat.length === 0 ? (
+            <Text c="dimmed" size="sm">Aucune personne à bord</Text>
+          ) : (
+            <Stack gap={6}>
+              {requestsBySeat.map((r) => (
+                <Paper
+                  key={r.id}
+                  p="xs"
+                  radius="md"
+                  withBorder
+                  style={{ background: 'light-dark(#f6f7f9, rgba(255,255,255,0.05))' }}
+                >
+                  <Group gap="sm" wrap="nowrap">
+                    <Avatar color="brand" radius="xl" size="sm">
+                      {`${r.Employee?.prenom?.[0] || ''}${r.Employee?.nom?.[0] || ''}`}
+                    </Avatar>
+                    <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                      <Text size="sm" fw={600} truncate>
+                        {r.Employee?.prenom} {r.Employee?.nom}
+                      </Text>
+                      {r.Employee?.department && (
+                        <Text size="xs" c="dimmed" truncate>{r.Employee.department}</Text>
+                      )}
+                    </div>
+                    <Badge size="sm" variant="light" color="red" leftSection={<IconUser size={11} />}>
+                      {r.nb_personnes}
+                    </Badge>
+                  </Group>
+                </Paper>
+              ))}
+            </Stack>
           )}
-        </Group>
-      )}
-    </Paper>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -224,50 +276,6 @@ function RequestCard({ request, onAdd, adding, disabled }) {
   );
 }
 
-function SeatInfoCard({ employee, onClose }) {
-  if (!employee) return null;
-  return (
-    <Paper
-      p="md"
-      radius="lg"
-      shadow="lg"
-      className="seat-info-card"
-      style={{
-        background: 'rgba(255,255,255,0.95)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255,255,255,0.4)',
-        position: 'absolute',
-        zIndex: 100,
-        minWidth: 220,
-        animation: 'card-in 0.25s ease-out',
-      }}
-    >
-      <Stack gap="xs">
-        <Group justify="space-between">
-          <Group gap="sm">
-            <Avatar color="brand" radius="xl" size="sm">
-              {`${employee.prenom?.[0] || ''}${employee.nom?.[0] || ''}`}
-            </Avatar>
-            <div>
-              <Text size="sm" fw={600}>{employee.prenom} {employee.nom}</Text>
-              <Text size="xs" c="dimmed">{employee.department}</Text>
-            </div>
-          </Group>
-          <Button size="xs" variant="subtle" color="gray" onClick={onClose} compact>✕</Button>
-        </Group>
-        <Group gap={6}>
-          <IconMapPin size={14} color="var(--mantine-color-dimmed)" />
-          <Text size="xs">{employee.destination}</Text>
-        </Group>
-        <Group gap={6}>
-          <IconClock size={14} color="var(--mantine-color-dimmed)" />
-          <Text size="xs">{dayjs(employee.date_souhaitee).format('DD/MM/YYYY HH:mm')}</Text>
-        </Group>
-      </Stack>
-    </Paper>
-  );
-}
-
 function CreateSortie() {
   const [vehicles, setVehicles] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -285,14 +293,13 @@ function CreateSortie() {
   const [seatStates, setSeatStates] = useState({});
   const [seatAssignments, setSeatAssignments] = useState([]);
   const [adding, setAdding] = useState(false);
-  const [selectedSeat, setSelectedSeat] = useState(null);
-  const [filterDestination, setFilterDestination] = useState('');
+  const [configModalOpen, setConfigModalOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [vehRes, reqRes] = await Promise.all([
-        vehicleService.getAll(),
+        vehicleService.getOccupancy(),
         requestService.all({ limit: 9999 }),
       ]);
       setVehicles(vehRes.data || []);
@@ -312,8 +319,9 @@ function CreateSortie() {
 
   const initSeats = useCallback((vehicle) => {
     const states = {};
+    const occupied = vehicle.occupiedSeats || 0;
     for (let i = 0; i < vehicle.capacity; i++) {
-      states[i] = 'available';
+      states[i] = i < occupied ? 'occupied' : 'available';
     }
     return states;
   }, []);
@@ -327,11 +335,11 @@ function CreateSortie() {
     setCreatedSortie(null);
     setSeatStates(initSeats(vehicle));
     setSeatAssignments([]);
-    setSelectedSeat(null);
     setDestination('');
     setDriverName('');
     setDepartureTime(null);
     setDepartureKm('');
+    setConfigModalOpen(true);
     if (vehicle.id) {
       setLastSortieLoading(true);
       try {
@@ -363,6 +371,7 @@ function CreateSortie() {
       });
       setCreatedSortie(data);
       notifySuccess('Sortie créée avec succès');
+      setConfigModalOpen(false);
 
       setVehicles((prev) =>
         prev.map((v) =>
@@ -380,22 +389,33 @@ function CreateSortie() {
     if (!createdSortie) return;
     if (!request.Employee) return;
 
-    const availableSeatIndex = Object.entries(seatStates).find(
-      ([, state]) => state === 'available'
-    );
-    if (!availableSeatIndex) {
+    const nb = request.nb_personnes || 1;
+    const freeSeatIds = Object.entries(seatStates)
+      .filter(([, state]) => state === 'available')
+      .map(([k]) => parseInt(k, 10));
+
+    if (freeSeatIds.length < nb) {
       notifyError('Plus de places disponibles dans ce véhicule');
       return;
     }
-    const seatId = parseInt(availableSeatIndex[0], 10);
+    const seatIds = freeSeatIds.slice(0, nb);
 
     setAdding(true);
     try {
       await sortieService.addRequest(createdSortie.id, request.id);
-      setSeatStates((prev) => ({ ...prev, [seatId]: 'occupied' }));
+      setSeatStates((prev) => {
+        const next = { ...prev };
+        seatIds.forEach((sid) => { next[sid] = 'occupied'; });
+        return next;
+      });
       setSeatAssignments((prev) => [
         ...prev,
-        { seatId, employee: request.Employee, destination: request.destination, date_souhaitee: request.date_souhaitee },
+        ...seatIds.map((seatId) => ({
+          seatId,
+          employee: request.Employee,
+          destination: request.destination,
+          date_souhaitee: request.date_souhaitee,
+        })),
       ]);
       setRequests((prev) => prev.filter((r) => r.id !== request.id));
       notifySuccess(`${request.Employee.prenom} ${request.Employee.nom} ajouté au véhicule`);
@@ -406,20 +426,36 @@ function CreateSortie() {
     }
   };
 
-  const handleSeatClick = (seatId) => {
-    if (seatStates[seatId] === 'occupied') {
-      setSelectedSeat(selectedSeat === seatId ? null : seatId);
-    }
-  };
-
   const compatibleRequests = useMemo(() => {
     if (!createdSortie) return [];
     return requests.filter((r) => {
       if (r.status !== 'pending') return false;
-      if (filterDestination && r.destination !== filterDestination) return false;
+      if (r.vehicle_id) return false;
+      if (r.destination !== createdSortie.destination) return false;
       return true;
     });
-  }, [requests, createdSortie, filterDestination]);
+  }, [requests, createdSortie]);
+
+  const occupancyByVehicle = useMemo(() => {
+    const map = {};
+    requests.forEach((r) => {
+      if (!r.vehicle_id) return;
+      if (!map[r.vehicle_id]) map[r.vehicle_id] = { count: 0, occupants: [] };
+      map[r.vehicle_id].count += r.nb_personnes || 0;
+      map[r.vehicle_id].occupants.push(r);
+    });
+    return map;
+  }, [requests]);
+
+  const makeSeatStates = (vehicle) => {
+    const occ = occupancyByVehicle[vehicle.id];
+    const occupied = occ ? occ.count : 0;
+    const states = {};
+    for (let i = 0; i < vehicle.capacity; i++) {
+      states[i] = i < occupied ? 'occupied' : 'available';
+    }
+    return states;
+  };
 
   const occupiedCount = Object.values(seatStates).filter((s) => s === 'occupied').length;
   const availableCount = selectedVehicle ? selectedVehicle.capacity - occupiedCount : 0;
@@ -441,6 +477,53 @@ function CreateSortie() {
         .vehicle-card--selected {
           transform: translateY(-3px);
           box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+        }
+        .vehicle-flip {
+          perspective: 1200px;
+          height: 100%;
+        }
+        .vehicle-flip--selected .vehicle-flip-front .vehicle-card {
+          border: 2px solid var(--mantine-color-brand-6);
+          background: rgba(46,125,50,0.04);
+        }
+        .vehicle-flip-inner {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          text-align: center;
+          transition: transform 0.6s;
+          transform-style: preserve-3d;
+          cursor: pointer;
+        }
+        .vehicle-flip:hover .vehicle-flip-inner {
+          transform: rotateY(180deg);
+        }
+        .vehicle-flip-face {
+          width: 100%;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+        }
+        .vehicle-flip-front {
+          position: relative;
+          z-index: 2;
+          height: 100%;
+        }
+        .vehicle-flip-back {
+          position: absolute;
+          top: 0;
+          left: 0;
+          height: 100%;
+          width: 100%;
+          transform: rotateY(180deg);
+          background: light-dark(#ffffff, #2E2E33);
+          border: 1px solid var(--mantine-color-default-border);
+          border-radius: 12px;
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
+          text-align: left;
+          overflow-y: auto;
         }
         .vehicle-icon-container {
           width: 40px;
@@ -599,13 +682,21 @@ function CreateSortie() {
         </Text>
       </div>
 
+      <Group justify="flex-end" gap="xs" mb="sm" wrap="wrap">
+        <Text size="xs" fw={600} c="dimmed">Légende :</Text>
+        <span className="seat-dot" style={{ background: '#4CAF50', display: 'inline-block' }} />
+        <Text size="xs" c="dimmed">Libre</Text>
+        <span className="seat-dot" style={{ background: '#D32F2F', display: 'inline-block' }} />
+        <Text size="xs" c="dimmed">Occupé</Text>
+      </Group>
+
       <SimpleGrid cols={{ base: 1, md: 2, lg: 3 }} spacing="md" mb="xl">
         {vehicles
           .filter((v) => v.status === 'available' || (createdSortie && v.id === selectedVehicle?.id))
           .map((vehicle) => {
             const isSelected = selectedVehicle?.id === vehicle.id;
-            const vehSeatStates = isSelected ? seatStates : {};
-            const vehAssignments = isSelected ? seatAssignments : [];
+            const vehSeatStates = isSelected ? seatStates : makeSeatStates(vehicle);
+            const vehAssignments = isSelected ? seatAssignments : (occupancyByVehicle[vehicle.id]?.occupants || []);
             return (
               <VehicleCard
                 key={vehicle.id}
@@ -619,187 +710,8 @@ function CreateSortie() {
           })}
       </SimpleGrid>
 
-      {selectedVehicle && (
+      {createdSortie && selectedVehicle && (
         <>
-          <SimpleGrid cols={{ base: 1, lg: 5 }} spacing="lg" mb="xl">
-            <Paper
-              p="lg"
-              radius="lg"
-              className="glass-panel"
-            >
-              <Group justify="space-between" mb="md">
-                <Group gap="sm">
-                  <VehicleIcon type={selectedVehicle.type} size={20} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
-                  <Text fw={600} size="md" tt="capitalize">
-                    {selectedVehicle.type}
-                  </Text>
-                  <Badge color="brand" variant="light" size="sm">
-                    {selectedVehicle.capacity} places
-                  </Badge>
-                </Group>
-                <Group gap="xs">
-                  <span className="seat-dot" style={{ background: '#4CAF50' }} />
-                  <Text size="xs" c="dimmed">{availableCount} libre{availableCount !== 1 ? 's' : ''}</Text>
-                  {occupiedCount > 0 && (
-                    <>
-                      <span className="seat-dot" style={{ background: '#D32F2F' }} />
-                      <Text size="xs" c="dimmed">{occupiedCount} occupée{occupiedCount !== 1 ? 's' : ''}</Text>
-                    </>
-                  )}
-                </Group>
-              </Group>
-
-              <div className="vehicle-detail-car" style={{ position: 'relative' }}>
-                <CarVisual
-                  vehicle={selectedVehicle}
-                  seatStates={seatStates}
-                  onSeatClick={handleSeatClick}
-                  selectedSeat={selectedSeat}
-                />
-                {selectedSeat !== null && seatStates[selectedSeat] === 'occupied' && (
-                  <div style={{ position: 'absolute', top: '50%', right: 8, transform: 'translateY(-50%)' }}>
-                    <SeatInfoCard
-                      employee={seatAssignments.find((a) => a.seatId === selectedSeat)?.employee}
-                      onClose={() => setSelectedSeat(null)}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {seatAssignments.length > 0 && (
-                <Paper p="sm" radius="md" withBorder mt="sm" style={{ background: 'light-dark(#fafafa, rgba(255,255,255,0.04))' }}>
-                  <Text size="xs" fw={600} c="dimmed" mb="xs">Occupants</Text>
-                  <Group gap="xs" wrap="wrap">
-                    {seatAssignments.map((a) => (
-                      <Badge
-                        key={a.seatId}
-                        size="sm"
-                        variant="light"
-                        color="red"
-                        leftSection={<IconUser size={10} />}
-                      >
-                        {a.employee.prenom} {a.employee.nom}
-                      </Badge>
-                    ))}
-                  </Group>
-                </Paper>
-              )}
-            </Paper>
-
-            <Paper
-              p="lg"
-              radius="lg"
-              className="glass-panel"
-            >
-              <Text fw={600} size="sm" mb="md">
-                <IconRoute size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                Détails du trajet
-              </Text>
-
-              {!createdSortie ? (
-                <Stack gap="sm">
-                  <TextInput
-                    label="Conducteur"
-                    placeholder="Nom du conducteur"
-                    value={driverName}
-                    onChange={(e) => setDriverName(e.currentTarget.value)}
-                    required
-                    leftSection={<IconSteeringWheel size={16} />}
-                  />
-                  <TextInput
-                    label="Destination"
-                    placeholder="Antananarivo"
-                    value={destination}
-                    onChange={(e) => setDestination(e.currentTarget.value)}
-                    required
-                    leftSection={<IconMapPin size={16} />}
-                  />
-                  <NumberInput
-                    label="Kilométrage départ"
-                    placeholder={lastSortieLoading ? 'Chargement...' : 'km compteur au départ'}
-                    value={departureKm}
-                    onChange={setDepartureKm}
-                    min={0}
-                    step={1}
-                    leftSection={<IconGauge size={16} />}
-                    disabled={lastSortieLoading}
-                  />
-                  <DateTimePicker
-                    label="Date et heure de départ"
-                    placeholder="Choisir une date"
-                    value={departureTime}
-                    onChange={setDepartureTime}
-                    minDate={new Date()}
-                    required
-                  />
-                  <Button
-                    color="brand"
-                    fullWidth
-                    onClick={handleCreateSortie}
-                    loading={creating}
-                    size="md"
-                    mt="sm"
-                    leftSection={<IconRoute size={18} />}
-                  >
-                    Créer la sortie
-                  </Button>
-                </Stack>
-              ) : (
-                <Stack gap={4}>
-                  <div className="info-row">
-                    <div className="info-icon"><IconSteeringWheel size={16} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" /></div>
-                    <div>
-                      <Text size="xs" c="dimmed">Conducteur</Text>
-                      <Text size="sm" fw={500}>{createdSortie.driver_name}</Text>
-                    </div>
-                  </div>
-                  <div className="info-row">
-                    <div className="info-icon"><IconMapPin size={16} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" /></div>
-                    <div>
-                      <Text size="xs" c="dimmed">Destination</Text>
-                      <Text size="sm" fw={500}>{createdSortie.destination}</Text>
-                    </div>
-                  </div>
-                  <div className="info-row">
-                    <div className="info-icon"><IconClock size={16} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" /></div>
-                    <div>
-                      <Text size="xs" c="dimmed">Départ prévu</Text>
-                      <Text size="sm" fw={500}>{dayjs(createdSortie.departure_time).format('DD/MM/YYYY HH:mm')}</Text>
-                    </div>
-                  </div>
-                  {createdSortie.departure_km != null && (
-                    <div className="info-row">
-                      <div className="info-icon"><IconGauge size={16} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" /></div>
-                      <div>
-                        <Text size="xs" c="dimmed">Km départ</Text>
-                        <Text size="sm" fw={500}>{createdSortie.departure_km.toLocaleString()} km</Text>
-                      </div>
-                    </div>
-                  )}
-                  <div className="info-row">
-                    <div className="info-icon"><IconGauge size={16} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" /></div>
-                    <div style={{ flex: 1 }}>
-                      <Group justify="space-between">
-                        <Text size="xs" c="dimmed">Capacité</Text>
-                        <Text size="xs" fw={600}>{occupiedCount}/{selectedVehicle.capacity}</Text>
-                      </Group>
-                      <div className="capacity-bar">
-                        <div
-                          className="capacity-fill"
-                          style={{
-                            width: `${(occupiedCount / selectedVehicle.capacity) * 100}%`,
-                            background: occupiedCount === selectedVehicle.capacity
-                              ? '#D32F2F'
-                              : 'var(--mantine-color-brand-6)',
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </Stack>
-              )}
-            </Paper>
-          </SimpleGrid>
 
           {createdSortie && (
             <>
@@ -811,15 +723,6 @@ function CreateSortie() {
                     {compatibleRequests.length} disponible{compatibleRequests.length !== 1 ? 's' : ''}
                   </Badge>
                 </Group>
-                <Select
-                  placeholder="Filtrer par destination"
-                  data={[...new Set(requests.map((r) => r.destination))].map((d) => ({ value: d, label: d }))}
-                  value={filterDestination || null}
-                  onChange={(v) => setFilterDestination(v || '')}
-                  clearable
-                  size="xs"
-                  w={200}
-                />
               </Group>
 
               {compatibleRequests.length === 0 ? (
@@ -827,7 +730,7 @@ function CreateSortie() {
                   <Center h={120}>
                     <Stack align="center" gap={6}>
                       <IconUsers size={32} color="var(--mantine-color-gray-4)" />
-                      <Text c="dimmed" size="sm">Aucune demande compatible pour {destination}</Text>
+                      <Text c="dimmed" size="sm">Aucune demande compatible pour {createdSortie.destination}</Text>
                     </Stack>
                   </Center>
                 </Paper>
@@ -839,7 +742,7 @@ function CreateSortie() {
                       request={req}
                       onAdd={handleAddRequest}
                       adding={adding}
-                      disabled={availableCount <= 0}
+                      disabled={availableCount < (req.nb_personnes || 1)}
                     />
                   ))}
                 </SimpleGrid>
@@ -848,6 +751,54 @@ function CreateSortie() {
           )}
         </>
       )}
+
+      <VehicleModal
+        opened={configModalOpen}
+        onClose={() => setConfigModalOpen(false)}
+        vehicle={selectedVehicle}
+        onConfirm={handleCreateSortie}
+        confirmLabel="Créer la sortie"
+        loading={creating}
+      >
+        <TextInput
+          label="Conducteur"
+          placeholder="Nom du conducteur"
+          value={driverName}
+          onChange={(e) => setDriverName(e.currentTarget.value)}
+          required
+          radius="md"
+          leftSection={<IconSteeringWheel size={16} />}
+        />
+        <TextInput
+          label="Destination"
+          placeholder="Antananarivo"
+          value={destination}
+          onChange={(e) => setDestination(e.currentTarget.value)}
+          required
+          radius="md"
+          leftSection={<IconMapPin size={16} />}
+        />
+        <NumberInput
+          label="Kilométrage départ"
+          placeholder={lastSortieLoading ? 'Chargement...' : 'km compteur au départ'}
+          value={departureKm}
+          onChange={setDepartureKm}
+          min={0}
+          step={1}
+          radius="md"
+          leftSection={<IconGauge size={16} />}
+          disabled={lastSortieLoading}
+        />
+        <DateTimePicker
+          label="Date et heure de départ"
+          placeholder="Choisir une date"
+          value={departureTime}
+          onChange={setDepartureTime}
+          minDate={new Date()}
+          required
+          radius="md"
+        />
+      </VehicleModal>
     </div>
   );
 }
