@@ -63,13 +63,10 @@ exports.suggestions = asyncHandler(async (req, res) => {
   const sortie = await Sortie.findByPk(req.params.id, { include: Vehicle });
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
 
-  const existingCount = await SortieRequest.count({ where: { sortie_id: sortie.id } });
-
   const compatible = await sortieService.findCompatibleRequests(
+    sortie.id,
     sortie.destination,
-    sortie.departure_time,
-    sortie.Vehicle.capacity,
-    existingCount
+    sortie.Vehicle.capacity
   );
 
   res.json(compatible);

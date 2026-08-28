@@ -32,7 +32,7 @@ module.exports = {
     await queryInterface.bulkInsert('Vehicles', [
       { id: 1, type: 'moto',    capacity: 2,  status: 'available',   maintenance_until: null,                     createdAt: new Date(now - 30*d), updatedAt: new Date(now - 3*d) },
       { id: 2, type: 'voiture', capacity: 5,  status: 'busy',        maintenance_until: null,                     createdAt: new Date(now - 30*d), updatedAt: new Date(now - d)     },
-      { id: 3, type: 'minibus', capacity: 15, status: 'maintenance', maintenance_until: new Date(now + 20*d),    createdAt: new Date(now - 30*d), updatedAt: new Date(now - 30*d) },
+      { id: 3, type: 'minibus', capacity: 15, status: 'available',   maintenance_until: null,                     createdAt: new Date(now - 30*d), updatedAt: new Date(now - 30*d) },
       { id: 4, type: 'voiture', capacity: 5,  status: 'busy',        maintenance_until: null,                     createdAt: new Date(now - 20*d), updatedAt: new Date(now - d)     },
     ]);
 

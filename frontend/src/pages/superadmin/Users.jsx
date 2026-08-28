@@ -235,7 +235,7 @@ export default function Users() {
                 striped
                 verticalSpacing="sm"
                 columns={columns}
-                records={paginatedUsers}
+                records={filteredUsers}
                 idAccessor="id"
                 sortable
                 page={page}
@@ -265,17 +265,19 @@ export default function Users() {
         transitionProps={{ transition: 'pop', duration: 200 }}
       >
         <Stack gap="sm" mt="sm">
-          <TextInput label="Nom" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.currentTarget.value })} required radius="md" />
-          <TextInput label="Prénom" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.currentTarget.value })} required radius="md" />
-          <TextInput label="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} required radius="md" />
-          <TextInput label="Mot de passe" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.currentTarget.value })}
-            placeholder={editUser ? 'Laisser vide pour conserver' : ''} required={!editUser} radius="md" />
-          <TextInput label="Département" value={form.department} onChange={(e) => setForm({ ...form, department: e.currentTarget.value })} radius="md" />
-          <Select label="Rôle" data={[
-            { value: 'employee', label: 'Employé' },
-            { value: 'logistics_chief', label: 'Chef logistique' },
-            { value: 'admin', label: 'Admin' },
-          ]} value={form.role} onChange={(v) => setForm({ ...form, role: v || 'employee' })} required radius="md" />
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <TextInput label="Nom" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.currentTarget.value })} required radius="md" />
+            <TextInput label="Prénom" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.currentTarget.value })} required radius="md" />
+            <TextInput label="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} required radius="md" />
+            <TextInput label="Mot de passe" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.currentTarget.value })}
+              placeholder={editUser ? 'Laisser vide pour conserver' : ''} required={!editUser} radius="md" />
+            <TextInput label="Département" value={form.department} onChange={(e) => setForm({ ...form, department: e.currentTarget.value })} radius="md" />
+            <Select label="Rôle" data={[
+              { value: 'employee', label: 'Employé' },
+              { value: 'logistics_chief', label: 'Chef logistique' },
+              { value: 'admin', label: 'Admin' },
+            ]} value={form.role} onChange={(v) => setForm({ ...form, role: v || 'employee' })} required radius="md" />
+          </SimpleGrid>
           <Group justify="end" mt="md">
             <Button variant="default" onClick={close} radius="md">Annuler</Button>
             <Button onClick={handleSave} loading={saving} color="brand" radius="md">

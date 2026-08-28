@@ -293,7 +293,7 @@ function MyRequests() {
                 striped
                 verticalSpacing="sm"
                 columns={columns}
-                records={paginatedRequests}
+                records={requests}
                 idAccessor="id"
                 page={page}
                 onPageChange={setPage}

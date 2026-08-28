@@ -546,65 +546,67 @@ function NewRequest() {
       >
         {selectedVehicle && activeVehicleData && (
           <form id="newRequestForm" onSubmit={handleSubmit}>
-            <TextInput
-              label="Destination"
-              placeholder="Antananarivo"
-              required
-              value={destination}
-              onChange={(e) => setDestination(e.currentTarget.value)}
-              radius="md"
-              leftSection={<IconMapPin size={16} />}
-            />
-            <Textarea
-              label="Motif"
-              placeholder="Réunion client, livraison..."
-              required
-              minRows={3}
-              value={motif}
-              onChange={(e) => setMotif(e.currentTarget.value)}
-              radius="md"
-            />
-            <DateTimePicker
-              label="Date et heure de départ souhaitées"
-              placeholder="Choisir une date"
-              required
-              value={dateSouhaitee}
-              onChange={setDateSouhaitee}
-              minDate={new Date()}
-              radius="md"
-            />
-            <div>
-              <NumberInput
-                label="Nombre de personnes"
-                min={1}
-                max={Math.max(1, activeVehicleData.availableSeats)}
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+              <TextInput
+                label="Destination"
+                placeholder="Antananarivo"
                 required
-                value={nbPersonnes}
-                onChange={(v) => {
-                  const val = Number(v) || 1;
-                  setNbPersonnes(Math.min(val, Math.max(1, activeVehicleData.availableSeats)));
-                }}
+                value={destination}
+                onChange={(e) => setDestination(e.currentTarget.value)}
                 radius="md"
-                description={`Places disponibles: ${activeVehicleData.availableSeats}`}
+                leftSection={<IconMapPin size={16} />}
               />
-              <div className="capacity-bar" style={{ marginTop: 6 }}>
-                <div className="capacity-fill"
-                  style={{
-                    width: `${Math.min(100, ((activeVehicleData.occupiedSeats + nbPersonnes) / selectedVehicle.capacity) * 100)}%`,
-                    background: (activeVehicleData.occupiedSeats + nbPersonnes) > selectedVehicle.capacity
-                      ? '#D32F2F' : 'var(--mantine-color-brand-6)',
+              <DateTimePicker
+                label="Date et heure de départ souhaitées"
+                placeholder="Choisir une date"
+                required
+                value={dateSouhaitee}
+                onChange={setDateSouhaitee}
+                minDate={new Date()}
+                radius="md"
+              />
+              <Textarea
+                label="Motif"
+                placeholder="Réunion client, livraison..."
+                required
+                minRows={3}
+                value={motif}
+                onChange={(e) => setMotif(e.currentTarget.value)}
+                radius="md"
+              />
+              <div>
+                <NumberInput
+                  label="Nombre de personnes"
+                  min={1}
+                  max={Math.max(1, activeVehicleData.availableSeats)}
+                  required
+                  value={nbPersonnes}
+                  onChange={(v) => {
+                    const val = Number(v) || 1;
+                    setNbPersonnes(Math.min(val, Math.max(1, activeVehicleData.availableSeats)));
                   }}
+                  radius="md"
+                  description={`Places disponibles: ${activeVehicleData.availableSeats}`}
                 />
+                <div className="capacity-bar" style={{ marginTop: 6 }}>
+                  <div className="capacity-fill"
+                    style={{
+                      width: `${Math.min(100, ((activeVehicleData.occupiedSeats + nbPersonnes) / selectedVehicle.capacity) * 100)}%`,
+                      background: (activeVehicleData.occupiedSeats + nbPersonnes) > selectedVehicle.capacity
+                        ? '#D32F2F' : 'var(--mantine-color-brand-6)',
+                    }}
+                  />
+                </div>
+                <Group justify="space-between" mt={2}>
+                  <Text size="xs" c="dimmed">
+                    {activeVehicleData.occupiedSeats + nbPersonnes}/{selectedVehicle.capacity} places
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {activeVehicleData.availableSeats - nbPersonnes} restante{(activeVehicleData.availableSeats - nbPersonnes) > 1 ? 's' : ''}
+                  </Text>
+                </Group>
               </div>
-              <Group justify="space-between" mt={2}>
-                <Text size="xs" c="dimmed">
-                  {activeVehicleData.occupiedSeats + nbPersonnes}/{selectedVehicle.capacity} places
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {activeVehicleData.availableSeats - nbPersonnes} restante{(activeVehicleData.availableSeats - nbPersonnes) > 1 ? 's' : ''}
-                </Text>
-              </Group>
-            </div>
+            </SimpleGrid>
           </form>
         )}
       </VehicleModal>

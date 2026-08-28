@@ -2,30 +2,32 @@ const { Request, SortieRequest, Sortie, Employee, Vehicle } = require('../models
 const { Op } = require('sequelize');
 const { notifyChiefs } = require('./socketService');
 
-// Trouve les demandes compatibles avec une sortie (même destination, ±30min, capacité respectée)
-exports.findCompatibleRequests = async (destination, dateSouhaitee, vehicleCapacity, currentCount = 0) => {
-  const target = new Date(dateSouhaitee);
-  const min = new Date(target.getTime() - 30 * 60000);
-  const max = new Date(target.getTime() + 30 * 60000);
-
+// Trouve les demandes compatibles avec une sortie (même destination, capacité respectée)
+exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity) => {
   const linkedRequestIds = (await SortieRequest.findAll({ attributes: ['request_id'] })).map((sr) => sr.request_id);
 
   const candidates = await Request.findAll({
     where: {
       destination,
-      status: 'approved',
-      date_souhaitee: { [Op.between]: [min, max] },
+      status: 'pending',
       id: { [Op.notIn]: linkedRequestIds },
     },
+    include: [Employee],
+    order: [['date_souhaitee', 'ASC']],
   });
 
-  // Filtre supplémentaire selon la capacité restante du véhicule
+  // Places déjà occupées par les demandes déjà liées à cette sortie
+  const existing = await SortieRequest.findAll({ where: { sortie_id: sortieId } });
+  const existingIds = existing.map((sr) => sr.request_id);
+  const existingRequests = await Request.findAll({ where: { id: { [Op.in]: existingIds } } });
+  let occupied = existingRequests.reduce((sum, r) => sum + (r.nb_personnes || 0), 0);
+
+  // Filtre selon la capacité restante du véhicule
   const compatible = [];
-  let total = currentCount;
   for (const req of candidates) {
-    if (total + req.nb_personnes <= vehicleCapacity) {
+    if (occupied + (req.nb_personnes || 0) <= vehicleCapacity) {
       compatible.push(req);
-      total += req.nb_personnes;
+      occupied += req.nb_personnes || 0;
     }
   }
   return compatible;

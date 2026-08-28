@@ -760,44 +760,46 @@ function CreateSortie() {
         confirmLabel="Créer la sortie"
         loading={creating}
       >
-        <TextInput
-          label="Conducteur"
-          placeholder="Nom du conducteur"
-          value={driverName}
-          onChange={(e) => setDriverName(e.currentTarget.value)}
-          required
-          radius="md"
-          leftSection={<IconSteeringWheel size={16} />}
-        />
-        <TextInput
-          label="Destination"
-          placeholder="Antananarivo"
-          value={destination}
-          onChange={(e) => setDestination(e.currentTarget.value)}
-          required
-          radius="md"
-          leftSection={<IconMapPin size={16} />}
-        />
-        <NumberInput
-          label="Kilométrage départ"
-          placeholder={lastSortieLoading ? 'Chargement...' : 'km compteur au départ'}
-          value={departureKm}
-          onChange={setDepartureKm}
-          min={0}
-          step={1}
-          radius="md"
-          leftSection={<IconGauge size={16} />}
-          disabled={lastSortieLoading}
-        />
-        <DateTimePicker
-          label="Date et heure de départ"
-          placeholder="Choisir une date"
-          value={departureTime}
-          onChange={setDepartureTime}
-          minDate={new Date()}
-          required
-          radius="md"
-        />
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+          <TextInput
+            label="Conducteur"
+            placeholder="Nom du conducteur"
+            value={driverName}
+            onChange={(e) => setDriverName(e.currentTarget.value)}
+            required
+            radius="md"
+            leftSection={<IconSteeringWheel size={16} />}
+          />
+          <TextInput
+            label="Destination"
+            placeholder="Antananarivo"
+            value={destination}
+            onChange={(e) => setDestination(e.currentTarget.value)}
+            required
+            radius="md"
+            leftSection={<IconMapPin size={16} />}
+          />
+          <NumberInput
+            label="Kilométrage départ"
+            placeholder={lastSortieLoading ? 'Chargement...' : 'km compteur au départ'}
+            value={departureKm}
+            onChange={setDepartureKm}
+            min={0}
+            step={1}
+            radius="md"
+            leftSection={<IconGauge size={16} />}
+            disabled={lastSortieLoading}
+          />
+          <DateTimePicker
+            label="Date et heure de départ"
+            placeholder="Choisir une date"
+            value={departureTime}
+            onChange={setDepartureTime}
+            minDate={new Date()}
+            required
+            radius="md"
+          />
+        </SimpleGrid>
       </VehicleModal>
     </div>
   );

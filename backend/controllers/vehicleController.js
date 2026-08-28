@@ -1,4 +1,4 @@
-const { Vehicle, Request, Employee } = require('../models');
+const { Vehicle, Request, Employee, Sortie } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const { VEHICLE_STATUSES } = require('../utils/constants');
 const { notifyChiefsDb } = require('./notificationController');
@@ -24,15 +24,21 @@ exports.getOccupancy = asyncHandler(async (req, res) => {
 
   const allRequests = await Request.findAll({
     where: { status: ['pending', 'approved', 'rescheduled'] },
-    include: [{ model: Employee, attributes: ['nom', 'prenom', 'department'] }],
+    include: [
+      { model: Employee, attributes: ['nom', 'prenom', 'department'] },
+      { model: Sortie, attributes: ['id', 'status'], through: { attributes: [] } },
+    ],
   });
 
   const requestsByVehicle = {};
   for (const r of allRequests) {
-    if (r.vehicle_id) {
-      if (!requestsByVehicle[r.vehicle_id]) requestsByVehicle[r.vehicle_id] = [];
-      requestsByVehicle[r.vehicle_id].push(r);
-    }
+    if (!r.vehicle_id) continue;
+    // Une demande dont la sortie est terminée ne retient plus le véhicule
+    const hasOnlyFinishedSorties =
+      r.Sorties && r.Sorties.length > 0 && r.Sorties.every((s) => s.status === 'finished');
+    if (hasOnlyFinishedSorties) continue;
+    if (!requestsByVehicle[r.vehicle_id]) requestsByVehicle[r.vehicle_id] = [];
+    requestsByVehicle[r.vehicle_id].push(r);
   }
 
   const result = vehicles.map((vehicle) => {
