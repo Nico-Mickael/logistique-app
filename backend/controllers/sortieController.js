@@ -91,9 +91,9 @@ exports.addRequest = asyncHandler(async (req, res) => {
   if (request) {
     if (request.status === 'pending') {
       request.status = 'approved';
-      request.vehicle_id = sortie.vehicle_id;
-      await request.save();
     }
+    request.vehicle_id = sortie.vehicle_id;
+    await request.save();
     await createNotification({
       user_id: request.employee_id,
       message: `Votre demande a été intégrée à une sortie vers ${sortie.destination}`,

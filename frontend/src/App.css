@@ -290,3 +290,22 @@
   background-color: transparent;
   color: var(--mantine-color-text);
 }
+
+/* ── Formulaires : largeur, espacement, alignement des libellés ── */
+.mantine-InputWrapper-label {
+  margin-bottom: 6px;
+  font-weight: 600;
+  text-align: left;
+  width: 100%;
+}
+
+.form-field {
+  width: 100%;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--mantine-spacing-sm);
+  margin-top: var(--mantine-spacing-md);
+}

@@ -272,19 +272,19 @@ function Vehicles() {
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
         transitionProps={{ transition: 'pop', duration: 200 }}
       >
-        <Stack gap="md" mt="sm">
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
           <Select label="Type" placeholder="Choisir un type"
             data={[{ value: 'moto', label: 'Moto' }, { value: 'voiture', label: 'Voiture' }, { value: 'minibus', label: 'Minibus' }]}
-            value={type} onChange={setType} required radius="md"
+            value={type} onChange={setType} required radius="md" w="100%"
           />
-          <NumberInput label="Capacité (nombre de personnes)" min={1} max={30} value={capacity}
-            onChange={setCapacity} required radius="md"
+          <NumberInput label="Capacité (personnes)" min={1} max={30} value={capacity}
+            onChange={setCapacity} required radius="md" w="100%"
           />
+        </SimpleGrid>
           <Group justify="end" mt="md">
             <Button variant="default" onClick={closeCreate} radius="md">Annuler</Button>
             <Button color="brand" onClick={handleCreate} radius="md">Créer</Button>
           </Group>
-        </Stack>
       </Modal>
 
       <Modal opened={maintOpened} onClose={closeMaint} title="Mettre en maintenance" size="md" radius="lg" centered
@@ -307,19 +307,19 @@ function Vehicles() {
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
         transitionProps={{ transition: 'pop', duration: 200 }}
       >
-        <Stack gap="md" mt="sm">
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
           <Select label="Type" placeholder="Choisir un type"
             data={[{ value: 'moto', label: 'Moto' }, { value: 'voiture', label: 'Voiture' }, { value: 'minibus', label: 'Minibus' }]}
-            value={editType} onChange={setEditType} required radius="md"
+            value={editType} onChange={setEditType} required radius="md" w="100%"
           />
-          <NumberInput label="Capacité (nombre de personnes)" min={1} max={30} value={editCapacity}
-            onChange={setEditCapacity} required radius="md"
+          <NumberInput label="Capacité (personnes)" min={1} max={30} value={editCapacity}
+            onChange={setEditCapacity} required radius="md" w="100%"
           />
+        </SimpleGrid>
           <Group justify="end" mt="md">
             <Button variant="default" onClick={closeEdit} radius="md">Annuler</Button>
             <Button color="brand" onClick={handleEdit} loading={saving} radius="md">Enregistrer</Button>
           </Group>
-        </Stack>
       </Modal>
 
       <ConfirmModal

@@ -429,9 +429,9 @@ function CreateSortie() {
   const compatibleRequests = useMemo(() => {
     if (!createdSortie) return [];
     return requests.filter((r) => {
-      if (r.status !== 'pending') return false;
+      if (r.status !== 'pending' && r.status !== 'approved') return false;
       if (r.vehicle_id) return false;
-      if (r.destination !== createdSortie.destination) return false;
+      if ((r.destination || '').toLowerCase() !== (createdSortie.destination || '').toLowerCase()) return false;
       return true;
     });
   }, [requests, createdSortie]);
@@ -764,6 +764,7 @@ function CreateSortie() {
           <TextInput
             label="Conducteur"
             placeholder="Nom du conducteur"
+            w="100%"
             value={driverName}
             onChange={(e) => setDriverName(e.currentTarget.value)}
             required
@@ -773,6 +774,7 @@ function CreateSortie() {
           <TextInput
             label="Destination"
             placeholder="Antananarivo"
+            w="100%"
             value={destination}
             onChange={(e) => setDestination(e.currentTarget.value)}
             required
@@ -782,6 +784,7 @@ function CreateSortie() {
           <NumberInput
             label="Kilométrage départ"
             placeholder={lastSortieLoading ? 'Chargement...' : 'km compteur au départ'}
+            w="100%"
             value={departureKm}
             onChange={setDepartureKm}
             min={0}
@@ -793,6 +796,7 @@ function CreateSortie() {
           <DateTimePicker
             label="Date et heure de départ"
             placeholder="Choisir une date"
+            w="100%"
             value={departureTime}
             onChange={setDepartureTime}
             minDate={new Date()}

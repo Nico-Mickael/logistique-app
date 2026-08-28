@@ -264,15 +264,15 @@ export default function Users() {
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
         transitionProps={{ transition: 'pop', duration: 200 }}
       >
-        <Stack gap="sm" mt="sm">
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-            <TextInput label="Nom" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.currentTarget.value })} required radius="md" />
-            <TextInput label="Prénom" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.currentTarget.value })} required radius="md" />
-            <TextInput label="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} required radius="md" />
-            <TextInput label="Mot de passe" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.currentTarget.value })}
+        <Stack gap="md" mt="sm">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            <TextInput label="Nom" w="100%" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.currentTarget.value })} required radius="md" />
+            <TextInput label="Prénom" w="100%" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.currentTarget.value })} required radius="md" />
+            <TextInput label="Email" w="100%" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} required radius="md" />
+            <TextInput label="Mot de passe" w="100%" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.currentTarget.value })}
               placeholder={editUser ? 'Laisser vide pour conserver' : ''} required={!editUser} radius="md" />
-            <TextInput label="Département" value={form.department} onChange={(e) => setForm({ ...form, department: e.currentTarget.value })} radius="md" />
-            <Select label="Rôle" data={[
+            <TextInput label="Département" w="100%" value={form.department} onChange={(e) => setForm({ ...form, department: e.currentTarget.value })} radius="md" />
+            <Select label="Rôle" w="100%" data={[
               { value: 'employee', label: 'Employé' },
               { value: 'logistics_chief', label: 'Chef logistique' },
               { value: 'admin', label: 'Admin' },

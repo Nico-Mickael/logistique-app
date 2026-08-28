@@ -8,8 +8,8 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity) 
 
   const candidates = await Request.findAll({
     where: {
-      destination,
-      status: 'pending',
+      destination: { [Op.iLike]: destination },
+      status: { [Op.in]: ['pending', 'approved'] },
       id: { [Op.notIn]: linkedRequestIds },
     },
     include: [Employee],

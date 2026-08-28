@@ -512,22 +512,6 @@ function NewRequest() {
                     nextDeparture={nextDep}
                     occupants={vd.occupants || []}
                   />
-                  {isSelected && vd.occupants?.length > 0 && (
-                    <Paper p="xs" radius="md" withBorder mt={4} style={{ background: 'light-dark(#fafafa, rgba(255,255,255,0.04))' }}>
-                      <Text size="xs" c="dimmed" fw={600} mb={4}>Occupants actuels</Text>
-                      {vd.occupants.map((occ) => (
-                        <Group key={occ.id} gap={4} mb={2}>
-                          <Badge
-                            size="sm" variant="light"
-                            color={occ.status === 'approved' ? 'red' : 'brandYellow'}
-                            leftSection={<IconUser size={10} />}
-                          >
-                            {occ.employee?.prenom} {occ.employee?.nom}
-                          </Badge>
-                        </Group>
-                      ))}
-                    </Paper>
-                  )}
                 </div>
               );
             })}
@@ -551,6 +535,7 @@ function NewRequest() {
                 label="Destination"
                 placeholder="Antananarivo"
                 required
+                w="100%"
                 value={destination}
                 onChange={(e) => setDestination(e.currentTarget.value)}
                 radius="md"
@@ -560,6 +545,7 @@ function NewRequest() {
                 label="Date et heure de départ souhaitées"
                 placeholder="Choisir une date"
                 required
+                w="100%"
                 value={dateSouhaitee}
                 onChange={setDateSouhaitee}
                 minDate={new Date()}
@@ -569,6 +555,7 @@ function NewRequest() {
                 label="Motif"
                 placeholder="Réunion client, livraison..."
                 required
+                w="100%"
                 minRows={3}
                 value={motif}
                 onChange={(e) => setMotif(e.currentTarget.value)}
@@ -580,6 +567,7 @@ function NewRequest() {
                   min={1}
                   max={Math.max(1, activeVehicleData.availableSeats)}
                   required
+                  w="100%"
                   value={nbPersonnes}
                   onChange={(v) => {
                     const val = Number(v) || 1;

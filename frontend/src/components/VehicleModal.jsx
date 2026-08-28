@@ -21,7 +21,7 @@ export default function VehicleModal({
       overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
       transitionProps={{ transition: 'pop', duration: 200 }}
     >
-      <Stack gap="sm" mt="sm">
+      <Stack gap="md" mt="sm">
         {children}
 
         <Group justify="end" mt="md">
