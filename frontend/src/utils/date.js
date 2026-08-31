@@ -10,4 +10,3 @@ dayjs.locale('fr');
 dayjs.tz.setDefault('Indian/Antananarivo');
 
 export default dayjs;
-export { dayjs };

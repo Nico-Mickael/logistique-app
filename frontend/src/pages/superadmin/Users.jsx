@@ -13,6 +13,7 @@ const roleLabels = {
   superadmin: 'Superadmin',
   admin: 'Admin',
   logistics_chief: 'Chef logistique',
+  chauffeur: 'Chauffeur',
   employee: 'Employé',
 };
 
@@ -20,6 +21,7 @@ const roleColors = {
   superadmin: 'red',
   admin: 'orange',
   logistics_chief: 'brand',
+  chauffeur: 'teal',
   employee: 'gray',
 };
 
@@ -274,6 +276,7 @@ export default function Users() {
             <TextInput label="Département" w="100%" value={form.department} onChange={(e) => setForm({ ...form, department: e.currentTarget.value })} radius="md" />
             <Select label="Rôle" w="100%" data={[
               { value: 'employee', label: 'Employé' },
+              { value: 'chauffeur', label: 'Chauffeur' },
               { value: 'logistics_chief', label: 'Chef logistique' },
               { value: 'admin', label: 'Admin' },
             ]} value={form.role} onChange={(v) => setForm({ ...form, role: v || 'employee' })} required radius="md" />

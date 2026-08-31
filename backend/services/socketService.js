@@ -59,8 +59,4 @@ function notifyChiefs(event, data) {
   io.to('chiefs').emit(event, data);
 }
 
-function getIO() {
-  return io;
-}
-
-module.exports = { setupSocket, notifyUser, notifyChiefs, getIO };
+module.exports = { setupSocket, notifyUser, notifyChiefs };

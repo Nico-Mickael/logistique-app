@@ -8,7 +8,6 @@ import {
   IconLogout, IconTrash, IconRefresh, IconAlertCircle,
 } from '@tabler/icons-react';
 import { authService } from '../api/authService';
-import { useAuth } from '../context/AuthContext';
 import { notifySuccess, notifyError } from '../utils/toast';
 
 const deviceIcon = (device) => {
@@ -29,7 +28,6 @@ function timeAgo(date) {
 }
 
 export default function Sessions() {
-  const { user } = useAuth();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

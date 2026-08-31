@@ -1,6 +1,6 @@
 import { MantineProvider } from '@mantine/core';
 import { ToastContainer } from 'react-toastify';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import { theme } from './theme';
@@ -39,7 +39,7 @@ function App() {
               <Route
                 path="/"
                 element={
-                  <PrivateRoute allowedRoles={['employee', 'logistics_chief', 'admin', 'superadmin']}>
+                  <PrivateRoute allowedRoles={['employee', 'chauffeur', 'logistics_chief', 'admin', 'superadmin']}>
                     <Layout>
                       <Accueil />
                     </Layout>
@@ -49,17 +49,17 @@ function App() {
               <Route
                 path="/mes-demandes"
                 element={
-                  <PrivateRoute allowedRoles={['employee', 'superadmin']}>
+                  <PrivateRoute allowedRoles={['employee', 'chauffeur', 'superadmin']}>
                     <Layout>
                       <MyRequests />
                     </Layout>
                   </PrivateRoute>
                 }
-              />         
+              />
               <Route
                 path="/nouvelle-demande"
                 element={
-                  <PrivateRoute allowedRoles={['employee', 'superadmin']}>
+                  <PrivateRoute allowedRoles={['employee', 'chauffeur', 'superadmin']}>
                     <Layout>
                       <NewRequest />
                     </Layout>
@@ -69,7 +69,7 @@ function App() {
               <Route
                 path="/mes-trajets"
                 element={
-                  <PrivateRoute allowedRoles={['employee', 'superadmin']}>
+                  <PrivateRoute allowedRoles={['employee', 'chauffeur', 'superadmin']}>
                     <Layout>
                       <MyTrips />
                     </Layout>
@@ -79,7 +79,7 @@ function App() {
               <Route
                 path="/mes-rapports"
                 element={
-                  <PrivateRoute allowedRoles={['employee', 'superadmin']}>
+                  <PrivateRoute allowedRoles={['employee', 'chauffeur', 'superadmin']}>
                     <Layout>
                       <MyReports />
                     </Layout>
@@ -95,7 +95,7 @@ function App() {
                     </Layout>
                   </PrivateRoute>
                 }
-              />                   
+              />
               <Route
                 path="/sorties"
                 element={
@@ -169,7 +169,7 @@ function App() {
               <Route
                 path="/sessions"
                 element={
-                  <PrivateRoute allowedRoles={['employee', 'logistics_chief', 'admin', 'superadmin']}>
+                  <PrivateRoute allowedRoles={['employee', 'chauffeur', 'logistics_chief', 'admin', 'superadmin']}>
                     <Layout>
                       <Sessions />
                     </Layout>

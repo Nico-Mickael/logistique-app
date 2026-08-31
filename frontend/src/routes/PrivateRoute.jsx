@@ -4,7 +4,6 @@ import { IconLock, IconArrowLeft, IconHome } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 
 function AccessDenied() {
-  const { logout } = useAuth();
   return (
     <Center h="100vh" style={{ background: 'var(--mantine-color-gray-0)' }}>
       <Paper
