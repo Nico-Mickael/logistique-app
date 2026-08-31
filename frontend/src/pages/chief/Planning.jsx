@@ -57,7 +57,7 @@ function Planning() {
     const monthEnd = currentMonth.endOf('month');
     const monthSorties = filteredSorties.filter((s) => {
       const d = dayjs(s.departure_time);
-      return d.isAfter(monthStart) && d.isBefore(monthEnd);
+      return !d.isBefore(monthStart) && !d.isAfter(monthEnd);
     });
     return {
       total: monthSorties.length,

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { notificationService } from '../api/notificationService';
@@ -10,6 +10,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api
 const WS_URL = API_BASE.startsWith('http')
   ? (API_BASE.replace(/\/api\/?$/, '') || window.location.origin)
   : window.location.origin;
+
+const POLL_INTERVAL = 5000;
 
 const toastForType = (type, message) => {
   if (type === 'approved' || type === 'sortie_assignment') {
@@ -27,6 +29,35 @@ export function SocketProvider({ children }) {
   const lastIdRef = useRef(null);
   const intervalRef = useRef(null);
   const socketRef = useRef(null);
+
+  const checkNotifications = useCallback(async () => {
+    try {
+      const { data } = await notificationService.mine();
+      const unread = data.filter((n) => !n.is_read);
+      setUnreadCount(unread.length);
+
+      if (lastIdRef.current === null) {
+        lastIdRef.current = data.length > 0 ? Math.max(...data.map((n) => n.id)) : 0;
+        return;
+      }
+
+      const newNotifs = data.filter(
+        (n) => !n.is_read && n.id > lastIdRef.current
+      );
+      if (newNotifs.length > 0) {
+        for (const n of newNotifs) {
+          toastForType(n.type, n.message);
+        }
+        lastIdRef.current = Math.max(...newNotifs.map((n) => n.id));
+      }
+    } catch {
+      // silent
+    }
+  }, []);
+
+  const refreshUnreadCount = useCallback(() => {
+    checkNotifications();
+  }, [checkNotifications]);
 
   useEffect(() => {
     if (!user) {
@@ -67,41 +98,16 @@ export function SocketProvider({ children }) {
       // Réception instantanée (le polling reste en filet de sécurité)
       socket.on('notification', (notif) => {
         if (!notif?.id) return;
-        if (lastIdRef.current !== null && notif.id > lastIdRef.current) {
+        if (lastIdRef.current === null || notif.id > lastIdRef.current) {
           lastIdRef.current = notif.id;
+          setUnreadCount((c) => c + 1);
         }
-        setUnreadCount((c) => c + 1);
         toastForType(notif.type, notif.message);
       });
     }
 
-    const checkNotifications = async () => {
-      try {
-        const { data } = await notificationService.mine();
-        const unread = data.filter((n) => !n.is_read);
-        setUnreadCount(unread.length);
-
-        if (lastIdRef.current === null) {
-          lastIdRef.current = data.length > 0 ? Math.max(...data.map((n) => n.id)) : 0;
-          return;
-        }
-
-        const newNotifs = data.filter(
-          (n) => !n.is_read && n.id > lastIdRef.current
-        );
-        if (newNotifs.length > 0) {
-          for (const n of newNotifs) {
-            toastForType(n.type, n.message);
-          }
-          lastIdRef.current = Math.max(...newNotifs.map((n) => n.id));
-        }
-      } catch {
-        // silent
-      }
-    };
-
     checkNotifications();
-    intervalRef.current = setInterval(checkNotifications, 5000);
+    intervalRef.current = setInterval(checkNotifications, POLL_INTERVAL);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -110,10 +116,10 @@ export function SocketProvider({ children }) {
         socketRef.current = null;
       }
     };
-  }, [user]);
+  }, [user, checkNotifications]);
 
   return (
-    <NotificationContext.Provider value={{ unreadCount }}>
+    <NotificationContext.Provider value={{ unreadCount, refreshUnreadCount }}>
       {children}
     </NotificationContext.Provider>
   );

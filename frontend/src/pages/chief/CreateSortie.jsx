@@ -19,6 +19,9 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import { getSeatLayout, getSeatColor } from '../../utils/seatLayout';
 import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor } from '../../utils/labels';
 
+// Critère de regroupement du cahier des charges : écart horaire ≤ 30 min
+const COMPAT_WINDOW_MIN = 30;
+
 function CarVisual({ vehicle, seatStates, onSeatClick, selectedSeat }) {
   const layout = getSeatLayout(vehicle.type, vehicle.capacity);
   const svgW = layout.w;
@@ -319,9 +322,10 @@ function CreateSortie() {
 
   const initSeats = useCallback((vehicle) => {
     const states = {};
+    const layout = getSeatLayout(vehicle.type, vehicle.capacity);
     const occupied = vehicle.occupiedSeats || 0;
-    for (let i = 0; i < vehicle.capacity; i++) {
-      states[i] = i < occupied ? 'occupied' : 'available';
+    for (let i = 0; i < layout.seats.length; i++) {
+      states[i] = i >= vehicle.capacity ? 'unavailable' : i < occupied ? 'occupied' : 'available';
     }
     return states;
   }, []);
@@ -367,7 +371,7 @@ function CreateSortie() {
         driver_name: driverName,
         destination,
         departure_time: departureTime,
-        departure_km: departureKm || null,
+        departure_km: Number(departureKm) || null,
       });
       setCreatedSortie(data);
       notifySuccess('Sortie créée avec succès');
@@ -428,10 +432,17 @@ function CreateSortie() {
 
   const compatibleRequests = useMemo(() => {
     if (!createdSortie) return [];
+    const sortieTime = new Date(createdSortie.departure_time);
+    const hasTime = !isNaN(sortieTime.getTime());
     return requests.filter((r) => {
       if (r.status !== 'pending' && r.status !== 'approved') return false;
       if (r.vehicle_id) return false;
       if ((r.destination || '').toLowerCase() !== (createdSortie.destination || '').toLowerCase()) return false;
+      if (hasTime) {
+        const reqTime = new Date(r.date_souhaitee);
+        if (isNaN(reqTime.getTime())) return false;
+        if (Math.abs(reqTime - sortieTime) > COMPAT_WINDOW_MIN * 60 * 1000) return false;
+      }
       return true;
     });
   }, [requests, createdSortie]);

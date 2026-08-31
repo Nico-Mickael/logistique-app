@@ -2,15 +2,31 @@ const { Request, SortieRequest, Sortie, Employee, Vehicle } = require('../models
 const { Op } = require('sequelize');
 const { notifyChiefs } = require('./socketService');
 
-// Trouve les demandes compatibles avec une sortie (même destination, capacité respectée)
-exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity) => {
+// Critère de regroupement du cahier des charges : écart horaire ≤ 30 min
+const COMPAT_WINDOW_MS = 30 * 60 * 1000;
+
+// Trouve les demandes compatibles avec une sortie (même destination,
+// écart horaire ≤ 30 min, capacité respectée)
+exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, departureTime) => {
   const linkedRequestIds = (await SortieRequest.findAll({ attributes: ['request_id'] })).map((sr) => sr.request_id);
+
+  const departure = departureTime ? new Date(departureTime) : null;
 
   const candidates = await Request.findAll({
     where: {
       destination: { [Op.iLike]: destination },
       status: { [Op.in]: ['pending', 'approved'] },
       id: { [Op.notIn]: linkedRequestIds },
+      ...(departure && !isNaN(departure.getTime())
+        ? {
+            date_souhaitee: {
+              [Op.between]: [
+                new Date(departure.getTime() - COMPAT_WINDOW_MS),
+                new Date(departure.getTime() + COMPAT_WINDOW_MS),
+              ],
+            },
+          }
+        : {}),
     },
     include: [Employee],
     order: [['date_souhaitee', 'ASC']],
@@ -35,18 +51,44 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity) 
 
 /**
  * Crée automatiquement une sortie quand une demande est approuvée avec véhicule :
- * - réutilise une sortie existante au même créneau sur le même véhicule (regroupement)
+ * - réutilise une sortie existante au même créneau (écart ≤ 30 min) sur le même
+ *   véhicule, même destination, si la capacité le permet (regroupement)
  * - sinon crée la sortie, lie la demande et occupe le véhicule
  */
 exports.autoCreateSortie = async (request) => {
   if (!request.vehicle_id) return;
 
   const emp = await Employee.findByPk(request.employee_id);
-  const existingSortie = await Sortie.findOne({
-    where: { vehicle_id: request.vehicle_id, departure_time: request.date_souhaitee },
-  });
+  const vehicle = await Vehicle.findByPk(request.vehicle_id);
+  const capacity = vehicle ? vehicle.capacity : null;
+
+  const requestTime = new Date(request.date_souhaitee);
+  const existingSortie = !isNaN(requestTime.getTime()) ? await Sortie.findOne({
+    where: {
+      vehicle_id: request.vehicle_id,
+      status: 'planned',
+      destination: request.destination,
+      departure_time: {
+        [Op.between]: [
+          new Date(requestTime.getTime() - COMPAT_WINDOW_MS),
+          new Date(requestTime.getTime() + COMPAT_WINDOW_MS),
+        ],
+      },
+    },
+  }) : null;
 
   if (existingSortie) {
+    if (capacity !== null) {
+      const links = await SortieRequest.findAll({ where: { sortie_id: existingSortie.id } });
+      const linkedIds = links.map((l) => l.request_id);
+      const linked = linkedIds.length > 0
+        ? await Request.findAll({ where: { id: { [Op.in]: linkedIds } } })
+        : [];
+      const occupied = linked.reduce((sum, r) => sum + (r.nb_personnes || 0), 0);
+      if (occupied + (request.nb_personnes || 0) > capacity) {
+        return;
+      }
+    }
     const linkExists = await SortieRequest.findOne({
       where: { sortie_id: existingSortie.id, request_id: request.id },
     });
@@ -65,7 +107,6 @@ exports.autoCreateSortie = async (request) => {
   });
   await SortieRequest.create({ sortie_id: sortie.id, request_id: request.id });
 
-  const vehicle = await Vehicle.findByPk(request.vehicle_id);
   if (vehicle && vehicle.status === 'available') {
     vehicle.status = 'busy';
     await vehicle.save();

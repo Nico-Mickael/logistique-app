@@ -14,7 +14,7 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor } from '../../utils/labels';
 
-function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete }) {
+function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete, availableLoading }) {
   return (
     <Card withBorder radius="lg" p="lg" className="vehicle-card">
       <div className="stat-card-accent" style={{
@@ -63,7 +63,7 @@ function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete }) 
           </Button>
         )}
         {vehicle.status === 'maintenance' && (
-          <Button size="xs" color="brand" onClick={() => onAvailable(vehicle.id)}>
+          <Button size="xs" color="brand" onClick={() => onAvailable(vehicle.id)} loading={availableLoading}>
             Rendre disponible
           </Button>
         )}
@@ -80,10 +80,13 @@ function Vehicles() {
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [type, setType] = useState('');
   const [capacity, setCapacity] = useState(4);
+  const [creating, setCreating] = useState(false);
 
   const [maintOpened, { open: openMaint, close: closeMaint }] = useDisclosure(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [maintenanceUntil, setMaintenanceUntil] = useState(null);
+  const [maintaining, setMaintaining] = useState(false);
+  const [availableId, setAvailableId] = useState(null);
 
   const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
   const [editType, setEditType] = useState('');
@@ -108,6 +111,7 @@ function Vehicles() {
 
   const handleCreate = async () => {
     if (!type || !capacity) { notifyError('Merci de remplir tous les champs'); return; }
+    setCreating(true);
     try {
       await vehicleService.create({ type, capacity });
       notifySuccess('Véhicule ajouté');
@@ -116,6 +120,7 @@ function Vehicles() {
       setCapacity(4);
       fetchVehicles();
     } catch { notifyError("Erreur lors de l'ajout du véhicule"); }
+    finally { setCreating(false); }
   };
 
   const openMaintenanceModal = (vehicle) => {
@@ -126,20 +131,24 @@ function Vehicles() {
 
   const handleSetMaintenance = async () => {
     if (!maintenanceUntil) { notifyError('Choisissez une date de retour'); return; }
+    setMaintaining(true);
     try {
       await vehicleService.update(selectedVehicle.id, { status: 'maintenance', maintenance_until: maintenanceUntil });
       notifySuccess('Véhicule mis en maintenance');
       closeMaint();
       fetchVehicles();
     } catch { notifyError('Erreur lors de la mise à jour'); }
+    finally { setMaintaining(false); }
   };
 
   const handleMakeAvailable = async (id) => {
+    setAvailableId(id);
     try {
       await vehicleService.update(id, { status: 'available', maintenance_until: null });
       notifySuccess('Véhicule rendu disponible');
       fetchVehicles();
     } catch { notifyError('Erreur lors de la mise à jour'); }
+    finally { setAvailableId(null); }
   };
 
   const openEditModal = (v) => {
@@ -240,7 +249,7 @@ function Vehicles() {
                             onClick={() => openMaintenanceModal(v)}>Maintenance</Button>
                         )}
                         {v.status === 'maintenance' && (
-                          <Button size="xs" color="brand" onClick={() => handleMakeAvailable(v.id)}>
+                          <Button size="xs" color="brand" onClick={() => handleMakeAvailable(v.id)} loading={availableId === v.id}>
                             Rendre disponible
                           </Button>
                         )}
@@ -261,6 +270,7 @@ function Vehicles() {
                 <VehicleCard key={v.id} vehicle={v}
                   onMaintenance={openMaintenanceModal} onAvailable={handleMakeAvailable}
                   onEdit={openEditModal} onDelete={setDeleteTarget}
+                  availableLoading={availableId === v.id}
                 />
               ))}
             </SimpleGrid>
@@ -283,7 +293,7 @@ function Vehicles() {
         </SimpleGrid>
           <Group justify="end" mt="md">
             <Button variant="default" onClick={closeCreate} radius="md">Annuler</Button>
-            <Button color="brand" onClick={handleCreate} radius="md">Créer</Button>
+            <Button color="brand" onClick={handleCreate} loading={creating} radius="md">Créer</Button>
           </Group>
       </Modal>
 
@@ -298,7 +308,7 @@ function Vehicles() {
           />
           <Group justify="end" mt="md">
             <Button variant="default" onClick={closeMaint} radius="md">Annuler</Button>
-            <Button color="red" onClick={handleSetMaintenance} radius="md">Confirmer</Button>
+            <Button color="red" onClick={handleSetMaintenance} loading={maintaining} radius="md">Confirmer</Button>
           </Group>
         </Stack>
       </Modal>

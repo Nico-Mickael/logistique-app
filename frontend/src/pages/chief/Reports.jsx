@@ -24,9 +24,6 @@ const PIE_COLORS = {
   cancelled: 'gray.3',
 };
 
-const currentYear = new Date().getFullYear();
-const yearOptions = Array.from({ length: currentYear - 2023 }, (_, i) => String(currentYear - i));
-
 function StatCard({ label, value, icon: Icon }) {
   return (
     <Paper p="md" radius="lg" withBorder>
@@ -44,6 +41,8 @@ function StatCard({ label, value, icon: Icon }) {
 }
 
 export default function Reports() {
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: currentYear - 2023 }, (_, i) => String(currentYear - i));
   const [year, setYear] = useState(String(currentYear));
   const [overview, setOverview] = useState(null);
   const [kmRows, setKmRows] = useState([]);

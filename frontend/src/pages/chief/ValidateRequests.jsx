@@ -22,7 +22,7 @@ const statusOptions = [
   { value: 'rescheduled', label: 'Replanifiée' },
 ];
 
-function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail, onDelete }) {
+function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail, onDelete, approving }) {
   return (
     <Card withBorder radius="lg" p="lg" className="validate-request-card">
       <div style={{
@@ -44,7 +44,7 @@ function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail, o
       <Group gap="xs" wrap="wrap">
         {r.status === 'pending' ? (
           <>
-            <Button size="xs" color="brand" leftSection={<IconCheck size={14} />} onClick={() => onApprove(r.id)}>Valider</Button>
+            <Button size="xs" color="brand" leftSection={<IconCheck size={14} />} onClick={() => onApprove(r.id)} loading={approving === r.id}>Valider</Button>
             <Button size="xs" variant="outline" color="brandYellow" leftSection={<IconCalendar size={14} />} onClick={() => onReschedule(r)}>Replanifier</Button>
             <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />} onClick={() => onReject(r)}>Refuser</Button>
           </>
@@ -72,6 +72,8 @@ function ValidateRequests() {
   const [rejecting, setRejecting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [approvingId, setApprovingId] = useState(null);
+  const [rescheduling, setRescheduling] = useState(false);
 
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -88,15 +90,17 @@ function ValidateRequests() {
       const { data } = await requestService.all(params);
       setRequests(data.data || []);
       setTotal(data.total || 0);
-      // Si la page courante dépasse la dernière page (dernier élément supprimé/validé), revenir en arrière
-      const totalPages = Math.max(1, Math.ceil((data.total || 0) / limit));
-      if (p > totalPages) setPage(totalPages);
     } catch {
       notifyError('Impossible de charger les demandes');
     } finally {
       setLoading(false);
     }
   }, [statusFilter, destinationFilter, dateFrom, dateTo, page]);
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     const t = setTimeout(() => { fetchRequests(); }, 250);
@@ -111,11 +115,13 @@ function ValidateRequests() {
   const hasFilters = statusFilter || destinationFilter || dateFrom || dateTo;
 
   const handleApprove = async (id) => {
+    setApprovingId(id);
     try {
       await requestService.updateStatus(id, 'approved');
       notifySuccess('Demande validée');
       fetchRequests(page);
     } catch { notifyError('Erreur lors de la validation'); }
+    finally { setApprovingId(null); }
   };
 
   const handleReject = async () => {
@@ -151,12 +157,14 @@ function ValidateRequests() {
 
   const handleReschedule = async () => {
     if (!newDate) { notifyError('Choisissez une nouvelle date'); return; }
+    setRescheduling(true);
     try {
       await requestService.updateStatus(selectedRequest.id, 'rescheduled', newDate);
       notifySuccess('Proposition de replanification envoyée');
       close();
       fetchRequests(page);
     } catch { notifyError('Erreur lors de la replanification'); }
+    finally { setRescheduling(false); }
   };
 
   const exportCSV = async () => {
@@ -205,7 +213,7 @@ function ValidateRequests() {
         <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
           {r.status === 'pending' ? (
             <>
-              <Button size="xs" color="brand" leftSection={<IconCheck size={14} />} onClick={() => handleApprove(r.id)}>Valider</Button>
+              <Button size="xs" color="brand" leftSection={<IconCheck size={14} />} onClick={() => handleApprove(r.id)} loading={approvingId === r.id}>Valider</Button>
               <Button size="xs" variant="outline" color="brandYellow" leftSection={<IconCalendar size={14} />} onClick={() => openRescheduleModal(r)}>Replanifier</Button>
               <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />} onClick={() => setRejectTarget(r)}>Refuser</Button>
             </>
@@ -299,6 +307,7 @@ function ValidateRequests() {
                     onApprove={handleApprove} onReject={(r) => setRejectTarget(r)}
                     onReschedule={openRescheduleModal} onDetail={openDetail}
                     onDelete={(req) => setDeleteTarget(req)}
+                    approving={approvingId}
                   />
                 ))}
               </SimpleGrid>
@@ -346,7 +355,7 @@ function ValidateRequests() {
                     <div><Text size="xs" c="dimmed">Km départ</Text><Text>{detailRequest.Sorties[0].departure_km}</Text></div>
                   )}
                   {(detailRequest.Sorties[0].return_km || detailRequest.Sorties[0].arrival_km) && (
-                    <div><Text size="xs" c="dimmed">Km retour</Text><Text>{detailRequest.Sorties[0].return_km || detailRequest.Sorties[0].arrival_km}</Text></div>
+                    <div><Text size="xs" c="dimmed">{detailRequest.Sorties[0].return_km ? 'Km retour' : 'Km arrivée'}</Text><Text>{detailRequest.Sorties[0].return_km || detailRequest.Sorties[0].arrival_km}</Text></div>
                   )}
                 </Group>
                 {detailRequest.Sorties[0].returned_at && (
@@ -373,7 +382,7 @@ function ValidateRequests() {
         <DateTimePicker label="Nouvelle date proposée" value={newDate} onChange={setNewDate}
           minDate={new Date()} mb="md"
         />
-        <Button color="brand" fullWidth onClick={handleReschedule}>
+        <Button color="brand" fullWidth onClick={handleReschedule} loading={rescheduling}>
           Envoyer la proposition
         </Button>
       </Modal>

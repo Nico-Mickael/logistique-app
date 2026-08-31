@@ -303,11 +303,12 @@ function NewRequest() {
   const buildSeatStates = (vehicle, vehicleData) => {
     const states = {};
     const layout = getSeatLayout(vehicle.type, vehicle.capacity);
+    const maxSeats = Math.min(layout.seats.length, vehicle.capacity);
     let seatIdx = 0;
 
     for (const occupant of vehicleData.occupants || []) {
       for (let i = 0; i < occupant.nb_personnes; i++) {
-        if (seatIdx < layout.seats.length) {
+        if (seatIdx < maxSeats) {
           states[seatIdx] = occupant.status === 'approved' ? 'occupied' : 'reserved';
           seatIdx++;
         }
@@ -315,7 +316,7 @@ function NewRequest() {
     }
 
     if (selectedVehicle?.id === vehicle.id) {
-      for (let i = 0; i < nbPersonnes && seatIdx < layout.seats.length; i++) {
+      for (let i = 0; i < nbPersonnes && seatIdx < maxSeats; i++) {
         if (!states[seatIdx] || states[seatIdx] === 'available') {
           states[seatIdx] = 'this_request';
           seatIdx++;
@@ -324,7 +325,9 @@ function NewRequest() {
     }
 
     for (let i = 0; i < layout.seats.length; i++) {
-      if (!states[i]) states[i] = 'available';
+      if (i >= vehicle.capacity) {
+        if (!states[i] || states[i] === 'available') states[i] = 'unavailable';
+      } else if (!states[i]) states[i] = 'available';
     }
 
     return states;

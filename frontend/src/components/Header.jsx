@@ -17,7 +17,7 @@ function initials(user) {
 
 function Header({ opened: navOpened, onToggle }) {
   const { logout, user } = useAuth();
-  const { unreadCount } = useSocket();
+  const { unreadCount, refreshUnreadCount } = useSocket();
   const { colorScheme } = useMantineColorScheme();
   const dark = colorScheme === 'dark';
   const navigate = useNavigate();
@@ -41,7 +41,7 @@ function Header({ opened: navOpened, onToggle }) {
       setLoadingNotif(true);
       fetchNotifications();
     }
-  }, [notifOpened, user]);
+  }, [notifOpened, user, unreadCount]);
 
   const handleMarkAsRead = async (id) => {
     try {
@@ -49,6 +49,7 @@ function Header({ opened: navOpened, onToggle }) {
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
       );
+      refreshUnreadCount();
     } catch {
       // silent
     }
@@ -58,6 +59,7 @@ function Header({ opened: navOpened, onToggle }) {
     try {
       await notificationService.markAllRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      refreshUnreadCount();
     } catch {
       // silent
     }

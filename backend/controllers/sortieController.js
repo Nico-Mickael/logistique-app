@@ -66,7 +66,8 @@ exports.suggestions = asyncHandler(async (req, res) => {
   const compatible = await sortieService.findCompatibleRequests(
     sortie.id,
     sortie.destination,
-    sortie.Vehicle.capacity
+    sortie.Vehicle.capacity,
+    sortie.departure_time
   );
 
   res.json(compatible);

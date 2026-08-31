@@ -134,6 +134,7 @@ function Sorties() {
 
   const [arriveeOpened, { open: openArrivee, close: closeArrivee }] = useDisclosure(false);
   const [arrivalKm, setArrivalKm] = useState(0);
+  const [saving, setSaving] = useState(false);
 
   const [suggestions, setSuggestions] = useState([]);
   const [suggestOpened, { open: openSuggest, close: closeSuggest }] = useDisclosure(false);
@@ -160,15 +161,17 @@ function Sorties() {
       const { data } = await sortieService.getAll(params);
       setSorties(data.data || []);
       setTotal(data.total || 0);
-      // Si la page courante dépasse la dernière page (dernier élément supprimé), revenir en arrière
-      const totalPages = Math.max(1, Math.ceil((data.total || 0) / limit));
-      if (p > totalPages) setPage(totalPages);
     } catch {
       notifyError('Impossible de charger les sorties');
     } finally {
       setLoading(false);
     }
   }, [statusFilter, vehicleFilter, searchQuery, dateFrom, dateTo, page]);
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const fetchVehicles = async () => {
     try { const { data } = await vehicleService.getAll(); setVehicles(data || []); } catch { /* ignore */ }
@@ -200,6 +203,7 @@ function Sorties() {
     if (!editDestination || !editDriverName || !editDepartureTime) {
       notifyError('Merci de remplir tous les champs'); return;
     }
+    setSaving(true);
     try {
       await sortieService.update(editSortie.id, {
         destination: editDestination,
@@ -212,7 +216,7 @@ function Sorties() {
       fetchSorties(page);
     } catch (err) {
       notifyError(err.response?.data?.message || 'Erreur lors de la modification');
-    }
+    } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
@@ -229,19 +233,21 @@ function Sorties() {
 
   const openDepartModal = (s) => { setSelectedSortie(s); setDepartureKm(s.departure_km || ''); openDepart(); };
   const handleDepart = async () => {
-    if (!departureKm || departureKm <= 0) { notifyError('Saisissez un kilométrage valide supérieur à 0'); return; }
+    const km = Number(departureKm);
+    if (!km || km <= 0) { notifyError('Saisissez un kilométrage valide supérieur à 0'); return; }
     setActionLoading('depart');
-    try { await sortieService.depart(selectedSortie.id, departureKm); notifySuccess('Départ enregistré'); closeDepart(); fetchSorties(page); }
+    try { await sortieService.depart(selectedSortie.id, km); notifySuccess('Départ enregistré'); closeDepart(); fetchSorties(page); }
     catch { notifyError("Erreur lors de l'enregistrement du départ"); }
     finally { setActionLoading(null); }
   };
 
   const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); openArrivee(); };
   const handleArrivee = async () => {
-    if (!arrivalKm || arrivalKm <= 0) { notifyError('Saisissez un kilométrage valide'); return; }
-    if (selectedSortie && arrivalKm < selectedSortie.departure_km) { notifyError("Le km d'arrivée ne peut pas être inférieur au km de départ"); return; }
+    const km = Number(arrivalKm);
+    if (!km || km <= 0) { notifyError('Saisissez un kilométrage valide'); return; }
+    if (selectedSortie && km < Number(selectedSortie.departure_km)) { notifyError("Le km d'arrivée ne peut pas être inférieur au km de départ"); return; }
     setActionLoading('arrivee');
-    try { await sortieService.arrivee(selectedSortie.id, arrivalKm); notifySuccess('Arrivée enregistrée'); closeArrivee(); fetchSorties(page); }
+    try { await sortieService.arrivee(selectedSortie.id, km); notifySuccess('Arrivée enregistrée'); closeArrivee(); fetchSorties(page); }
     catch { notifyError("Erreur lors de l'enregistrement de l'arrivée"); }
     finally { setActionLoading(null); }
   };
@@ -473,7 +479,7 @@ function Sorties() {
           />
           <Group justify="end" mt="md">
             <Button variant="default" onClick={closeEditModal} radius="md">Annuler</Button>
-            <Button color="brand" onClick={handleEditSave} radius="md">Enregistrer</Button>
+            <Button color="brand" onClick={handleEditSave} loading={saving} radius="md">Enregistrer</Button>
           </Group>
         </Stack>
       </Modal>
