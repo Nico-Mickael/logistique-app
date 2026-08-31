@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Text, Paper, Stack, Group, Badge, ActionIcon, Button, Divider,
-  Tooltip, Loader, Center, Alert,
+  Tooltip, Loader, Center, Alert, Pagination,
 } from '@mantine/core';
 import {
   IconDeviceDesktop, IconDeviceMobile, IconDeviceTablet,
@@ -31,6 +31,8 @@ export default function Sessions() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [revokedPage, setRevokedPage] = useState(1);
+  const revokedPerPage = 5;
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -38,6 +40,7 @@ export default function Sessions() {
       setError(null);
       const { data } = await authService.sessions();
       setSessions(data);
+      setRevokedPage(1);
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur lors du chargement des sessions');
     } finally {
@@ -77,6 +80,11 @@ export default function Sessions() {
 
   const activeSessions = sessions.filter((s) => s.active);
   const revokedSessions = sessions.filter((s) => !s.active);
+  const revokedTotalPages = Math.max(1, Math.ceil(revokedSessions.length / revokedPerPage));
+  const revokedPageSessions = revokedSessions.slice(
+    (revokedPage - 1) * revokedPerPage,
+    revokedPage * revokedPerPage
+  );
 
   return (
     <Stack gap="md" maw={700} mx="auto">
@@ -157,7 +165,7 @@ export default function Sessions() {
         <>
           <Divider label="Sessions terminées" labelPosition="center" />
           <Stack gap="xs">
-            {revokedSessions.map((s) => {
+            {revokedPageSessions.map((s) => {
               const Icon = deviceIcon(s.device);
               return (
                 <Paper key={s.id} p="sm" withBorder radius="md" opacity={0.5}>
@@ -174,6 +182,17 @@ export default function Sessions() {
               );
             })}
           </Stack>
+          {revokedTotalPages > 1 && (
+            <Center>
+              <Pagination
+                value={revokedPage}
+                onChange={setRevokedPage}
+                total={revokedTotalPages}
+                color="brand"
+                size="sm"
+              />
+            </Center>
+          )}
         </>
       )}
     </Stack>

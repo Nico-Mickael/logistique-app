@@ -15,7 +15,12 @@ module.exports = (sequelize, DataTypes) => {
   }
   SortieRequest.init({
     sortie_id: DataTypes.INTEGER,
-    request_id: DataTypes.INTEGER
+    request_id: DataTypes.INTEGER,
+    departure_km: DataTypes.INTEGER,
+    return_km: DataTypes.INTEGER,
+    distance_km: DataTypes.INTEGER,
+    status: DataTypes.STRING,
+    returned_at: DataTypes.DATE
   }, {
     sequelize,
     modelName: 'SortieRequest',

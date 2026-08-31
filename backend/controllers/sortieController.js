@@ -1,4 +1,4 @@
-const { Sortie, Vehicle, Request, SortieRequest } = require('../models');
+const { Sortie, Vehicle, Request, SortieRequest, Employee } = require('../models');
 const { Op } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
 const { SORTIE_STATUSES } = require('../utils/constants');
@@ -86,7 +86,7 @@ exports.addRequest = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Cette demande est déjà liée à cette sortie' });
   }
 
-  await SortieRequest.create({ sortie_id: sortie.id, request_id });
+  await SortieRequest.create({ sortie_id: sortie.id, request_id: request_id, status: 'pending' });
 
   const request = await Request.findByPk(request_id);
   if (request) {
@@ -157,7 +157,7 @@ exports.mine = asyncHandler(async (req, res) => {
 
   const sorties = await Sortie.findAll({
     where: { id: sortieIds },
-    include: [Vehicle, { model: Request, through: { attributes: [] } }],
+    include: [Vehicle, { model: Request, through: { attributes: ['departure_km', 'return_km', 'distance_km', 'status', 'returned_at'] }, include: [Employee] }],
     order: [['departure_time', 'DESC']],
   });
 
@@ -181,7 +181,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
   const { count, rows } = await Sortie.findAndCountAll({
     where,
-    include: [Vehicle, { model: Request, through: { attributes: [] } }],
+    include: [Vehicle, { model: Request, through: { attributes: ['departure_km', 'return_km', 'distance_km', 'status', 'returned_at'] }, include: [Employee] }],
     order: [['departure_time', 'DESC']],
     offset,
     limit: parseInt(limit, 10),
@@ -208,6 +208,12 @@ exports.depart = asyncHandler(async (req, res) => {
   sortie.status = 'ongoing';
   await sortie.save();
 
+  // Synchronise les demandes liées : elles passent en cours
+  await SortieRequest.update(
+    { status: 'ongoing' },
+    { where: { sortie_id: sortie.id } }
+  );
+
   notifyChiefs('sortie_updated', sortie);
 
   res.json(sortie);
@@ -232,6 +238,12 @@ exports.arrivee = asyncHandler(async (req, res) => {
   sortie.distance_km = arrival_km - sortie.departure_km;
   sortie.status = 'finished';
   await sortie.save();
+
+  // Synchronise les demandes liées : elles sont terminées avec la sortie
+  await SortieRequest.update(
+    { status: 'finished' },
+    { where: { sortie_id: sortie.id } }
+  );
 
   // Libérer le véhicule
   await vehicleService.setAvailable(sortie.vehicle_id);
@@ -290,23 +302,18 @@ exports.remove = asyncHandler(async (req, res) => {
   res.json({ message: 'Sortie supprimée' });
 });
 
-// Employé : marquer le retour du véhicule (remise)
+// Employé moto : enregistrer ses propres km (départ + retour) à la remise du véhicule
 exports.employeeReturn = asyncHandler(async (req, res) => {
-  const { return_km, returned_at } = req.body;
+  const { departure_km, return_km, returned_at } = req.body;
   const sortie = await Sortie.findByPk(req.params.id);
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
 
   if (sortie.status !== 'ongoing') {
     return res.status(400).json({ message: 'Seules les sorties en cours peuvent être retournées' });
   }
-  if (sortie.departure_km === null) {
-    return res.status(400).json({ message: 'Le km de départ doit être renseigné' });
-  }
-  if (!return_km || return_km < sortie.departure_km) {
-    return res.status(400).json({ message: 'Le km de retour ne peut pas être inférieur au km de départ' });
-  }
 
-  // Vérifier que l'employé fait partie de cette sortie
+  // Vérifier que l'employé fait partie de cette sortie (uniquement pour les motos,
+  // chaque utilisateur dispose de sa propre moto et saisit ses propres kilomètres)
   const userRequests = await Request.findAll({
     where: { employee_id: req.user.id },
     attributes: ['id'],
@@ -319,26 +326,42 @@ exports.employeeReturn = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: 'Vous n\'êtes pas associé à cette sortie' });
   }
 
-  sortie.return_km = return_km;
-  sortie.returned_at = returned_at ? new Date(returned_at) : new Date();
-  sortie.status = 'pending_return';
-  await sortie.save();
+  if (!departure_km || departure_km <= 0) {
+    return res.status(400).json({ message: 'Saisissez votre kilométrage de départ' });
+  }
+  if (!return_km || return_km < departure_km) {
+    return res.status(400).json({ message: 'Le km de retour ne peut pas être inférieur au km de départ' });
+  }
+
+  link.departure_km = departure_km;
+  link.return_km = return_km;
+  link.distance_km = return_km - departure_km;
+  link.status = 'finished';
+  link.returned_at = returned_at ? new Date(returned_at) : new Date();
+  await link.save();
 
   await createNotification({
     user_id: req.user.id,
-    message: `Retour marqué pour la sortie vers ${sortie.destination}. En attente de validation.`,
+    message: `Retour marqué pour la sortie vers ${sortie.destination} (${link.distance_km} km). En attente de validation.`,
     type: 'return_marked',
   });
 
-  await notifyChiefsDb({
-    message: `Retour marqué par un employé pour la sortie vers ${sortie.destination}. En attente de validation.`,
-    type: 'return_marked',
-    excludeUserId: req.user.id,
+  // Si toutes les motos de la sortie sont revenues, la sortie passe en attente de validation
+  const pendingLinks = await SortieRequest.findAll({
+    where: { sortie_id: sortie.id, status: { [Op.ne]: 'finished' } },
   });
+  if (pendingLinks.length === 0 && sortie.status === 'ongoing') {
+    sortie.status = 'pending_return';
+    await sortie.save();
+    await notifyChiefsDb({
+      message: `Toutes les motos de la sortie vers ${sortie.destination} sont revenues. En attente de validation.`,
+      type: 'return_marked',
+      excludeUserId: req.user.id,
+    });
+  }
 
   notifyChiefs('sortie_updated', sortie);
-
-  res.json(sortie);
+  res.json({ link });
 });
 
 // Admin : valider le retour et clôturer la sortie
@@ -349,12 +372,12 @@ exports.validateReturn = asyncHandler(async (req, res) => {
   if (sortie.status !== 'pending_return') {
     return res.status(400).json({ message: 'Seules les sorties en attente de retour peuvent être validées' });
   }
-  if (sortie.return_km === null) {
-    return res.status(400).json({ message: 'Le km de retour doit d\'abord être renseigné par l\'employé' });
-  }
 
-  sortie.arrival_km = sortie.return_km;
-  sortie.distance_km = sortie.arrival_km - sortie.departure_km;
+  await SortieRequest.update(
+    { status: 'finished' },
+    { where: { sortie_id: sortie.id } }
+  );
+
   sortie.status = 'finished';
   await sortie.save();
 

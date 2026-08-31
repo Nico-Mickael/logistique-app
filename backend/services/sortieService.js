@@ -93,7 +93,7 @@ exports.autoCreateSortie = async (request) => {
       where: { sortie_id: existingSortie.id, request_id: request.id },
     });
     if (!linkExists) {
-      await SortieRequest.create({ sortie_id: existingSortie.id, request_id: request.id });
+      await SortieRequest.create({ sortie_id: existingSortie.id, request_id: request.id, status: 'pending' });
     }
     return;
   }
@@ -105,7 +105,7 @@ exports.autoCreateSortie = async (request) => {
     departure_time: request.date_souhaitee,
     status: 'planned',
   });
-  await SortieRequest.create({ sortie_id: sortie.id, request_id: request.id });
+  await SortieRequest.create({ sortie_id: sortie.id, request_id: request.id, status: 'pending' });
 
   if (vehicle && vehicle.status === 'available') {
     vehicle.status = 'busy';

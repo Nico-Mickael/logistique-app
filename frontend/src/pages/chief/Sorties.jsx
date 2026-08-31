@@ -26,6 +26,7 @@ const statusFilterOptions = [
 ];
 
 function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValidateReturn, onArrivee, actionLoading }) {
+  const isMoto = sortie.Vehicle?.type === 'moto';
   return (
     <Card withBorder radius="lg" p="lg" className="sortie-card">
       <div className="stat-card-accent" style={{
@@ -50,22 +51,39 @@ function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValid
         <Text size="sm"><Text span c="dimmed" size="sm">Départ: </Text>
           {dayjs(sortie.departure_time).format('DD/MM/YYYY HH:mm')}
         </Text>
-        {sortie.status === 'finished' && (
+        {sortie.status === 'finished' && !isMoto && (
           <Text size="sm" fw={600}>
             <Text span c="dimmed" size="sm">Distance: </Text>{sortie.distance_km} km
           </Text>
         )}
-        {sortie.departure_km && (
+        {!isMoto && sortie.departure_km && (
           <Text size="sm"><Text span c="dimmed" size="sm">Km départ: </Text>{sortie.departure_km}</Text>
         )}
-        {sortie.return_km && (
+        {!isMoto && sortie.return_km && (
           <Text size="sm"><Text span c="dimmed" size="sm">Km retour: </Text>{sortie.return_km}</Text>
         )}
-        {sortie.returned_at && (
+        {!isMoto && sortie.returned_at && (
           <Text size="sm"><Text span c="dimmed" size="sm">Retour le: </Text>{dayjs(sortie.returned_at).format('DD/MM/YYYY HH:mm')}</Text>
         )}
-        {sortie.arrival_km && (
+        {!isMoto && sortie.arrival_km && (
           <Text size="sm"><Text span c="dimmed" size="sm">Km arrivée: </Text>{sortie.arrival_km}</Text>
+        )}
+        {isMoto && sortie.Requests?.length > 0 && (
+          <Stack gap={2}>
+            <Text size="xs" c="dimmed" fw={600}>Kilomètres individuels:</Text>
+            {sortie.Requests.map((req) => {
+              const sr = req.SortieRequest;
+              const done = sr?.status === 'finished';
+              return (
+                <Text key={req.id} size="xs">
+                  <Text span c="dimmed">{req.Employee?.prenom} {req.Employee?.nom}: </Text>
+                  {done && sr?.departure_km != null && sr?.return_km != null
+                    ? `${sr.departure_km} → ${sr.return_km} km (${sr.distance_km} km)`
+                    : sr?.status === 'ongoing' ? 'en cours' : '—'}
+                </Text>
+              );
+            })}
+          </Stack>
         )}
       </Stack>
       <Group gap="xs">
@@ -320,9 +338,19 @@ function Sorties() {
     },
     {
       accessor: 'km', title: 'Km',
-      render: (s) => s.status === 'finished'
-        ? `${s.departure_km} → ${s.arrival_km} (${s.distance_km} km)`
-        : s.departure_km ? `Départ: ${s.departure_km} km` : '—',
+      render: (s) => {
+        if (s.Vehicle?.type === 'moto') {
+          const done = (s.Requests || []).filter((r) => r.SortieRequest?.status === 'finished');
+          const anyDone = done.some((r) => r.SortieRequest?.departure_km != null && r.SortieRequest?.return_km != null);
+          if (anyDone) {
+            return <Text size="sm">{done.map((r) => `${r.SortieRequest.departure_km}→${r.SortieRequest.return_km}`).join(', ')}</Text>;
+          }
+          return s.status === 'ongoing' ? <Text size="xs" c="dimmed">individuels en cours</Text> : '—';
+        }
+        return s.status === 'finished'
+          ? `${s.departure_km} → ${s.arrival_km} (${s.distance_km} km)`
+          : s.departure_km ? `Départ: ${s.departure_km} km` : '—';
+      },
     },
     {
       accessor: 'returned_at', title: 'Retour',

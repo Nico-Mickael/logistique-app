@@ -13,6 +13,7 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor } from '../../utils/labels';
 
 function TripCard({ sortie, onReturn }) {
+  const isMoto = sortie.Vehicle?.type === 'moto';
   return (
     <Card withBorder radius="lg" p="lg" className="trip-card">
       <div className="stat-card-accent" style={{
@@ -39,45 +40,70 @@ function TripCard({ sortie, onReturn }) {
           <IconClock size={14} color="var(--mantine-color-dimmed)" />
           <Text size="sm">{dayjs(sortie.departure_time).format('DD/MM/YYYY HH:mm')}</Text>
         </Group>
-        {sortie.departure_km && (
+        {!isMoto && sortie.departure_km && (
           <Group gap="xs">
             <IconGauge size={14} color="var(--mantine-color-dimmed)" />
             <Text size="sm">Départ: {sortie.departure_km} km</Text>
           </Group>
         )}
-        {sortie.return_km && (
+        {isMoto && !sortie.departure_km && (
+          <Group gap="xs">
+            <IconGauge size={14} color="var(--mantine-color-dimmed)" />
+            <Text size="sm">Véhicule personnel</Text>
+          </Group>
+        )}
+        {!isMoto && sortie.return_km && (
           <Group gap="xs">
             <IconGauge size={14} color="var(--mantine-color-dimmed)" />
             <Text size="sm">Retour: {sortie.return_km} km</Text>
           </Group>
         )}
-        {sortie.returned_at && (
+        {!isMoto && sortie.returned_at && (
           <Group gap="xs">
             <IconClock size={14} color="var(--mantine-color-dimmed)" />
             <Text size="sm">Retour le {dayjs(sortie.returned_at).format('DD/MM/YYYY HH:mm')}</Text>
           </Group>
         )}
-        {sortie.distance_km > 0 && (
+        {!isMoto && sortie.distance_km > 0 && (
           <Text size="sm" c="brandYellow" fw={600}>
             Distance: {sortie.distance_km} km
           </Text>
         )}
+        {isMoto && sortie.Requests?.length > 0 && (
+          <Group gap="xs">
+            <IconGauge size={14} color="var(--mantine-color-brandYellow-6)" />
+            <Text size="sm" fw={600}>Kilométrages individuels:</Text>
+          </Group>
+        )}
       </Stack>
-      {sortie.Requests?.length > 0 && (
-        <Stack gap={4}>
-          <Text size="xs" c="dimmed" fw={600}>Participants:</Text>
-          {sortie.Requests.map((req) => (
-            <Group key={req.id} gap="xs">
-              <IconMapPin size={12} color="var(--mantine-color-dimmed)" />
-              <Text size="xs" c="dimmed">{req.destination} ({req.nb_personnes}p)</Text>
-            </Group>
-          ))}
+      {isMoto && sortie.Requests?.length > 0 && (
+        <Stack gap={4} mb="md">
+          {sortie.Requests.map((req) => {
+            const sr = req.SortieRequest;
+            const done = sr?.status === 'finished';
+            return (
+              <Group key={req.id} gap="xs">
+                <IconMapPin size={12} color="var(--mantine-color-dimmed)" />
+                <Text size="xs" c="dimmed">
+                  {req.destination} ({req.nb_personnes}p)
+                  {done && sr?.departure_km != null && sr?.return_km != null
+                    ? ` — ${sr.departure_km} → ${sr.return_km} km (${sr.distance_km} km)`
+                    : sr?.status === 'ongoing' ? ' — en cours' : ''}
+                </Text>
+              </Group>
+            );
+          })}
         </Stack>
       )}
-      {sortie.status === 'ongoing' && (
+      {sortie.status === 'ongoing' && isMoto && (
         <Button size="xs" color="brand" leftSection={<IconFlag size={14} />} onClick={() => onReturn(sortie)} fullWidth mt="sm">
-          Marquer le retour
+          Saisir mon retour
         </Button>
+      )}
+      {sortie.status === 'ongoing' && !isMoto && (
+        <Text size="xs" c="dimmed" mt="sm" ta="center">
+          En cours — le chauffeur enregistre l'arrivée
+        </Text>
       )}
       {sortie.status === 'pending_return' && (
         <Text size="xs" c="orange" fw={500} ta="center" mt="sm">
@@ -94,6 +120,7 @@ function MyTrips() {
 
   const [returnOpened, { open: openReturn, close: closeReturn }] = useDisclosure(false);
   const [returnSortie, setReturnSortie] = useState(null);
+  const [returnDepKm, setReturnDepKm] = useState(0);
   const [returnKm, setReturnKm] = useState(0);
   const [returnedAt, setReturnedAt] = useState(null);
   const [returnLoading, setReturnLoading] = useState(false);
@@ -115,18 +142,21 @@ function MyTrips() {
 
   const openReturnModal = (s) => {
     setReturnSortie(s);
-    setReturnKm(s.departure_km != null ? s.departure_km + 1 : 0);
+    setReturnDepKm(0);
+    setReturnKm(0);
     setReturnedAt(new Date());
     openReturn();
   };
 
   const handleReturn = async () => {
-    if (!returnKm || returnKm <= 0) { notifyError('Saisissez un kilométrage valide'); return; }
-    if (returnSortie && returnKm < returnSortie.departure_km) { notifyError("Le km de retour ne peut pas être inférieur au km de départ"); return; }
+    const dep = Number(returnDepKm);
+    const ret = Number(returnKm);
+    if (!dep || dep <= 0) { notifyError('Saisissez votre kilométrage de départ'); return; }
+    if (!ret || ret < dep) { notifyError('Le km de retour ne peut pas être inférieur au km de départ'); return; }
     if (!returnedAt) { notifyError('Saisissez la date et heure de retour'); return; }
     setReturnLoading(true);
     try {
-      await sortieService.employeeReturn(returnSortie.id, returnKm, returnedAt);
+      await sortieService.employeeReturn(returnSortie.id, dep, ret, returnedAt);
       notifySuccess('Retour marqué - En attente de validation');
       closeReturn();
       fetchTrips();
@@ -207,7 +237,12 @@ function MyTrips() {
                       { accessor: 'destination', title: 'Destination', sortable: true },
                       { accessor: 'vehicle', title: 'Véhicule', render: (s) => <Text tt="capitalize">{s.Vehicle?.type}</Text> },
                       { accessor: 'departure_time', title: 'Départ', render: (s) => dayjs(s.departure_time).format('DD/MM/YYYY HH:mm') },
-                      { accessor: 'distance_km', title: 'Distance', textAlign: 'right', render: (s) => <Badge color="brand" variant="light" size="sm">{s.distance_km} km</Badge> },
+                      { accessor: 'distance_km', title: 'Distance', textAlign: 'right', render: (s) => {
+                        const isMoto = s.Vehicle?.type === 'moto';
+                        const sr = isMoto && s.Requests?.[0]?.SortieRequest;
+                        const dist = isMoto ? (sr?.distance_km || 0) : (s.distance_km || 0);
+                        return dist > 0 ? <Badge color="brand" variant="light" size="sm">{dist} km</Badge> : <Text size="sm" c="dimmed">—</Text>;
+                      } },
                     ]}
                     records={finished}
                     idAccessor="id"
@@ -233,18 +268,19 @@ function MyTrips() {
       >
         <Text size="sm" mb="sm">
           <Text span fw={600}>{returnSortie?.destination}</Text>
-          {returnSortie?.departure_km && (
-            <Text span c="dimmed"> — Km départ: {returnSortie.departure_km}</Text>
-          )}
+          <Text span c="dimmed"> — Votre moto, saisissez vos kilomètres</Text>
         </Text>
         <DateTimePicker label="Date et heure de retour" value={returnedAt} onChange={setReturnedAt}
           required mb="sm" />
-        <NumberInput label="Kilométrage au retour" placeholder="Ex: 12750"
-          min={returnSortie?.departure_km != null ? returnSortie.departure_km : 0} value={returnKm} onChange={setReturnKm} mb="md" required
+        <NumberInput label="Kilométrage au départ" placeholder="Ex: 12500"
+          min={0} value={returnDepKm} onChange={setReturnDepKm} mb="sm" required
         />
-        {returnSortie?.departure_km && returnKm > returnSortie.departure_km && (
+        <NumberInput label="Kilométrage au retour" placeholder="Ex: 12750"
+          min={Number(returnDepKm) || 0} value={returnKm} onChange={setReturnKm} mb="md" required
+        />
+        {Number(returnDepKm) > 0 && Number(returnKm) > Number(returnDepKm) && (
           <Text size="sm" c="dimmed" mb="md">
-            Distance parcourue : <strong>{returnKm - returnSortie.departure_km} km</strong>
+            Distance parcourue : <strong>{Number(returnKm) - Number(returnDepKm)} km</strong>
           </Text>
         )}
         <Button color="brand" fullWidth onClick={handleReturn} size="md" loading={returnLoading}>Confirmer le retour</Button>
