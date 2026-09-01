@@ -61,6 +61,7 @@ exports.autoCreateSortie = async (request) => {
   const emp = await Employee.findByPk(request.employee_id);
   const vehicle = await Vehicle.findByPk(request.vehicle_id);
   const capacity = vehicle ? vehicle.capacity : null;
+  const isMoto = vehicle ? vehicle.type === 'moto' : false;
 
   const requestTime = new Date(request.date_souhaitee);
   const existingSortie = !isNaN(requestTime.getTime()) ? await Sortie.findOne({
@@ -98,9 +99,20 @@ exports.autoCreateSortie = async (request) => {
     return;
   }
 
+  // Si le véhicule demandé n'est plus disponible (occupé, en panne, maintenance)
+  // et qu'aucune sortie compatible n'existe pour y regrouper la demande, on ne
+  // crée pas de sortie : la demande reste approuvée et le chef logistique
+  // l'affectera/regroupera manuellement sur un autre véhicule.
+  if (vehicle && vehicle.status !== 'available') {
+    return;
+  }
+
+  // Pour une moto, l'employé conduit lui-même : on renseigne son nom comme
+  // conducteur. Pour une voiture, le chauffeur (un compte avec le rôle
+  // chauffeur) est affecté par le chef logistique après la création.
   const sortie = await Sortie.create({
     vehicle_id: request.vehicle_id,
-    driver_name: emp ? `${emp.prenom} ${emp.nom}` : 'Chauffeur',
+    driver_name: isMoto ? (emp ? `${emp.prenom} ${emp.nom}` : 'Chauffeur') : null,
     destination: request.destination,
     departure_time: request.date_souhaitee,
     status: 'planned',

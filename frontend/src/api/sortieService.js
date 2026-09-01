@@ -13,4 +13,7 @@ export const sortieService = {
   validateReturn: (id) => api.patch(`/sorties/${id}/validate-return`),
   update: (id, payload) => api.put(`/sorties/${id}`, payload),
   remove: (id) => api.delete(`/sorties/${id}`),
+  driverMine: () => api.get('/sorties/driver/mine'),
+  driverDepart: (id, departure_km) => api.patch(`/sorties/${id}/driver/depart`, { departure_km }),
+  driverArrivee: (id, arrival_km) => api.patch(`/sorties/${id}/driver/arrivee`, { arrival_km }),
 };

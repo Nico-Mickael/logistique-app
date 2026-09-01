@@ -21,6 +21,7 @@ import Planning from './pages/chief/Planning';
 import Reports from './pages/chief/Reports';
 import MyTrips from './pages/employee/MyTrips';
 import MyReports from './pages/employee/MyReports';
+import DriverSorties from './pages/chauffeur/DriverSorties';
 import Users from './pages/superadmin/Users';
 import Import from './pages/superadmin/Import';
 import Sessions from './pages/Sessions';
@@ -72,6 +73,16 @@ function App() {
                   <PrivateRoute allowedRoles={['employee', 'chauffeur', 'superadmin']}>
                     <Layout>
                       <MyTrips />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/mes-sorties"
+                element={
+                  <PrivateRoute allowedRoles={['chauffeur']}>
+                    <Layout>
+                      <DriverSorties />
                     </Layout>
                   </PrivateRoute>
                 }

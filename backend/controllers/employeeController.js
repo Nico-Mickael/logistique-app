@@ -11,6 +11,16 @@ exports.list = asyncHandler(async (req, res) => {
   res.json(employees);
 });
 
+// Liste des comptes ayant le rôle 'chauffeur' (pour l'affectation à une sortie)
+exports.listChauffeurs = asyncHandler(async (req, res) => {
+  const chauffeurs = await Employee.findAll({
+    where: { role: 'chauffeur' },
+    attributes: ['id', 'nom', 'prenom', 'email', 'department'],
+    order: [['nom', 'ASC']],
+  });
+  res.json(chauffeurs);
+});
+
 exports.create = asyncHandler(async (req, res) => {
   const { nom, prenom, email, password, department, role } = req.body;
 

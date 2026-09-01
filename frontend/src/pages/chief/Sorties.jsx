@@ -6,11 +6,12 @@ import {
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
-import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload } from '@tabler/icons-react';
+import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconExchange } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { vehicleService } from '../../api/vehicleService';
+import { employeeService } from '../../api/employeeService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import { useNavigate } from 'react-router-dom';
@@ -25,7 +26,7 @@ const statusFilterOptions = [
   { label: 'Terminées', value: 'finished' },
 ];
 
-function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValidateReturn, onArrivee, actionLoading }) {
+function SortieCard({ sortie, chauffeurs, onAssignDriver, onDepart, onSuggestions, onEdit, onDelete, onValidateReturn, onArrivee, actionLoading }) {
   const isMoto = sortie.Vehicle?.type === 'moto';
   return (
     <Card withBorder radius="lg" p="lg" className="sortie-card">
@@ -48,6 +49,12 @@ function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValid
           <VehicleIcon type={sortie.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" style={{ verticalAlign: 'middle', marginRight: 4 }} />
           <Text span tt="capitalize" size="sm">{sortie.Vehicle?.type}</Text>
         </Text>
+        {!isMoto && sortie.Requests?.some((r) => r.vehicle_id && r.vehicle_id !== sortie.vehicle_id) && (
+          <Text size="xs" c="orange" fw={600}>
+            <IconExchange size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+            Véhicule demandé différent du véhicule affecté
+          </Text>
+        )}
         <Text size="sm"><Text span c="dimmed" size="sm">Départ: </Text>
           {dayjs(sortie.departure_time).format('DD/MM/YYYY HH:mm')}
         </Text>
@@ -89,14 +96,24 @@ function SortieCard({ sortie, onDepart, onSuggestions, onEdit, onDelete, onValid
       <Group gap="xs">
         {sortie.status === 'planned' && (
           <>
+            {!isMoto && (
+              <Select
+                size="xs"
+                placeholder={sortie.driver_name ? `Chauffeur: ${sortie.driver_name}` : 'Affecter un chauffeur'}
+                data={chauffeurs.map((c) => ({ value: String(c.id), label: `${c.prenom} ${c.nom}`.trim() }))}
+                value={sortie.driver_employee_id ? String(sortie.driver_employee_id) : null}
+                onChange={(v) => onAssignDriver(sortie, v)}
+                clearable searchable radius="md"
+                w={180}
+                disabled={actionLoading === 'assignDriver'}
+                styles={{ input: sortie.driver_employee_id ? {} : { borderColor: 'var(--mantine-color-brand-6)' } }}
+              />
+            )}
             <Button size="xs" color="brand" leftSection={<IconPlayerPlay size={14} />} onClick={() => onDepart(sortie)} loading={actionLoading === 'depart'}>
               Démarrer
             </Button>
             <Button size="xs" variant="outline" color="brand" leftSection={<IconUsers size={14} />} onClick={() => onSuggestions(sortie.id)}>
               Demandes
-            </Button>
-            <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => onEdit(sortie)}>
-              Modifier
             </Button>
             <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={onDelete}>
               Supprimer
@@ -143,6 +160,8 @@ function Sorties() {
   const [editSortie, setEditSortie] = useState(null);
   const [editVehicleId, setEditVehicleId] = useState('');
   const [editDriverName, setEditDriverName] = useState('');
+  const [editDriverEmployeeId, setEditDriverEmployeeId] = useState('');
+  const [chauffeurs, setChauffeurs] = useState([]);
   const [editDestination, setEditDestination] = useState('');
   const [editDepartureTime, setEditDepartureTime] = useState(null);
 
@@ -193,6 +212,7 @@ function Sorties() {
 
   const fetchVehicles = async () => {
     try { const { data } = await vehicleService.getAll(); setVehicles(data || []); } catch { /* ignore */ }
+    try { const { data } = await employeeService.listChauffeurs(); setChauffeurs(data || []); } catch { /* ignore */ }
   };
 
   useEffect(() => { fetchVehicles(); }, []);
@@ -212,22 +232,26 @@ function Sorties() {
     setEditSortie(s);
     setEditVehicleId(String(s.vehicle_id));
     setEditDriverName(s.driver_name);
+    setEditDriverEmployeeId(s.driver_employee_id ? String(s.driver_employee_id) : '');
     setEditDestination(s.destination);
     setEditDepartureTime(new Date(s.departure_time));
     openEditModal();
   };
 
   const handleEditSave = async () => {
-    if (!editDestination || !editDriverName || !editDepartureTime) {
+    if (!editDestination || !editDepartureTime) {
       notifyError('Merci de remplir tous les champs'); return;
     }
+    const chauffeurAcc = chauffeurs.find((c) => String(c.id) === String(editDriverEmployeeId));
+    const effectiveName = chauffeurAcc ? `${chauffeurAcc.prenom} ${chauffeurAcc.nom}`.trim() : editDriverName;
     setSaving(true);
     try {
       await sortieService.update(editSortie.id, {
         destination: editDestination,
-        driver_name: editDriverName,
+        driver_name: effectiveName,
         departure_time: editDepartureTime,
         vehicle_id: editVehicleId ? parseInt(editVehicleId, 10) : undefined,
+        driver_employee_id: chauffeurAcc ? chauffeurAcc.id : null,
       });
       notifySuccess('Sortie modifiée');
       closeEditModal();
@@ -235,6 +259,22 @@ function Sorties() {
     } catch (err) {
       notifyError(err.response?.data?.message || 'Erreur lors de la modification');
     } finally { setSaving(false); }
+  };
+
+  const handleAssignDriver = async (sortie, driverId) => {
+    const chauffeurAcc = chauffeurs.find((c) => String(c.id) === String(driverId));
+    const driverName = chauffeurAcc ? `${chauffeurAcc.prenom} ${chauffeurAcc.nom}`.trim() : '';
+    setActionLoading('assignDriver');
+    try {
+      await sortieService.update(sortie.id, {
+        driver_employee_id: chauffeurAcc ? chauffeurAcc.id : null,
+        driver_name: driverName,
+      });
+      notifySuccess(chauffeurAcc ? `Chauffeur affecté: ${driverName}` : 'Chauffeur retiré');
+      fetchSorties(page);
+    } catch (err) {
+      notifyError(err.response?.data?.message || 'Erreur lors de l\'affectation du chauffeur');
+    } finally { setActionLoading(null); }
   };
 
   const handleDelete = async () => {
@@ -353,10 +393,6 @@ function Sorties() {
       },
     },
     {
-      accessor: 'returned_at', title: 'Retour',
-      render: (s) => s.returned_at ? dayjs(s.returned_at).format('DD/MM/YYYY HH:mm') : '—',
-    },
-    {
       accessor: 'actions', title: '',
       render: (s) => (
         <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
@@ -472,7 +508,7 @@ function Sorties() {
             <>
               <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                 {sorties.map((s) => (
-                  <SortieCard key={s.id} sortie={s}
+                  <SortieCard key={s.id} sortie={s} chauffeurs={chauffeurs} onAssignDriver={handleAssignDriver}
                     onDepart={openDepartModal} onSuggestions={openSuggestionsModal}
                     onEdit={openEdit} onDelete={() => setDeleteTarget(s)} onValidateReturn={() => setValidateReturnTarget(s)}
                     onArrivee={openArriveeModal} actionLoading={actionLoading}
@@ -496,8 +532,15 @@ function Sorties() {
             data={vehicles.map((v) => ({ value: String(v.id), label: `${v.type} (${v.capacity} pers.)` }))}
             value={editVehicleId} onChange={setEditVehicleId} radius="md"
           />
-          <TextInput label="Conducteur" placeholder="Nom du conducteur" required value={editDriverName}
-            onChange={(e) => setEditDriverName(e.currentTarget.value)} radius="md"
+          <Select label="Chauffeur (compte)" placeholder="Choisir un chauffeur"
+            data={chauffeurs.map((c) => ({ value: String(c.id), label: `${c.prenom} ${c.nom}`.trim() }))}
+            value={editDriverEmployeeId || null}
+            onChange={(v) => {
+              setEditDriverEmployeeId(v || '');
+              const acc = chauffeurs.find((c) => String(c.id) === String(v));
+              setEditDriverName(acc ? `${acc.prenom} ${acc.nom}`.trim() : '');
+            }}
+            clearable searchable radius="md"
           />
           <TextInput label="Destination" placeholder="Antananarivo" required value={editDestination}
             onChange={(e) => setEditDestination(e.currentTarget.value)} radius="md"

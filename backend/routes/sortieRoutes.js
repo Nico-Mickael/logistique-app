@@ -1,9 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const sortieController = require('../controllers/sortieController');
+const driverController = require('../controllers/driverController');
 const auth = require('../middlewares/auth');
 const checkRole = require('../middlewares/checkRole');
 const { CHIEF_ROLES } = require('../utils/constants');
+
+// Routes chauffeur (accessible au rôle chauffeur uniquement, vérifié côté serveur)
+router.get('/driver/mine', auth, driverController.mine);
+router.patch('/:id/driver/depart', auth, driverController.depart);
+router.patch('/:id/driver/arrivee', auth, driverController.arrivee);
 
 router.get('/mine', auth, sortieController.mine);
 router.patch('/:id/return', auth, sortieController.employeeReturn);

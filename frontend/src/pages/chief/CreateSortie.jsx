@@ -1,13 +1,13 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Paper, Title, Text, Group, Stack, Badge, Button, TextInput,
-  Loader, Center, Avatar, SimpleGrid, NumberInput,
+  Loader, Center, Avatar, SimpleGrid, Select,
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import {
   IconUsers, IconPlus,
   IconSteeringWheel, IconMapPin, IconClock, IconUser,
-  IconBuildingWarehouse, IconGauge,
+  IconBuildingWarehouse,
 } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import VehicleModal from '../../components/VehicleModal';
@@ -15,6 +15,7 @@ import dayjs from '../../utils/date';
 import { vehicleService } from '../../api/vehicleService';
 import { sortieService } from '../../api/sortieService';
 import { requestService } from '../../api/requestService';
+import { employeeService } from '../../api/employeeService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import { getSeatLayout, getSeatColor } from '../../utils/seatLayout';
 import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor } from '../../utils/labels';
@@ -286,10 +287,10 @@ function CreateSortie() {
 
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [driverName, setDriverName] = useState('');
+  const [driverEmployeeId, setDriverEmployeeId] = useState('');
+  const [chauffeurs, setChauffeurs] = useState([]);
   const [destination, setDestination] = useState('');
   const [departureTime, setDepartureTime] = useState(null);
-  const [departureKm, setDepartureKm] = useState('');
-  const [lastSortieLoading, setLastSortieLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const [createdSortie, setCreatedSortie] = useState(null);
@@ -301,11 +302,13 @@ function CreateSortie() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [vehRes, reqRes] = await Promise.all([
+      const [vehRes, reqRes, chRes] = await Promise.all([
         vehicleService.getOccupancy(),
         requestService.all({ limit: 9999 }),
+        employeeService.listChauffeurs(),
       ]);
       setVehicles(vehRes.data || []);
+      setChauffeurs(chRes.data || []);
       const all = reqRes.data.data || reqRes.data || [];
       const pending = all.filter(
         (r) => r.status === 'pending' || r.status === 'approved'
@@ -341,22 +344,9 @@ function CreateSortie() {
     setSeatAssignments([]);
     setDestination('');
     setDriverName('');
+    setDriverEmployeeId('');
     setDepartureTime(null);
-    setDepartureKm('');
     setConfigModalOpen(true);
-    if (vehicle.id) {
-      setLastSortieLoading(true);
-      try {
-        const { data } = await sortieService.lastForVehicle(vehicle.id);
-        if (data && data.return_km != null) {
-          setDepartureKm(String(data.return_km));
-        }
-      } catch {
-        // pas de dernière sortie, champ vide
-      } finally {
-        setLastSortieLoading(false);
-      }
-    }
   };
 
   const handleCreateSortie = async () => {
@@ -364,14 +354,18 @@ function CreateSortie() {
       notifyError('Merci de remplir tous les champs');
       return;
     }
+    const driverAccount = chauffeurs.find((c) => String(c.id) === String(driverEmployeeId));
+    const effectiveDriverName = driverAccount
+      ? `${driverAccount.prenom} ${driverAccount.nom}`.trim()
+      : driverName;
     setCreating(true);
     try {
       const { data } = await sortieService.create({
         vehicle_id: selectedVehicle.id,
-        driver_name: driverName,
+        driver_name: effectiveDriverName,
         destination,
         departure_time: departureTime,
-        departure_km: Number(departureKm) || null,
+        driver_employee_id: driverAccount ? driverAccount.id : null,
       });
       setCreatedSortie(data);
       notifySuccess('Sortie créée avec succès');
@@ -436,7 +430,7 @@ function CreateSortie() {
     const hasTime = !isNaN(sortieTime.getTime());
     return requests.filter((r) => {
       if (r.status !== 'pending' && r.status !== 'approved') return false;
-      if (r.vehicle_id) return false;
+      if (r.vehicle_id && createdSortie.vehicle_id && r.vehicle_id !== createdSortie.vehicle_id) return false;
       if ((r.destination || '').toLowerCase() !== (createdSortie.destination || '').toLowerCase()) return false;
       if (hasTime) {
         const reqTime = new Date(r.date_souhaitee);
@@ -772,16 +766,33 @@ function CreateSortie() {
         loading={creating}
       >
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-          <TextInput
-            label="Conducteur"
-            placeholder="Nom du conducteur"
-            w="100%"
-            value={driverName}
-            onChange={(e) => setDriverName(e.currentTarget.value)}
-            required
-            radius="md"
-            leftSection={<IconSteeringWheel size={16} />}
-          />
+          <Stack gap="xs">
+            <Select
+              label="Chauffeur (compte)"
+              placeholder="Choisir un chauffeur"
+              data={chauffeurs.map((c) => ({ value: String(c.id), label: `${c.prenom} ${c.nom}`.trim() }))}
+              value={driverEmployeeId}
+              onChange={(v) => {
+                setDriverEmployeeId(v || '');
+                const acc = chauffeurs.find((c) => String(c.id) === String(v));
+                if (acc) setDriverName(`${acc.prenom} ${acc.nom}`.trim());
+              }}
+              clearable
+              searchable
+              radius="md"
+              leftSection={<IconUser size={16} />}
+            />
+            <TextInput
+              label="Conducteur"
+              placeholder="Nom du conducteur"
+              w="100%"
+              value={driverName}
+              onChange={(e) => setDriverName(e.currentTarget.value)}
+              required
+              radius="md"
+              leftSection={<IconSteeringWheel size={16} />}
+            />
+          </Stack>
           <TextInput
             label="Destination"
             placeholder="Antananarivo"
@@ -791,18 +802,6 @@ function CreateSortie() {
             required
             radius="md"
             leftSection={<IconMapPin size={16} />}
-          />
-          <NumberInput
-            label="Kilométrage départ"
-            placeholder={lastSortieLoading ? 'Chargement...' : 'km compteur au départ'}
-            w="100%"
-            value={departureKm}
-            onChange={setDepartureKm}
-            min={0}
-            step={1}
-            radius="md"
-            leftSection={<IconGauge size={16} />}
-            disabled={lastSortieLoading}
           />
           <DateTimePicker
             label="Date et heure de départ"

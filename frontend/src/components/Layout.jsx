@@ -42,6 +42,13 @@ const navConfig = {
     { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
     { label: 'Mes rapports', path: '/mes-rapports', icon: IconReportAnalytics },
   ],
+  chauffeur: [
+    { label: 'Accueil', path: '/', icon: IconHome },
+    { label: 'Mes sorties', path: '/mes-sorties', icon: IconRoute },
+    { label: 'Mes trajets', path: '/mes-trajets', icon: IconCar },
+    { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
+    { label: 'Mes rapports', path: '/mes-rapports', icon: IconReportAnalytics },
+  ],
   superadmin: [
     { label: 'Accueil', path: '/', icon: IconHome },
     { label: 'Utilisateurs', path: '/utilisateurs', icon: IconUsers },
@@ -66,10 +73,12 @@ function Layout({ children }) {
 
   const isChief = user?.role === 'logistics_chief' || user?.role === 'admin' || user?.role === 'superadmin';
   const isSuperadmin = user?.role === 'superadmin';
+  const isChauffeur = user?.role === 'chauffeur';
   const navItems = useMemo(() => {
     if (isSuperadmin) return navConfig.superadmin;
+    if (isChauffeur) return navConfig.chauffeur;
     return isChief ? navConfig.chief : navConfig.employee;
-  }, [isChief, isSuperadmin]);
+  }, [isChief, isSuperadmin, isChauffeur]);
 
   const navbarWidth = collapsed ? 72 : 260;
 

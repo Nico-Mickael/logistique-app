@@ -22,15 +22,23 @@ const notifySortieEmployees = async (sortie, message, type) => {
 
 // Créer une sortie + assigner véhicule/conducteur
 exports.create = asyncHandler(async (req, res) => {
-  const { vehicle_id, driver_name, destination, departure_time, departure_km } = req.body;
+  const { vehicle_id, driver_name, destination, departure_time, departure_km, driver_employee_id } = req.body;
 
   const vehicle = await Vehicle.findByPk(vehicle_id);
   if (!vehicle || vehicle.status !== 'available') {
     return res.status(400).json({ message: 'Véhicule indisponible' });
   }
 
+  if (driver_employee_id) {
+    const driver = await Employee.findByPk(driver_employee_id);
+    if (!driver || driver.role !== 'chauffeur') {
+      return res.status(400).json({ message: 'Le chauffeur affecté doit être un compte avec le rôle chauffeur' });
+    }
+  }
+
   const sortie = await Sortie.create({
     vehicle_id, driver_name, destination, departure_time,
+    driver_employee_id: driver_employee_id || null,
     departure_km: departure_km || null,
     status: 'planned',
   });
@@ -92,9 +100,8 @@ exports.addRequest = asyncHandler(async (req, res) => {
   if (request) {
     if (request.status === 'pending') {
       request.status = 'approved';
+      await request.save();
     }
-    request.vehicle_id = sortie.vehicle_id;
-    await request.save();
     await createNotification({
       user_id: request.employee_id,
       message: `Votre demande a été intégrée à une sortie vers ${sortie.destination}`,
@@ -157,7 +164,7 @@ exports.mine = asyncHandler(async (req, res) => {
 
   const sorties = await Sortie.findAll({
     where: { id: sortieIds },
-    include: [Vehicle, { model: Request, through: { attributes: ['departure_km', 'return_km', 'distance_km', 'status', 'returned_at'] }, include: [Employee] }],
+    include: [Vehicle, { model: Employee, as: 'driver' }, { model: Request, through: { attributes: ['departure_km', 'return_km', 'distance_km', 'status', 'returned_at'] }, include: [Employee] }],
     order: [['departure_time', 'DESC']],
   });
 
@@ -181,7 +188,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
   const { count, rows } = await Sortie.findAndCountAll({
     where,
-    include: [Vehicle, { model: Request, through: { attributes: ['departure_km', 'return_km', 'distance_km', 'status', 'returned_at'] }, include: [Employee] }],
+    include: [Vehicle, { model: Employee, as: 'driver' }, { model: Request, through: { attributes: ['departure_km', 'return_km', 'distance_km', 'status', 'returned_at'] }, include: [Employee] }],
     order: [['departure_time', 'DESC']],
     offset,
     limit: parseInt(limit, 10),
@@ -263,7 +270,15 @@ exports.update = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Seules les sorties planifiées peuvent être modifiées' });
   }
 
-  const { destination, driver_name, departure_time, vehicle_id } = req.body;
+  const { destination, driver_name, departure_time, vehicle_id, driver_employee_id } = req.body;
+
+  if (driver_employee_id !== undefined && driver_employee_id !== null) {
+    const driver = await Employee.findByPk(driver_employee_id);
+    if (!driver || driver.role !== 'chauffeur') {
+      return res.status(400).json({ message: 'Le chauffeur affecté doit être un compte avec le rôle chauffeur' });
+    }
+    sortie.driver_employee_id = driver.id;
+  }
 
   if (vehicle_id && vehicle_id !== sortie.vehicle_id) {
     const oldVehicle = await Vehicle.findByPk(sortie.vehicle_id);
