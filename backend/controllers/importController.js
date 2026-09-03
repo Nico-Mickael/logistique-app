@@ -2,7 +2,7 @@ const bcrypt = require('bcrypt');
 const { parse: csvParse } = require('csv-parse/sync');
 const XLSX = require('xlsx');
 const { Employee, Vehicle } = require('../models');
-const { ASSIGNABLE_ROLES, VEHICLE_STATUSES } = require('../utils/constants');
+const { ASSIGNABLE_ROLES, VEHICLE_STATUSES, BCRYPT_ROUNDS } = require('../utils/constants');
 
 // ── Field definitions per entity ──
 const entities = {
@@ -219,7 +219,7 @@ async function importEmployee(row) {
   const existing = await Employee.findOne({ where: { email } });
   if (existing) return { error: `${email} existe déjà` };
 
-  const h = await bcrypt.hash(password, 10);
+  const h = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const finalRole = ASSIGNABLE_ROLES.includes(role) ? role : 'employee';
 
   const e = await Employee.create({ nom, prenom, email, password: h, department, role: finalRole });

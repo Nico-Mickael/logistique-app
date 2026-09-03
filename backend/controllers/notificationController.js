@@ -6,11 +6,34 @@ const { notifyUser } = require('../services/socketService');
 const { sendNotificationEmail } = require('../services/mailService');
 
 exports.mine = asyncHandler(async (req, res) => {
-  const notifications = await Notification.findAll({
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+  const { rows, count } = await Notification.findAndCountAll({
     where: { user_id: req.user.id },
     order: [['createdAt', 'DESC']],
+    offset: (page - 1) * limit,
+    limit,
   });
-  res.json(notifications);
+  res.json({ data: rows, total: count, page, totalPages: Math.ceil(count / limit) });
+});
+
+// GET /api/notifications/unread-count — nombre de notifications non lues
+exports.unreadCount = asyncHandler(async (req, res) => {
+  const count = await Notification.count({
+    where: { user_id: req.user.id, is_read: false },
+  });
+  res.json({ count });
+});
+
+// DELETE /api/notifications/:id — supprimer une notification (propriétaire)
+exports.remove = asyncHandler(async (req, res) => {
+  const notification = await Notification.findByPk(req.params.id);
+  if (!notification) return res.status(404).json({ message: 'Notification introuvable' });
+  if (notification.user_id !== req.user.id) {
+    return res.status(403).json({ message: 'Action non autorisée' });
+  }
+  await notification.destroy();
+  res.json({ message: 'Notification supprimée' });
 });
 
 exports.markAsRead = asyncHandler(async (req, res) => {
@@ -28,11 +51,11 @@ exports.markAsRead = asyncHandler(async (req, res) => {
 });
 
 exports.markAllRead = asyncHandler(async (req, res) => {
-  const [updated] = await Notification.update(
+  await Notification.update(
     { is_read: true },
     { where: { user_id: req.user.id, is_read: false } }
   );
-  res.json({ message: 'Toutes les notifications ont été marquées comme lues', updated });
+  res.json({ message: 'Toutes les notifications ont été marquées comme lues' });
 });
 
 // Fonction utilitaire réutilisable depuis les autres contrôleurs.
@@ -58,8 +81,9 @@ exports.notifyChiefsDb = async ({ message, type, excludeUserId }) => {
     attributes: ['id'],
   });
 
-  for (const chief of chiefs) {
-    if (excludeUserId && chief.id === excludeUserId) continue;
-    await exports.createNotification({ user_id: chief.id, message, type });
-  }
+  await Promise.all(
+    chiefs
+      .filter((chief) => !(excludeUserId && chief.id === excludeUserId))
+      .map((chief) => exports.createNotification({ user_id: chief.id, message, type }))
+  );
 };

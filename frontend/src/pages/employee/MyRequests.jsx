@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
-  Paper, Title, Badge, Loader, Center, Text, Group, Button, Card,
-  SimpleGrid, Stack, Flex, Modal, TextInput, Textarea, NumberInput, SegmentedControl, Pagination,
+  Paper, Badge, Center, Text, Group, Button, Card,
+  SimpleGrid, Stack, Modal, TextInput, Textarea, NumberInput, SegmentedControl, Pagination,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
@@ -11,6 +11,9 @@ import dayjs from '../../utils/date';
 import { requestService } from '../../api/requestService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
+import PageHeader from '../../components/PageHeader';
+import PageLoader from '../../components/PageLoader';
+import EmptyState from '../../components/EmptyState';
 import { requestStatusLabel as statusLabel, requestStatusColor as statusColor } from '../../utils/labels';
 
 function RequestCard({ request, onRespond, onCancel, onEdit, onDetail, onDelete }) {
@@ -242,15 +245,11 @@ function MyRequests() {
     },
   ];
 
-  if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
+  if (loading) return <PageLoader />;
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
-        <div>
-          <Title order={3}>Mes demandes</Title>
-          <Text size="sm" c="dimmed" mt={2}>{requests.length} demande{requests.length !== 1 ? 's' : ''}</Text>
-        </div>
+      <PageHeader title="Mes demandes" subtitle={`${requests.length} demande${requests.length !== 1 ? 's' : ''}`}>
         <SegmentedControl value={viewMode} onChange={setViewMode}
           data={[
             { label: 'Cartes', value: 'cards' },
@@ -258,17 +257,10 @@ function MyRequests() {
           ]}
           size="xs" color="brand"
         />
-      </Flex>
+      </PageHeader>
 
       {requests.length === 0 ? (
-        <Paper p="xl" radius="lg" withBorder>
-          <Center h={160}>
-            <Flex direction="column" align="center" gap={6}>
-              <IconInbox size={28} color="var(--mantine-color-gray-5)" />
-              <Text c="dimmed" size="sm">Aucune demande pour le moment</Text>
-            </Flex>
-          </Center>
-        </Paper>
+        <EmptyState icon={IconInbox} message="Aucune demande pour le moment" />
       ) : (
         <>
           {viewMode === 'cards' ? (
@@ -404,22 +396,8 @@ function MyRequests() {
           overflow: hidden;
           animation: panel-in 0.35s ease-out;
         }
-        .stat-card-accent {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-        }
-        .dashboard-panel {
-          animation: panel-in 0.4s ease-out;
-        }
-        @keyframes panel-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
         @media (prefers-reduced-motion: reduce) {
-          .request-card, .dashboard-panel { animation: none; }
+          .request-card { animation: none; }
         }
       `}</style>
     </div>

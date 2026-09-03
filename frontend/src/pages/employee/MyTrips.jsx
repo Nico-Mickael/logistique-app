@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Paper, Title, Badge, Loader, Center, Text, Group, Card, SimpleGrid, Stack, Flex, Button, Modal, NumberInput,
+  Paper, Badge, Text, Group, Card, SimpleGrid, Stack, Button, Modal, NumberInput,
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { DataTable } from 'mantine-datatable';
@@ -10,18 +10,16 @@ import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { notifySuccess, notifyError } from '../../utils/toast';
-import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor } from '../../utils/labels';
+import PageHeader from '../../components/PageHeader';
+import PageLoader from '../../components/PageLoader';
+import EmptyState from '../../components/EmptyState';
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent } from '../../utils/labels';
 
 function TripCard({ sortie, onReturn }) {
   const isMoto = sortie.Vehicle?.type === 'moto';
   return (
     <Card withBorder radius="lg" p="lg" className="trip-card">
-      <div className="stat-card-accent" style={{
-        background: sortie.status === 'planned' ? 'var(--mantine-color-gray-5)' :
-                     sortie.status === 'ongoing' ? 'var(--mantine-color-brand-6)' :
-                     sortie.status === 'pending_return' ? 'var(--mantine-color-orange-6)' :
-                     'var(--mantine-color-brandYellow-6)'
-      }} />
+      <div className="stat-card-accent" style={{ background: sortieStatusAccent[sortie.status] }} />
       <Group justify="space-between" mb="xs" wrap="nowrap">
         <Group gap="sm">
           <IconRoute size={20} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
@@ -167,7 +165,7 @@ function MyTrips() {
     }
   };
 
-  if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
+  if (loading) return <PageLoader />;
 
   const ongoing = sorties.filter((s) => s.status === 'ongoing');
   const pendingReturn = sorties.filter((s) => s.status === 'pending_return');
@@ -176,24 +174,10 @@ function MyTrips() {
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
-        <div>
-          <Title order={3}>Mes trajets</Title>
-          <Text size="sm" c="dimmed" mt={2}>
-            {sorties.length} trajet{sorties.length !== 1 ? 's' : ''} associé{sorties.length !== 1 ? 's' : ''} à vos demandes
-          </Text>
-        </div>
-      </Flex>
+      <PageHeader title="Mes trajets" subtitle={`${sorties.length} trajet${sorties.length !== 1 ? 's' : ''} associé${sorties.length !== 1 ? 's' : ''} à vos demandes`} />
 
       {sorties.length === 0 ? (
-        <Paper p="xl" radius="lg" withBorder>
-          <Center h={160}>
-            <Flex direction="column" align="center" gap={6}>
-              <IconRoute size={28} color="var(--mantine-color-gray-5)" />
-              <Text c="dimmed" size="sm">Aucun trajet associé à vos demandes</Text>
-            </Flex>
-          </Center>
-        </Paper>
+        <EmptyState icon={IconRoute} message="Aucun trajet associé à vos demandes" />
       ) : (
         <>
           {ongoing.length > 0 && (
@@ -292,22 +276,8 @@ function MyTrips() {
           overflow: hidden;
           animation: panel-in 0.35s ease-out;
         }
-        .stat-card-accent {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-        }
-        .dashboard-panel {
-          animation: panel-in 0.4s ease-out;
-        }
-        @keyframes panel-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
         @media (prefers-reduced-motion: reduce) {
-          .trip-card, .dashboard-panel { animation: none; }
+          .trip-card { animation: none; }
         }
       `}</style>
     </div>

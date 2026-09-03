@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
+  Paper, Badge, Center, Text, Group, Button, Modal,
   TextInput, Select, Stack, NumberInput, Card, SimpleGrid, Flex, SegmentedControl, Pagination,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
@@ -14,8 +14,10 @@ import { vehicleService } from '../../api/vehicleService';
 import { employeeService } from '../../api/employeeService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
+import PageHeader from '../../components/PageHeader';
+import PageLoader from '../../components/PageLoader';
 import { useNavigate } from 'react-router-dom';
-import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor } from '../../utils/labels';
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent } from '../../utils/labels';
 import { downloadCSV } from '../../utils/csv';
 
 const statusFilterOptions = [
@@ -26,16 +28,11 @@ const statusFilterOptions = [
   { label: 'Terminées', value: 'finished' },
 ];
 
-function SortieCard({ sortie, chauffeurs, onAssignDriver, onDepart, onSuggestions, onEdit, onDelete, onValidateReturn, onArrivee, actionLoading }) {
+function SortieCard({ sortie, chauffeurs, onAssignDriver, onDepart, onSuggestions, onDelete, onValidateReturn, onArrivee, actionLoading }) {
   const isMoto = sortie.Vehicle?.type === 'moto';
   return (
     <Card withBorder radius="lg" p="lg" className="sortie-card">
-      <div className="stat-card-accent" style={{
-        background: sortie.status === 'planned' ? 'var(--mantine-color-gray-5)' :
-                     sortie.status === 'ongoing' ? 'var(--mantine-color-brand-6)' :
-                     sortie.status === 'pending_return' ? 'var(--mantine-color-orange-6)' :
-                     'var(--mantine-color-brandYellow-6)'
-      }} />
+      <div className="stat-card-accent" style={{ background: sortieStatusAccent[sortie.status] }} />
       <Group justify="space-between" mb="xs" wrap="nowrap">
         <Text fw={600} size="md">{sortie.destination}</Text>
         <Badge color={statusColor[sortie.status]} variant="light">
@@ -210,12 +207,16 @@ function Sorties() {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
-  const fetchVehicles = async () => {
-    try { const { data } = await vehicleService.getAll(); setVehicles(data || []); } catch { /* ignore */ }
-    try { const { data } = await employeeService.listChauffeurs(); setChauffeurs(data || []); } catch { /* ignore */ }
-  };
+  const fetchVehicles = useCallback(async () => {
+    const [vehRes, chRes] = await Promise.allSettled([
+      vehicleService.getAll(),
+      employeeService.listChauffeurs(),
+    ]);
+    if (vehRes.status === 'fulfilled') setVehicles(vehRes.value.data || []);
+    if (chRes.status === 'fulfilled') setChauffeurs(chRes.value.data || []);
+  }, []);
 
-  useEffect(() => { fetchVehicles(); }, []);
+  useEffect(() => { fetchVehicles(); }, [fetchVehicles]);
 
   useEffect(() => {
     const t = setTimeout(() => { fetchSorties(); }, 250);
@@ -421,18 +422,11 @@ function Sorties() {
     },
   ];
 
-  if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
+  if (loading) return <PageLoader />;
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
-        <div>
-          <Title order={3}>Sorties</Title>
-          <Text size="sm" c="dimmed" mt={2}>
-            {total} sortie{total !== 1 ? 's' : ''}
-            {hasFilters ? ' (filtrées)' : ''}
-          </Text>
-        </div>
+      <PageHeader title="Sorties" subtitle={`${total} sortie${total !== 1 ? 's' : ''}${hasFilters ? ' (filtrées)' : ''}`}>
         <Group gap="xs">
           <SegmentedControl
             value={viewMode}
@@ -451,7 +445,7 @@ function Sorties() {
             Nouvelle sortie
           </Button>
         </Group>
-      </Flex>
+      </PageHeader>
 
       <Paper p="md" radius="lg" withBorder mb="md" className="filters-panel">
         <Group gap="sm" wrap="wrap" align="flex-end">
@@ -654,25 +648,8 @@ function Sorties() {
           overflow: hidden;
           animation: panel-in 0.35s ease-out;
         }
-        .stat-card-accent {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-        }
-        .dashboard-panel {
-          animation: panel-in 0.4s ease-out;
-        }
-        .filters-panel {
-          animation: panel-in 0.3s ease-out;
-        }
-        @keyframes panel-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
         @media (prefers-reduced-motion: reduce) {
-          .sortie-card, .dashboard-panel { animation: none; }
+          .sortie-card { animation: none; }
         }
       `}</style>
     </div>

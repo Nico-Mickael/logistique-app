@@ -3,7 +3,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { Employee, Session } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
-const { ALL_ROLES } = require('../utils/constants');
+const { ALL_ROLES, BCRYPT_ROUNDS } = require('../utils/constants');
+const { logAudit } = require('../services/auditService');
 
 const ACCESS_TOKEN_EXPIRY = '30m';
 const REFRESH_TOKEN_DAYS = 7;
@@ -77,7 +78,7 @@ exports.register = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Cet email est déjà utilisé' });
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const finalRole = ALL_ROLES.includes(role) ? role : 'employee';
 
   const employee = await Employee.create({
@@ -86,6 +87,8 @@ exports.register = asyncHandler(async (req, res) => {
     department,
     role: finalRole,
   });
+
+  await logAudit({ userId: req.user.id, action: 'register', entity: 'Employee', entityId: employee.id, newValue: { nom, prenom, email, role: finalRole }, req });
 
   res.status(201).json({
     id: employee.id,
@@ -111,6 +114,8 @@ exports.login = asyncHandler(async (req, res) => {
 
   const { session, refreshToken } = await createSession(employee, req);
   const accessToken = signAccessToken(employee, session.id);
+
+  await logAudit({ userId: employee.id, action: 'login', entity: 'Employee', entityId: employee.id, req });
 
   res.json({
     accessToken,
@@ -178,6 +183,8 @@ exports.logout = asyncHandler(async (req, res) => {
     );
   }
 
+  await logAudit({ userId: req.user?.id || null, action: 'logout', entity: 'Session', entityId: req.user?.sid || null, req });
+
   res.json({ message: 'Déconnexion réussie' });
 });
 
@@ -186,6 +193,7 @@ exports.logoutAll = asyncHandler(async (req, res) => {
     { revoked: true, revoked_at: new Date() },
     { where: { user_id: req.user.id, revoked: false } }
   );
+  await logAudit({ userId: req.user.id, action: 'logout_all', entity: 'Session', req });
   res.json({ message: 'Toutes les sessions ont été révoquées' });
 });
 
@@ -234,8 +242,10 @@ exports.revokeSession = asyncHandler(async (req, res) => {
   }
 
   session.revoked = true;
-  session.revoked_at = new Date();
-  await session.save();
+    session.revoked_at = new Date();
+    await session.save();
 
-  res.json({ message: 'Session révoquée' });
+    await logAudit({ userId: req.user.id, action: 'revoke_session', entity: 'Session', entityId: session.id, req });
+
+    res.json({ message: 'Session révoquée' });
 });

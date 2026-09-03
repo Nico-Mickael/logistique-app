@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
-  Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
-  TextInput, Select, NumberInput, Card, SimpleGrid, Stack, Flex, SegmentedControl,
+  Paper, Badge, Text, Group, Button, Modal,
+  TextInput, Select, NumberInput, Card, SimpleGrid, Stack, SegmentedControl,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { useDisclosure } from '@mantine/hooks';
@@ -12,7 +12,10 @@ import dayjs from '../../utils/date';
 import { vehicleService } from '../../api/vehicleService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
-import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor } from '../../utils/labels';
+import EmptyState from '../../components/EmptyState';
+import PageHeader from '../../components/PageHeader';
+import PageLoader from '../../components/PageLoader';
+import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor, VEHICLE_TYPE_OPTIONS } from '../../utils/labels';
 
 function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete, availableLoading }) {
   return (
@@ -182,15 +185,11 @@ function Vehicles() {
     } finally { setDeleting(false); }
   };
 
-  if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
+  if (loading) return <PageLoader />;
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
-        <div>
-          <Title order={3}>Véhicules</Title>
-          <Text size="sm" c="dimmed" mt={2}>{vehicles.length} véhicule{vehicles.length !== 1 ? 's' : ''} dans la flotte</Text>
-        </div>
+      <PageHeader title="Véhicules" subtitle={`${vehicles.length} véhicule${vehicles.length !== 1 ? 's' : ''} dans la flotte`}>
         <Group gap="xs">
           <SegmentedControl
             value={viewMode}
@@ -206,17 +205,10 @@ function Vehicles() {
             Ajouter un véhicule
           </Button>
         </Group>
-      </Flex>
+      </PageHeader>
 
       {vehicles.length === 0 ? (
-        <Paper p="xl" radius="lg" withBorder>
-          <Center h={160}>
-            <Flex direction="column" align="center" gap={6}>
-              <IconCar size={28} color="var(--mantine-color-gray-5)" />
-              <Text c="dimmed" size="sm">Aucun véhicule enregistré</Text>
-            </Flex>
-          </Center>
-        </Paper>
+        <EmptyState icon={IconCar} message="Aucun véhicule enregistré" />
       ) : (
         <>
           {viewMode === 'table' ? (
@@ -284,7 +276,7 @@ function Vehicles() {
       >
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
           <Select label="Type" placeholder="Choisir un type"
-            data={[{ value: 'moto', label: 'Moto' }, { value: 'voiture', label: 'Voiture' }, { value: 'minibus', label: 'Minibus' }]}
+            data={VEHICLE_TYPE_OPTIONS}
             value={type} onChange={setType} required radius="md" w="100%"
           />
           <NumberInput label="Capacité (personnes)" min={1} max={30} value={capacity}
@@ -319,7 +311,7 @@ function Vehicles() {
       >
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
           <Select label="Type" placeholder="Choisir un type"
-            data={[{ value: 'moto', label: 'Moto' }, { value: 'voiture', label: 'Voiture' }, { value: 'minibus', label: 'Minibus' }]}
+            data={VEHICLE_TYPE_OPTIONS}
             value={editType} onChange={setEditType} required radius="md" w="100%"
           />
           <NumberInput label="Capacité (personnes)" min={1} max={30} value={editCapacity}
@@ -349,22 +341,8 @@ function Vehicles() {
           overflow: hidden;
           animation: panel-in 0.35s ease-out;
         }
-        .stat-card-accent {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-        }
-        .dashboard-panel {
-          animation: panel-in 0.4s ease-out;
-        }
-        @keyframes panel-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
         @media (prefers-reduced-motion: reduce) {
-          .vehicle-card, .dashboard-panel { animation: none; }
+          .vehicle-card { animation: none; }
         }
       `}</style>
     </div>

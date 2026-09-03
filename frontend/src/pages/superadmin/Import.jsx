@@ -293,8 +293,6 @@ export default function Import() {
         .import-page { animation: fade-in 0.3s ease-out; max-width: 860px; margin: 0 auto; }
         .step-panel { animation: panel-in 0.4s ease-out; }
         select { font-family: inherit; }
-        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes panel-in { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
     </div>
   );

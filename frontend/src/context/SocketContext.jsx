@@ -32,16 +32,20 @@ export function SocketProvider({ children }) {
 
   const checkNotifications = useCallback(async () => {
     try {
-      const { data } = await notificationService.mine();
-      const unread = data.filter((n) => !n.is_read);
-      setUnreadCount(unread.length);
+      const [{ data: unread }, { data: notifPage }] = await Promise.all([
+        notificationService.unreadCount(),
+        notificationService.mine({ limit: 50 }),
+      ]);
+      const unreadNum = typeof unread?.count === 'number' ? unread.count : 0;
+      setUnreadCount(unreadNum);
 
+      const list = Array.isArray(notifPage) ? notifPage : notifPage?.data || [];
       if (lastIdRef.current === null) {
-        lastIdRef.current = data.length > 0 ? Math.max(...data.map((n) => n.id)) : 0;
+        lastIdRef.current = list.length > 0 ? Math.max(...list.map((n) => n.id)) : 0;
         return;
       }
 
-      const newNotifs = data.filter(
+      const newNotifs = list.filter(
         (n) => !n.is_read && n.id > lastIdRef.current
       );
       if (newNotifs.length > 0) {

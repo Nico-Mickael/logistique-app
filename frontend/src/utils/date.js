@@ -9,4 +9,9 @@ dayjs.extend(timezone);
 dayjs.locale('fr');
 dayjs.tz.setDefault('Indian/Antananarivo');
 
+export const yearOptions = (() => {
+  const currentYear = new Date().getFullYear();
+  return Array.from({ length: currentYear - 2023 }, (_, i) => String(currentYear - i));
+})();
+
 export default dayjs;

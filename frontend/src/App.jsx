@@ -17,6 +17,7 @@ import ValidateRequests from './pages/chief/ValidateRequests';
 import Sorties from './pages/chief/Sorties';
 import CreateSortie from './pages/chief/CreateSortie';
 import Vehicles from './pages/chief/Vehicles';
+import Maintenance from './pages/chief/Maintenance';
 import Planning from './pages/chief/Planning';
 import Reports from './pages/chief/Reports';
 import MyTrips from './pages/employee/MyTrips';
@@ -143,6 +144,16 @@ function App() {
                   <PrivateRoute allowedRoles={['logistics_chief', 'admin', 'superadmin']}>
                     <Layout>
                       <Planning />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/maintenance"
+                element={
+                  <PrivateRoute allowedRoles={['logistics_chief', 'admin', 'superadmin']}>
+                    <Layout>
+                      <Maintenance />
                     </Layout>
                   </PrivateRoute>
                 }

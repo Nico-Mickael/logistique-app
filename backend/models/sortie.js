@@ -27,7 +27,9 @@ module.exports = (sequelize, DataTypes) => {
     distance_km: DataTypes.INTEGER,
     return_km: DataTypes.INTEGER,
     returned_at: DataTypes.DATE,
-    departed_at: DataTypes.DATE
+    departed_at: DataTypes.DATE,
+    fuel_litres: DataTypes.DECIMAL(8, 2),
+    fuel_cost: DataTypes.DECIMAL(10, 2)
   }, {
     sequelize,
     modelName: 'Sortie',

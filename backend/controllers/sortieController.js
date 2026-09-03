@@ -6,6 +6,17 @@ const sortieService = require('../services/sortieService');
 const vehicleService = require('../services/vehicleService');
 const { createNotification, notifyChiefsDb } = require('./notificationController');
 const { notifyChiefs } = require('../services/socketService');
+const { logAudit } = require('../services/auditService');
+
+// Met à jour le kilométrage actuel d'un véhicule à partir du km d'arrivée.
+async function syncVehicleKm(vehicleId, arrivalKm) {
+  if (vehicleId == null || arrivalKm == null) return;
+  const vehicle = await Vehicle.findByPk(vehicleId);
+  if (vehicle && (vehicle.current_km == null || vehicle.current_km < arrivalKm)) {
+    vehicle.current_km = arrivalKm;
+    await vehicle.save();
+  }
+}
 
 // Notifie (une seule fois chacun) les employés liés à une sortie.
 const notifySortieEmployees = async (sortie, message, type) => {
@@ -45,6 +56,8 @@ exports.create = asyncHandler(async (req, res) => {
 
   vehicle.status = 'busy';
   await vehicle.save();
+
+  await logAudit({ userId: req.user.id, action: 'create', entity: 'Sortie', entityId: sortie.id, newValue: { vehicle_id, destination, departure_time, driver_name }, req });
 
   notifyChiefs('sortie_created', sortie);
   await notifyChiefsDb({
@@ -109,7 +122,7 @@ exports.addRequest = asyncHandler(async (req, res) => {
     });
   }
 
-  res.status(201).json({ message: 'Demande ajoutée à la sortie' });
+  res.status(201).json({ message: 'Demande ajoutée à la sortie', sortie_id: sortie.id, request_id });
 });
 
 // Changer le statut d'une sortie (planned → ongoing → pending_return → finished)
@@ -131,8 +144,11 @@ exports.updateStatus = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: `Transition "${sortie.status}" → "${status}" non autorisée` });
   }
 
+  const oldSortieStatus = sortie.status;
   sortie.status = status;
   await sortie.save();
+
+  await logAudit({ userId: req.user.id, action: `status_${status}`, entity: 'Sortie', entityId: sortie.id, oldValue: { status: oldSortieStatus }, newValue: { status }, req });
 
   // Libère le véhicule quand la sortie est terminée
   if (status === 'finished') {
@@ -145,6 +161,9 @@ exports.updateStatus = asyncHandler(async (req, res) => {
   } else if (status === 'finished') {
     await notifySortieEmployees(sortie, `La sortie vers ${sortie.destination} est terminée`, 'sortie_finished');
   }
+
+  // Tient les chefs informés en temps réel de l'évolution du statut
+  notifyChiefs('sortie_updated', sortie);
 
   res.json(sortie);
 });
@@ -215,6 +234,8 @@ exports.depart = asyncHandler(async (req, res) => {
   sortie.status = 'ongoing';
   await sortie.save();
 
+  await logAudit({ userId: req.user.id, action: 'depart', entity: 'Sortie', entityId: sortie.id, newValue: { departure_km }, req });
+
   // Synchronise les demandes liées : elles passent en cours
   await SortieRequest.update(
     { status: 'ongoing' },
@@ -246,14 +267,17 @@ exports.arrivee = asyncHandler(async (req, res) => {
   sortie.status = 'finished';
   await sortie.save();
 
+  await logAudit({ userId: req.user.id, action: 'arrivee', entity: 'Sortie', entityId: sortie.id, newValue: { arrival_km, distance_km: sortie.distance_km }, req });
+
   // Synchronise les demandes liées : elles sont terminées avec la sortie
   await SortieRequest.update(
     { status: 'finished' },
     { where: { sortie_id: sortie.id } }
   );
 
-  // Libérer le véhicule
+  // Libérer le véhicule + mettre à jour son kilométrage actuel
   await vehicleService.setAvailable(sortie.vehicle_id);
+  await syncVehicleKm(sortie.vehicle_id, arrival_km);
 
   await notifySortieEmployees(sortie, `La sortie vers ${sortie.destination} est terminée`, 'sortie_finished');
 
@@ -312,6 +336,8 @@ exports.remove = asyncHandler(async (req, res) => {
 
   await SortieRequest.destroy({ where: { sortie_id: sortie.id } });
   await sortie.destroy();
+
+  await logAudit({ userId: req.user.id, action: 'delete', entity: 'Sortie', entityId: sortie.id, oldValue: { destination: sortie.destination, status: sortie.status }, req });
 
   notifyChiefs('sortie_updated', { id: sortie.id, deleted: true });
   res.json({ message: 'Sortie supprimée' });
@@ -376,7 +402,7 @@ exports.employeeReturn = asyncHandler(async (req, res) => {
   }
 
   notifyChiefs('sortie_updated', sortie);
-  res.json({ link });
+  res.json(link);
 });
 
 // Admin : valider le retour et clôturer la sortie
@@ -397,6 +423,18 @@ exports.validateReturn = asyncHandler(async (req, res) => {
   await sortie.save();
 
   await vehicleService.setAvailable(sortie.vehicle_id);
+
+  // Pour une sortie "moto", le km le plus élevé renseigné à la remise définit
+  // le kilométrage actuel du véhicule.
+  const links = await SortieRequest.findAll({
+    where: { sortie_id: sortie.id },
+    attributes: ['return_km'],
+    raw: true,
+  });
+  const maxReturnKm = links.reduce((max, l) => Math.max(max, l.return_km || 0), 0);
+  await syncVehicleKm(sortie.vehicle_id, maxReturnKm > 0 ? maxReturnKm : null);
+
+  await logAudit({ userId: req.user.id, action: 'validate_return', entity: 'Sortie', entityId: sortie.id, req });
 
   // Notifier les employés liés à la sortie
   await notifySortieEmployees(

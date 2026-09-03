@@ -6,6 +6,7 @@ const { createNotification, notifyChiefsDb } = require('./notificationController
 const { notifyChiefs } = require('../services/socketService');
 const { autoCreateSortie } = require('../services/sortieService');
 const vehicleService = require('../services/vehicleService');
+const { logAudit } = require('../services/auditService');
 
 // Employé : créer une demande
 exports.create = asyncHandler(async (req, res) => {
@@ -53,6 +54,8 @@ exports.create = asyncHandler(async (req, res) => {
     type: 'new_request',
     excludeUserId: req.user.id,
   });
+
+  await logAudit({ userId: req.user.id, action: 'create', entity: 'Request', entityId: request.id, newValue: { destination, motif, date_souhaitee, nb_personnes, vehicle_id }, req });
 
   res.status(201).json(request);
 });
@@ -124,11 +127,14 @@ exports.updateStatus = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: `Impossible de passer de "${request.status}" à "${status}"` });
   }
 
+  const oldStatus = request.status;
   request.status = status;
   if (status === 'rescheduled' && new_date) {
     request.date_souhaitee = new_date;
   }
   await request.save();
+
+  await logAudit({ userId: req.user.id, action: `status_${status}`, entity: 'Request', entityId: request.id, oldValue: { status: oldStatus }, newValue: { status, date_souhaitee: request.date_souhaitee }, req });
 
   if (status === 'approved') {
     await autoCreateSortie(request);
@@ -154,12 +160,14 @@ exports.cancel = asyncHandler(async (req, res) => {
   if (request.employee_id !== req.user.id) {
     return res.status(403).json({ message: 'Action non autorisée' });
   }
-  if (!['pending', 'approved', 'rescheduled'].includes(request.status)) {
+  if (!ACTIVE_REQUEST_STATUSES.includes(request.status)) {
     return res.status(400).json({ message: 'Cette demande ne peut plus être annulée' });
   }
 
   const wasApproved = request.status === 'approved';
   const vehicleId = request.vehicle_id;
+
+  await logAudit({ userId: req.user.id, action: 'cancel', entity: 'Request', entityId: request.id, oldValue: { status: request.status }, newValue: { status: 'cancelled' }, req });
 
   await SortieRequest.destroy({ where: { request_id: request.id } });
 
@@ -197,6 +205,8 @@ exports.update = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Seules les demandes en attente peuvent être modifiées' });
   }
 
+  const oldData = { destination: request.destination, motif: request.motif, date_souhaitee: request.date_souhaitee, nb_personnes: request.nb_personnes, vehicle_id: request.vehicle_id };
+
   const { destination, motif, date_souhaitee, nb_personnes, vehicle_id } = req.body;
   if (destination !== undefined) request.destination = destination;
   if (motif !== undefined) request.motif = motif;
@@ -205,6 +215,9 @@ exports.update = asyncHandler(async (req, res) => {
   if (vehicle_id !== undefined) request.vehicle_id = vehicle_id;
 
   await request.save();
+
+  await logAudit({ userId: req.user.id, action: 'update', entity: 'Request', entityId: request.id, oldValue: oldData, newValue: { destination: request.destination, motif: request.motif, date_souhaitee: request.date_souhaitee, nb_personnes: request.nb_personnes, vehicle_id: request.vehicle_id }, req });
+
   res.json(request);
 });
 
@@ -221,8 +234,11 @@ exports.respondReschedule = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Cette demande n\'est pas en attente de réponse' });
   }
 
+  const oldStatus2 = request.status;
   request.status = accepted ? 'approved' : 'rejected';
   await request.save();
+
+  await logAudit({ userId: req.user.id, action: `reschedule_${accepted ? 'accepted' : 'refused'}`, entity: 'Request', entityId: request.id, oldValue: { status: oldStatus2 }, newValue: { status: request.status }, req });
 
   if (accepted) {
     await autoCreateSortie(request);
@@ -272,6 +288,8 @@ exports.remove = asyncHandler(async (req, res) => {
 
   await SortieRequest.destroy({ where: { request_id: request.id } });
   await request.destroy();
+
+  await logAudit({ userId: req.user.id, action: 'delete', entity: 'Request', entityId: request.id, oldValue: { destination: request.destination, status: request.status }, req });
 
   if (isOwner && !isChief) {
     await notifyChiefsDb({

@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
-  Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal, TextInput, Select, Flex, Stack, Card, SimpleGrid, Pagination, SegmentedControl,
+  Paper, Badge, Center, Text, Group, Button, Modal, TextInput, Select, Stack, Card, SimpleGrid, Pagination, SegmentedControl,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { IconPlus, IconEdit, IconTrash, IconUsers as IconUsersIcon, IconSearch } from '@tabler/icons-react';
+import PageHeader from '../../components/PageHeader';
+import PageLoader from '../../components/PageLoader';
+import EmptyState from '../../components/EmptyState';
 import { useDisclosure } from '@mantine/hooks';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import api from '../../api/axios';
@@ -172,15 +175,11 @@ export default function Users() {
     },
   ];
 
-  if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
+  if (loading) return <PageLoader />;
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
-        <div>
-          <Title order={3}>Gestion des utilisateurs</Title>
-          <Text size="sm" c="dimmed" mt={2}>{filteredUsers.length} utilisateur{filteredUsers.length !== 1 ? 's' : ''}</Text>
-        </div>
+      <PageHeader title="Gestion des utilisateurs" subtitle={`${filteredUsers.length} utilisateur${filteredUsers.length !== 1 ? 's' : ''}`}>
         <Group gap="sm" wrap="wrap">
           <SegmentedControl
             value={viewMode}
@@ -206,26 +205,12 @@ export default function Users() {
             Nouvel utilisateur
           </Button>
         </Group>
-      </Flex>
+      </PageHeader>
 
       {users.length === 0 ? (
-        <Paper p="xl" radius="lg" withBorder>
-          <Center h={160}>
-            <Flex direction="column" align="center" gap={6}>
-              <IconUsersIcon size={28} color="var(--mantine-color-gray-5)" />
-              <Text c="dimmed" size="sm">Aucun utilisateur</Text>
-            </Flex>
-          </Center>
-        </Paper>
+        <EmptyState icon={IconUsersIcon} message="Aucun utilisateur" />
       ) : filteredUsers.length === 0 ? (
-        <Paper p="xl" radius="lg" withBorder>
-          <Center h={160}>
-            <Flex direction="column" align="center" gap={6}>
-              <IconSearch size={28} color="var(--mantine-color-gray-5)" />
-              <Text c="dimmed" size="sm">Aucun résultat pour "{search}"</Text>
-            </Flex>
-          </Center>
-        </Paper>
+        <EmptyState icon={IconSearch} message={`Aucun résultat pour "${search}"`} />
       ) : (
         <>
           {viewMode === 'table' ? (
@@ -303,14 +288,11 @@ export default function Users() {
 
       <style>{`
         .page-content { animation: fade-in 0.3s ease-out; }
-        .dashboard-panel { animation: panel-in 0.4s ease-out; }
         .user-card {
           position: relative;
           overflow: hidden;
           animation: panel-in 0.35s ease-out;
         }
-        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes panel-in { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
     </div>
   );

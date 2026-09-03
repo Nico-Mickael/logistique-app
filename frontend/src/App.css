@@ -309,3 +309,33 @@
   gap: var(--mantine-spacing-sm);
   margin-top: var(--mantine-spacing-md);
 }
+
+/* ── Cartes & panneaux partagés (pages de liste) ── */
+.stat-card-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.dashboard-panel { animation: panel-in 0.4s ease-out; }
+.filters-panel { animation: panel-in 0.3s ease-out; }
+
+@keyframes panel-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-card-accent,
+  .dashboard-panel,
+  .filters-panel {
+    animation: none;
+  }
+}

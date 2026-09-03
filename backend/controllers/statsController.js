@@ -1,6 +1,7 @@
-const { Sortie, Request, Vehicle, SortieRequest } = require('../models');
+const { Sortie, Request, Vehicle, SortieRequest, Maintenance } = require('../models');
 const { Op, fn, col } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
+const { MAINTENANCE_HORIZON_MS } = require('../utils/constants');
 
 const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
@@ -149,4 +150,61 @@ exports.kilometrage = asyncHandler(async (req, res) => {
   });
 
   res.json(sorties);
+});
+
+// GET /api/stats/fleet — santé de la flotte (pour le dashboard chef)
+exports.fleet = asyncHandler(async (req, res) => {
+  const [vehicles, sortiesFinished, dueList, fuelStats] = await Promise.all([
+    Vehicle.findAll({ raw: true }),
+    Sortie.findAll({
+      where: { status: 'finished', fuel_cost: { [Op.ne]: null } },
+      attributes: ['fuel_cost', 'distance_km'],
+      raw: true,
+    }),
+    Maintenance.findAll({
+      where: { status: { [Op.ne]: 'done' } },
+      attributes: ['id', 'type', 'next_due_km', 'next_due_date', 'status'],
+      include: [{ model: Vehicle, as: 'vehicle', attributes: ['id', 'type', 'current_km'] }],
+      raw: true,
+      nest: true,
+    }),
+    Sortie.findAll({
+      where: { status: 'finished' },
+      attributes: [
+        [fn('SUM', col('fuel_cost')), 'totalFuelCost'],
+        [fn('SUM', col('fuel_litres')), 'totalFuelLitres'],
+        [fn('SUM', col('distance_km')), 'totalDistanceKm'],
+      ],
+      raw: true,
+    }),
+  ]);
+
+  const byStatus = {};
+  for (const v of vehicles) byStatus[v.status] = (byStatus[v.status] || 0) + 1;
+
+  const now = new Date();
+  const horizon = new Date(now.getTime() + MAINTENANCE_HORIZON_MS);
+  const maintenanceDue = dueList.filter((m) => {
+    const kmDue = m.next_due_km != null && m.vehicle?.current_km != null && m.vehicle.current_km >= m.next_due_km;
+    const dateDue = m.next_due_date != null && new Date(m.next_due_date) <= horizon;
+    return kmDue || dateDue;
+  });
+
+  const totalFuelCost = Number(fuelStats[0]?.totalFuelCost || 0);
+  const totalFuelLitres = Number(fuelStats[0]?.totalFuelLitres || 0);
+  const totalDistanceKm = Number(fuelStats[0]?.totalDistanceKm || 0);
+
+  res.json({
+    vehicles: { total: vehicles.length, byStatus },
+    maintenanceDue: maintenanceDue.map((m) => ({
+      id: m.id, type: m.type, status: m.status,
+      next_due_km: m.next_due_km, next_due_date: m.next_due_date,
+      vehicle: m.vehicle,
+    })),
+    fuel: {
+      totalCost: totalFuelCost,
+      totalLitres: totalFuelLitres,
+      costPerKm: totalDistanceKm > 0 ? totalFuelCost / totalDistanceKm : 0,
+    },
+  });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Paper, Title, Text, Group, Loader, Center, Badge, SimpleGrid, Flex,
+  Paper, Text, Group, Center, Badge, SimpleGrid,
   Select, ThemeIcon,
 } from '@mantine/core';
 import { BarChart, PieChart } from '@mantine/charts';
@@ -10,36 +10,14 @@ import {
 } from '@tabler/icons-react';
 import { statsService } from '../../api/statsService';
 import { notifyError } from '../../utils/toast';
-import { requestStatusLabel } from '../../utils/labels';
-
-const PIE_COLORS = {
-  pending: 'gray.5',
-  approved: 'brand.6',
-  rescheduled: 'brandYellow',
-  rejected: 'red.6',
-  cancelled: 'gray.3',
-};
-
-function StatCard({ label, value, icon: Icon }) {
-  return (
-    <Paper p="md" radius="lg" withBorder>
-      <Group justify="space-between" wrap="nowrap" align="flex-start">
-        <div>
-          <Text size="xs" fw={500} tt="uppercase" c="dimmed" mb={4}>{label}</Text>
-          <Text fz={22} fw={700} lh={1}>{value}</Text>
-        </div>
-        <ThemeIcon variant="light" color="brand" size={32} radius={10}>
-          <Icon size={18} />
-        </ThemeIcon>
-      </Group>
-    </Paper>
-  );
-}
+import { requestStatusLabel, PIE_COLORS } from '../../utils/labels';
+import StatCard from '../../components/StatCard';
+import PageHeader from '../../components/PageHeader';
+import PageLoader from '../../components/PageLoader';
+import { yearOptions } from '../../utils/date';
 
 export default function MyReports() {
-  const currentYear = new Date().getFullYear();
-  const yearOptions = Array.from({ length: currentYear - 2023 }, (_, i) => String(currentYear - i));
-  const [year, setYear] = useState(String(currentYear));
+  const [year, setYear] = useState(String(new Date().getFullYear()));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -64,17 +42,13 @@ export default function MyReports() {
 
   const totalRequests = data ? Object.values(data.requests).reduce((a, b) => a + b, 0) : 0;
 
-  if (loading && !data) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
+  if (loading && !data) return <PageLoader />;
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
-        <div>
-          <Title order={3}>Mes rapports</Title>
-          <Text size="sm" c="dimmed" mt={2}>Votre activité personnelle de l'année {year}</Text>
-        </div>
+      <PageHeader title="Mes rapports" subtitle={`Votre activité personnelle de l'année ${year}`}>
         <Select data={yearOptions} value={year} onChange={setYear} size="xs" w={110} />
-      </Flex>
+      </PageHeader>
 
       {data && (
         <>

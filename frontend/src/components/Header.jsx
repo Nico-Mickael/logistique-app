@@ -4,7 +4,7 @@ import {
   Button, Loader, Center, ScrollArea, Burger, Avatar, Tooltip, Divider,
   useMantineColorScheme,
 } from '@mantine/core';
-import { IconBell, IconLogout } from '@tabler/icons-react';
+import { IconBell, IconLogout, IconX } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -27,8 +27,8 @@ function Header({ opened: navOpened, onToggle }) {
 
   const fetchNotifications = async () => {
     try {
-      const { data } = await notificationService.mine();
-      setNotifications(data);
+      const { data } = await notificationService.mine({ limit: 50 });
+      setNotifications(Array.isArray(data) ? data : data?.data || []);
     } catch {
       // silent
     } finally {
@@ -59,6 +59,16 @@ function Header({ opened: navOpened, onToggle }) {
     try {
       await notificationService.markAllRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      refreshUnreadCount();
+    } catch {
+      // silent
+    }
+  };
+
+  const handleDeleteNotif = async (id) => {
+    try {
+      await notificationService.remove(id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
       refreshUnreadCount();
     } catch {
       // silent
@@ -132,18 +142,31 @@ function Header({ opened: navOpened, onToggle }) {
               <ScrollArea.Autosize mah={320}>
                 <Stack gap={2}>
                   {notifications.map((n) => (
-                    <UnstyledButton
-                      key={n.id}
-                      p="sm"
-                      className="notif-item"
-                      data-unread={!n.is_read}
-                      onClick={() => !n.is_read && handleMarkAsRead(n.id)}
-                    >
-                      <Text size="sm" fw={n.is_read ? 400 : 500}>{n.message}</Text>
-                      <Text size="xs" c="dimmed" mt={2}>
-                        {new Date(n.createdAt).toLocaleString('fr-FR')}
-                      </Text>
-                    </UnstyledButton>
+                    <div key={n.id} style={{ position: 'relative' }}>
+                      <UnstyledButton
+                        w="100%"
+                        p="sm"
+                        pr={34}
+                        className="notif-item"
+                        data-unread={!n.is_read}
+                        onClick={() => !n.is_read && handleMarkAsRead(n.id)}
+                      >
+                        <Text size="sm" fw={n.is_read ? 400 : 500}>{n.message}</Text>
+                        <Text size="xs" c="dimmed" mt={2}>
+                          {new Date(n.createdAt).toLocaleString('fr-FR')}
+                        </Text>
+                      </UnstyledButton>
+                      <ActionIcon
+                        size="sm"
+                        variant="transparent"
+                        color="dimmed"
+                        aria-label="Supprimer la notification"
+                        style={{ position: 'absolute', top: 6, right: 4 }}
+                        onClick={() => handleDeleteNotif(n.id)}
+                      >
+                        <IconX size={14} />
+                      </ActionIcon>
+                    </div>
                   ))}
                 </Stack>
               </ScrollArea.Autosize>

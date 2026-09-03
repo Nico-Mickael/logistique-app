@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { CHIEF_ROLES } = require('../utils/constants');
 
 let io;
 
@@ -30,7 +31,7 @@ function setupSocket(server) {
 
       socket.join(`user:${decoded.id}`);
 
-      if (decoded.role === 'logistics_chief' || decoded.role === 'admin' || decoded.role === 'superadmin') {
+      if (CHIEF_ROLES.includes(decoded.role)) {
         socket.join('chiefs');
       }
 

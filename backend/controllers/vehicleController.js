@@ -1,7 +1,8 @@
 const { Vehicle, Request, Employee, Sortie } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
-const { VEHICLE_STATUSES } = require('../utils/constants');
+const { VEHICLE_STATUSES, ACTIVE_REQUEST_STATUSES } = require('../utils/constants');
 const { notifyChiefsDb } = require('./notificationController');
+const { logAudit } = require('../services/auditService');
 
 exports.getAll = asyncHandler(async (req, res) => {
   const vehicles = await Vehicle.findAll();
@@ -16,6 +17,9 @@ exports.getAvailable = asyncHandler(async (req, res) => {
 exports.create = asyncHandler(async (req, res) => {
   const { type, capacity } = req.body;
   const vehicle = await Vehicle.create({ type, capacity, status: 'available' });
+
+  await logAudit({ userId: req.user.id, action: 'create', entity: 'Vehicle', entityId: vehicle.id, newValue: { type, capacity }, req });
+
   res.status(201).json(vehicle);
 });
 
@@ -23,7 +27,7 @@ exports.getOccupancy = asyncHandler(async (req, res) => {
   const vehicles = await Vehicle.findAll();
 
   const allRequests = await Request.findAll({
-    where: { status: ['pending', 'approved', 'rescheduled'] },
+    where: { status: ACTIVE_REQUEST_STATUSES },
     include: [
       { model: Employee, attributes: ['nom', 'prenom', 'department'] },
       { model: Sortie, attributes: ['id', 'status'], through: { attributes: [] } },
@@ -72,6 +76,8 @@ exports.update = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: 'Véhicule introuvable' });
   }
 
+  const oldData = { type: vehicle.type, capacity: vehicle.capacity, status: vehicle.status, maintenance_until: vehicle.maintenance_until };
+
   if (type) vehicle.type = type;
   if (capacity) vehicle.capacity = capacity;
   const previousStatus = vehicle.status;
@@ -85,6 +91,8 @@ exports.update = asyncHandler(async (req, res) => {
   if (maintenance_until !== undefined) vehicle.maintenance_until = maintenance_until;
 
   await vehicle.save();
+
+  await logAudit({ userId: req.user.id, action: 'update', entity: 'Vehicle', entityId: vehicle.id, oldValue: oldData, newValue: { type: vehicle.type, capacity: vehicle.capacity, status: vehicle.status, maintenance_until: vehicle.maintenance_until }, req });
 
   // Alerte les chefs quand un véhicule devient indisponible (panne / maintenance)
   if (status && status !== previousStatus && ['broken', 'maintenance'].includes(status)) {
@@ -117,5 +125,8 @@ exports.remove = asyncHandler(async (req, res) => {
   }
 
   await vehicle.destroy();
+
+  await logAudit({ userId: req.user.id, action: 'delete', entity: 'Vehicle', entityId: vehicle.id, oldValue: { type: vehicle.type, capacity: vehicle.capacity }, req });
+
   res.json({ message: 'Véhicule supprimé' });
 });

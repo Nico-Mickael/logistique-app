@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  Paper, Title, Text, Group, Loader, Center, Badge, Stack, Card, Flex,
+  Paper, Text, Group, Center, Badge, Stack, Card, Flex,
   Button, Select, SimpleGrid, Tooltip, Modal, NumberInput,
 } from '@mantine/core';
 import { Calendar } from '@mantine/dates';
@@ -13,13 +13,13 @@ import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import VehicleIcon from '../../components/VehicleIcon';
-import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor } from '../../utils/labels';
+import PageHeader from '../../components/PageHeader';
+import PageLoader from '../../components/PageLoader';
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, VEHICLE_TYPE_OPTIONS } from '../../utils/labels';
 
 const vehicleTypeOptions = [
   { value: 'all', label: 'Tous les véhicules' },
-  { value: 'moto', label: 'Moto' },
-  { value: 'voiture', label: 'Voiture' },
-  { value: 'minibus', label: 'Minibus' },
+  ...VEHICLE_TYPE_OPTIONS,
 ];
 
 function Planning() {
@@ -155,7 +155,7 @@ function Planning() {
     );
   }, [sortiesByDate]);
 
-  if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
+  if (loading) return <PageLoader />;
 
   const actionModalTitle = actionType === 'depart' ? 'Confirmer le départ'
     : actionType === 'arrivee' ? 'Confirmer l\'arrivée'
@@ -163,12 +163,11 @@ function Planning() {
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="center" mb="lg">
-        <Title order={3}>Planning des sorties</Title>
+      <PageHeader title="Planning des sorties">
         <Button variant="outline" color="brand" size="sm" onClick={goToToday}>
           Aujourd'hui
         </Button>
-      </Flex>
+      </PageHeader>
 
       <Flex gap="md" mb="md" wrap="wrap">
         <Select

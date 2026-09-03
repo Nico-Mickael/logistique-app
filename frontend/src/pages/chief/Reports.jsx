@@ -1,58 +1,42 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Paper, Title, Text, Group, Loader, Center, Badge, SimpleGrid, Flex,
-  Button, Select, ThemeIcon,
+  Paper, Text, Group, Center, Badge, SimpleGrid,
+  Button, Select, ThemeIcon, Menu,
 } from '@mantine/core';
 import { BarChart, PieChart } from '@mantine/charts';
 import { DataTable } from 'mantine-datatable';
 import {
   IconFileText, IconRoute, IconMapPin, IconCheck, IconX, IconDownload,
-  IconReportAnalytics, IconGauge, IconClock,
+  IconReportAnalytics, IconGauge, IconClock, IconCar, IconTool, IconGasStation,
+  IconBuilding,
 } from '@tabler/icons-react';
 import dayjs from '../../utils/date';
+import { yearOptions } from '../../utils/date';
 import { statsService } from '../../api/statsService';
 import { vehicleService } from '../../api/vehicleService';
+import { exportService } from '../../api/exportService';
 import { notifyError } from '../../utils/toast';
 import { downloadCSV } from '../../utils/csv';
-import { requestStatusLabel } from '../../utils/labels';
-
-const PIE_COLORS = {
-  pending: 'gray.5',
-  approved: 'brand.6',
-  rescheduled: 'brandYellow',
-  rejected: 'red.6',
-  cancelled: 'gray.3',
-};
-
-function StatCard({ label, value, icon: Icon }) {
-  return (
-    <Paper p="md" radius="lg" withBorder>
-      <Group justify="space-between" wrap="nowrap" align="flex-start">
-        <div>
-          <Text size="xs" fw={500} tt="uppercase" c="dimmed" mb={4}>{label}</Text>
-          <Text fz={22} fw={700} lh={1}>{value}</Text>
-        </div>
-        <ThemeIcon variant="light" color="brand" size={32} radius={10}>
-          <Icon size={18} />
-        </ThemeIcon>
-      </Group>
-    </Paper>
-  );
-}
+import { requestStatusLabel, PIE_COLORS } from '../../utils/labels';
+import StatCard from '../../components/StatCard';
+import PageHeader from '../../components/PageHeader';
+import PageLoader from '../../components/PageLoader';
 
 export default function Reports() {
-  const currentYear = new Date().getFullYear();
-  const yearOptions = Array.from({ length: currentYear - 2023 }, (_, i) => String(currentYear - i));
-  const [year, setYear] = useState(String(currentYear));
+  const [year, setYear] = useState(String(new Date().getFullYear()));
   const [overview, setOverview] = useState(null);
   const [kmRows, setKmRows] = useState([]);
   const [vehicles, setVehicles] = useState([]);
+  const [fleet, setFleet] = useState(null);
   const [vehicleFilter, setVehicleFilter] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     vehicleService.getAll()
       .then(({ data }) => setVehicles(data || []))
+      .catch(() => {});
+    statsService.fleet()
+      .then(({ data }) => setFleet(data))
       .catch(() => {});
   }, []);
 
@@ -99,22 +83,43 @@ export default function Reports() {
     );
   };
 
-  if (loading && !overview) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
+  const handleExport = (fn) => {
+    fn().catch(() => notifyError("Échec de l'export"));
+  };
+
+  if (loading && !overview) return <PageLoader />;
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
-        <div>
-          <Title order={3}>Rapports & statistiques</Title>
-          <Text size="sm" c="dimmed" mt={2}>Activité de l'année {year}</Text>
-        </div>
+      <PageHeader title="Rapports & statistiques" subtitle={`Activité de l'année ${year}`}>
         <Group gap="sm">
           <Select data={yearOptions} value={year} onChange={setYear} size="xs" w={110} />
-          <Button variant="subtle" color="gray" leftSection={<IconDownload size={16} />} onClick={exportKmCSV} size="sm">
-            Export CSV
-          </Button>
+          <Menu shadow="lg" width={230} position="bottom-end">
+            <Menu.Target>
+              <Button variant="subtle" color="gray" leftSection={<IconDownload size={16} />} size="sm">
+                Exporter
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>Retours Excel (.xlsx)</Menu.Label>
+              <Menu.Item leftSection={<IconBuilding size={16} />} onClick={() => handleExport(() => exportService.fleetReport('xlsx'))}>
+                Rapport flotte
+              </Menu.Item>
+              <Menu.Item leftSection={<IconRoute size={16} />} onClick={() => handleExport(() => exportService.sortiesReport({ status: 'finished' }, 'xlsx'))}>
+                Rapport sorties
+              </Menu.Item>
+              <Menu.Item leftSection={<IconTool size={16} />} onClick={() => handleExport(() => exportService.maintenanceReport('xlsx'))}>
+                Rapport maintenance
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Label>CSV (Excel)</Menu.Label>
+              <Menu.Item leftSection={<IconCar size={16} />} onClick={exportKmCSV}>
+                Kilométrage ({year})
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         </Group>
-      </Flex>
+      </PageHeader>
 
       {overview && (
         <>
@@ -125,6 +130,16 @@ export default function Reports() {
             <StatCard label="Refusées" value={overview.requests.rejected || 0} icon={IconX} />
             <StatCard label="Km parcourus" value={overview.totalKm.toLocaleString('fr-FR')} icon={IconGauge} />
           </SimpleGrid>
+
+          {fleet && (
+            <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} mb="xl" spacing="md">
+              <StatCard label="Véhicules" value={fleet.vehicles?.total ?? '—'} icon={IconCar} />
+              <StatCard label="Disponibles" value={fleet.vehicles?.byStatus?.available ?? 0} icon={IconCar} />
+              <StatCard label="En maintenance" value={(fleet.vehicles?.byStatus?.maintenance ?? 0) + (fleet.vehicles?.byStatus?.broken ?? 0)} icon={IconTool} />
+              <StatCard label="Interventions à prévoir" value={fleet.maintenanceDue?.length ?? 0} icon={IconTool} />
+              <StatCard label="Coût carburant" value={`${Number(fleet.fuel?.totalCost ?? 0).toLocaleString('fr-FR')} Ar`} icon={IconGasStation} />
+            </SimpleGrid>
+          )}
 
           <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" mb="md">
             <Paper p="lg" radius="lg" withBorder>

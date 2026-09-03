@@ -43,3 +43,24 @@ export const vehicleStatusColor = {
   maintenance: 'red',
   broken: 'red',
 };
+
+export const PIE_COLORS = {
+  pending: 'gray.5',
+  approved: 'brand.6',
+  rescheduled: 'brandYellow',
+  rejected: 'red.6',
+  cancelled: 'gray.3',
+};
+
+export const VEHICLE_TYPE_OPTIONS = [
+  { value: 'moto', label: 'Moto' },
+  { value: 'voiture', label: 'Voiture' },
+  { value: 'minibus', label: 'Minibus' },
+];
+
+export const sortieStatusAccent = {
+  planned: 'var(--mantine-color-gray-5)',
+  ongoing: 'var(--mantine-color-brand-6)',
+  pending_return: 'var(--mantine-color-orange-6)',
+  finished: 'var(--mantine-color-brandYellow-6)',
+};

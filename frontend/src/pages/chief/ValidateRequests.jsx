@@ -1,16 +1,18 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Paper, Title, Badge, Loader, Center, Text, Group, Button, Modal,
+  Paper, Badge, Center, Text, Group, Button, Modal,
   TextInput, Stack, Flex, Select, Card, SimpleGrid, Pagination, SegmentedControl,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
-import { IconCheck, IconX, IconCalendar, IconInbox, IconSearch, IconDownload, IconX as IconClear, IconEye, IconTrash } from '@tabler/icons-react';
+import { IconCheck, IconX, IconCalendar, IconInbox, IconSearch, IconDownload, IconEye, IconTrash } from '@tabler/icons-react';
 import dayjs from '../../utils/date';
 import { requestService } from '../../api/requestService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
+import PageHeader from '../../components/PageHeader';
+import PageLoader from '../../components/PageLoader';
 import { requestStatusLabel as statusLabel, requestStatusColor as statusColor } from '../../utils/labels';
 import { downloadCSV } from '../../utils/csv';
 
@@ -107,7 +109,6 @@ function ValidateRequests() {
     return () => clearTimeout(t);
   }, [fetchRequests]);
 
-  const applyFilters = () => { setPage(1); };
   const clearFilters = () => {
     setStatusFilter(''); setDestinationFilter(''); setDateFrom(null); setDateTo(null);
     setPage(1);
@@ -226,15 +227,11 @@ function ValidateRequests() {
     },
   ];
 
-  if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
+  if (loading) return <PageLoader />;
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
-        <div>
-          <Title order={3}>Demandes à valider</Title>
-          <Text size="sm" c="dimmed" mt={2}>{total} demande{total !== 1 ? 's' : ''} au total</Text>
-        </div>
+      <PageHeader title="Demandes à valider" subtitle={`${total} demande${total !== 1 ? 's' : ''} au total`}>
         <Group gap="xs">
           <SegmentedControl
             value={viewMode}
@@ -250,7 +247,7 @@ function ValidateRequests() {
             Export CSV
           </Button>
         </Group>
-      </Flex>
+      </PageHeader>
 
       <Paper p="md" radius="lg" withBorder mb="md" className="filters-panel">
         <Group gap="sm" wrap="wrap" align="flex-end">
@@ -260,9 +257,8 @@ function ValidateRequests() {
             value={destinationFilter} onChange={(e) => { setDestinationFilter(e.currentTarget.value); setPage(1); }} size="xs" w={{ base: '100%', sm: 180 }} />
           <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
           <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
-          <Button color="brand" size="xs" onClick={applyFilters}>Filtrer</Button>
           {hasFilters && (
-            <Button variant="subtle" color="gray" size="xs" leftSection={<IconClear size={14} />} onClick={clearFilters}>
+            <Button variant="subtle" color="gray" size="xs" leftSection={<IconX size={14} />} onClick={clearFilters}>
               Effacer
             </Button>
           )}
@@ -412,7 +408,6 @@ function ValidateRequests() {
       />
 
       <style>{`
-        .page-content {  }
         .validate-request-card {
           position: relative;
           overflow: hidden;
@@ -423,25 +418,8 @@ function ValidateRequests() {
           overflow: hidden;
           animation: panel-in 0.35s ease-out;
         }
-        .stat-card-accent {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-        }
-        .dashboard-panel {
-          animation: panel-in 0.4s ease-out;
-        }
-        .filters-panel {
-          animation: panel-in 0.3s ease-out;
-        }
-        @keyframes panel-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
         @media (prefers-reduced-motion: reduce) {
-          .request-card, .dashboard-panel { animation: none; }
+          .request-card { animation: none; }
         }
       `}</style>
     </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
-  Paper, Title, Badge, Loader, Center, Text, Group, Card, SimpleGrid,
-  Stack, Flex, Button, Modal, NumberInput, Avatar, Divider,
+  Badge, Text, Group, Card, SimpleGrid,
+  Stack, Button, Modal, NumberInput, Avatar, Divider,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconRoute, IconClock, IconGauge, IconPlayerPlay, IconFlag, IconCar, IconCalendarEvent } from '@tabler/icons-react';
@@ -9,17 +9,15 @@ import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { notifySuccess, notifyError } from '../../utils/toast';
-import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor } from '../../utils/labels';
+import PageHeader from '../../components/PageHeader';
+import PageLoader from '../../components/PageLoader';
+import EmptyState from '../../components/EmptyState';
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent } from '../../utils/labels';
 
 function DriverCard({ sortie, onStart, onArrivee, actionLoading }) {
   return (
     <Card withBorder radius="lg" p="lg" className="driver-card">
-      <div className="stat-card-accent" style={{
-        background: sortie.status === 'planned' ? 'var(--mantine-color-gray-5)' :
-                     sortie.status === 'ongoing' ? 'var(--mantine-color-brand-6)' :
-                     sortie.status === 'pending_return' ? 'var(--mantine-color-orange-6)' :
-                     'var(--mantine-color-brandYellow-6)'
-      }} />
+      <div className="stat-card-accent" style={{ background: sortieStatusAccent[sortie.status] }} />
       <Group justify="space-between" mb="sm" wrap="nowrap">
         <Group gap="sm">
           <IconRoute size={20} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
@@ -167,7 +165,7 @@ function DriverSorties() {
     }
   };
 
-  if (loading) return <Center h={300}><Loader color="brand" size="lg" /></Center>;
+  if (loading) return <PageLoader />;
 
   const planned = sorties.filter((s) => s.status === 'planned');
   const ongoing = sorties.filter((s) => s.status === 'ongoing' || s.status === 'pending_return');
@@ -197,24 +195,10 @@ function DriverSorties() {
 
   return (
     <div className="page-content">
-      <Flex justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
-        <div>
-          <Title order={3}>Mes sorties</Title>
-          <Text size="sm" c="dimmed" mt={2}>
-            {sorties.length} sortie{sorties.length !== 1 ? 's' : ''} affectée{sorties.length !== 1 ? 's' : ''} à vous en tant que chauffeur
-          </Text>
-        </div>
-      </Flex>
+      <PageHeader title="Mes sorties" subtitle={`${sorties.length} sortie${sorties.length !== 1 ? 's' : ''} affectée${sorties.length !== 1 ? 's' : ''} à vous en tant que chauffeur`} />
 
       {sorties.length === 0 ? (
-        <Paper p="xl" radius="lg" withBorder>
-          <Center h={160}>
-            <Flex direction="column" align="center" gap={6}>
-              <IconCar size={28} color="var(--mantine-color-gray-5)" />
-              <Text c="dimmed" size="sm">Aucune sortie ne vous est affectée pour le moment</Text>
-            </Flex>
-          </Center>
-        </Paper>
+        <EmptyState icon={IconCar} message="Aucune sortie ne vous est affectée pour le moment" />
       ) : (
         <>
           {planned.length > 0 && renderGroup('Planifiées', 'dimmed', planned)}
@@ -281,17 +265,6 @@ function DriverSorties() {
           position: relative;
           overflow: hidden;
           animation: panel-in 0.35s ease-out;
-        }
-        .stat-card-accent {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-        }
-        @keyframes panel-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
         }
         @media (prefers-reduced-motion: reduce) {
           .driver-card { animation: none; }

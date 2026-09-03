@@ -1,13 +1,39 @@
-const { Request, SortieRequest, Sortie, Employee, Vehicle } = require('../models');
 const { Op } = require('sequelize');
-const { notifyChiefs } = require('./socketService');
+const { ASSIGNABLE_TO_SORTIE_STATUSES } = require('../utils/constants');
 
 // Critère de regroupement du cahier des charges : écart horaire ≤ 30 min
 const COMPAT_WINDOW_MS = 30 * 60 * 1000;
 
+// Dépendances injectables (modèles + socket) par défaut. Permet de tester
+// le service en isolation en injectant des mocks (voir test/sortieService.test.js).
+function defaultDeps() {
+  return {
+    models: require('../models'),
+    notifyChiefs: require('./socketService').notifyChiefs,
+  };
+}
+
+let _deps = null;
+function getDeps() {
+  if (!_deps) _deps = defaultDeps();
+  return _deps;
+}
+
+// Réservé aux tests : remplace les dépendances du service.
+function __setDeps(deps) {
+  _deps = deps;
+}
+
+function __resetDeps() {
+  _deps = null;
+}
+
 // Trouve les demandes compatibles avec une sortie (même destination,
 // écart horaire ≤ 30 min, capacité respectée)
 exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, departureTime) => {
+  const { models } = getDeps();
+  const { Request, SortieRequest, Employee } = models;
+
   const linkedRequestIds = (await SortieRequest.findAll({ attributes: ['request_id'] })).map((sr) => sr.request_id);
 
   const departure = departureTime ? new Date(departureTime) : null;
@@ -15,7 +41,7 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, 
   const candidates = await Request.findAll({
     where: {
       destination: { [Op.iLike]: destination },
-      status: { [Op.in]: ['pending', 'approved'] },
+      status: { [Op.in]: ASSIGNABLE_TO_SORTIE_STATUSES },
       id: { [Op.notIn]: linkedRequestIds },
       ...(departure && !isNaN(departure.getTime())
         ? {
@@ -56,6 +82,9 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, 
  * - sinon crée la sortie, lie la demande et occupe le véhicule
  */
 exports.autoCreateSortie = async (request) => {
+  const { models, notifyChiefs } = getDeps();
+  const { Request, SortieRequest, Sortie, Employee, Vehicle } = models;
+
   if (!request.vehicle_id) return;
 
   const emp = await Employee.findByPk(request.employee_id);
@@ -126,3 +155,8 @@ exports.autoCreateSortie = async (request) => {
 
   notifyChiefs('sortie_created', sortie);
 };
+
+// Helpers de test (non utilisés en production)
+module.exports.__setDeps = __setDeps;
+module.exports.__resetDeps = __resetDeps;
+module.exports.COMPAT_WINDOW_MS = COMPAT_WINDOW_MS;

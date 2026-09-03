@@ -1,7 +1,8 @@
 const bcrypt = require('bcrypt');
 const { Employee, Request, Notification, SortieRequest } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
-const { ASSIGNABLE_ROLES, ALL_ROLES } = require('../utils/constants');
+const { ASSIGNABLE_ROLES, ALL_ROLES, BCRYPT_ROUNDS } = require('../utils/constants');
+const { logAudit } = require('../services/auditService');
 
 exports.list = asyncHandler(async (req, res) => {
   const employees = await Employee.findAll({
@@ -37,7 +38,7 @@ exports.create = asyncHandler(async (req, res) => {
   const existing = await Employee.findOne({ where: { email } });
   if (existing) return res.status(400).json({ message: 'Cet email est déjà utilisé' });
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const finalRole = ASSIGNABLE_ROLES.includes(role) ? role : 'employee';
 
   const employee = await Employee.create({
@@ -46,6 +47,8 @@ exports.create = asyncHandler(async (req, res) => {
     department,
     role: finalRole,
   });
+
+  await logAudit({ userId: req.user.id, action: 'create', entity: 'Employee', entityId: employee.id, newValue: { nom, prenom, email, department, role: finalRole }, req });
 
   res.status(201).json({
     id: employee.id,
@@ -63,6 +66,8 @@ exports.update = asyncHandler(async (req, res) => {
 
   if (!employee) return res.status(404).json({ message: 'Utilisateur introuvable' });
 
+  const oldData = { nom: employee.nom, prenom: employee.prenom, email: employee.email, department: employee.department, role: employee.role };
+
   if (email && email !== employee.email) {
     const existing = await Employee.findOne({ where: { email } });
     if (existing) return res.status(400).json({ message: 'Cet email est déjà utilisé' });
@@ -78,10 +83,12 @@ exports.update = asyncHandler(async (req, res) => {
   }
   if (password) {
     if (password.length < 4) return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 4 caractères' });
-    employee.password = await bcrypt.hash(password, 10);
+    employee.password = await bcrypt.hash(password, BCRYPT_ROUNDS);
   }
 
   await employee.save();
+
+  await logAudit({ userId: req.user.id, action: 'update', entity: 'Employee', entityId: employee.id, oldValue: oldData, newValue: { nom: employee.nom, prenom: employee.prenom, email: employee.email, department: employee.department, role: employee.role }, req });
 
   res.json({
     id: employee.id,
@@ -105,6 +112,9 @@ exports.remove = asyncHandler(async (req, res) => {
   }
   await Request.destroy({ where: { employee_id: req.params.id } });
   await Notification.destroy({ where: { user_id: req.params.id } });
+
+  await logAudit({ userId: req.user.id, action: 'delete', entity: 'Employee', entityId: employee.id, oldValue: { nom: employee.nom, prenom: employee.prenom, email: employee.email, role: employee.role }, req });
+
   await employee.destroy();
 
   res.json({ message: 'Utilisateur supprimé' });

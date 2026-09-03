@@ -717,10 +717,7 @@ function CreateSortie() {
 
       {createdSortie && selectedVehicle && (
         <>
-
-          {createdSortie && (
-            <>
-              <Group justify="space-between" mb="md">
+          <Group justify="space-between" mb="md">
                 <Group gap="sm">
                   <IconUsers size={20} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
                   <Text fw={600}>Demandes compatibles</Text>
@@ -752,8 +749,6 @@ function CreateSortie() {
                   ))}
                 </SimpleGrid>
               )}
-            </>
-          )}
         </>
       )}
 

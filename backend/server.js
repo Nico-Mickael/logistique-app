@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const path = require('path');
+const fs = require('fs');
 const db = require('./models');
 const authRoutes = require('./routes/authRoutes');
 const requestRoutes = require('./routes/requestRoutes');
@@ -11,7 +13,10 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const importRoutes = require('./routes/importRoutes');
 const statsRoutes = require('./routes/statsRoutes');
+const maintenanceRoutes = require('./routes/maintenanceRoutes');
+const exportRoutes = require('./routes/exportRoutes');
 const { setupSocket } = require('./services/socketService');
+const maintenanceController = require('./controllers/maintenanceController');
 
 if (!process.env.JWT_SECRET) {
   console.error('❌ JWT_SECRET non défini dans les variables d\'environnement');
@@ -34,6 +39,27 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/maintenances', maintenanceRoutes);
+app.use('/api/export', exportRoutes);
+
+// --- Hébergement du frontend (build statique) en mode "serveur unique" ---
+// Un seul processus sert à la fois l'API et l'application React (SPA).
+const frontendDist = process.env.FRONTEND_DIST || path.join(__dirname, '..', 'frontend', 'dist');
+if (process.env.SERVE_FRONTEND !== 'false' && fs.existsSync(path.join(frontendDist, 'index.html'))) {
+  app.use(express.static(frontendDist));
+  // Fallback SPA : renvoie index.html pour toute requête GET hors /api
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+      return res.sendFile(path.join(frontendDist, 'index.html'));
+    }
+    return next();
+  });
+  console.log(`🖥️  Frontend servi depuis ${frontendDist}`);
+} else if (process.env.SERVE_FRONTEND === 'false') {
+  console.log('Servir le frontend est désactivé (SERVE_FRONTEND=false)');
+} else {
+  console.log('⚠️  Build frontend introuvable, exécutez "npm run build" dans /frontend. API seule.');
+}
 
 app.use((err, req, res, next) => {
   console.error('Erreur non gérée:', err);
@@ -49,7 +75,12 @@ const start = async () => {
   try {
     await db.sequelize.authenticate();
     console.log('✅ Connexion PostgreSQL réussie');
-    server.listen(PORT, () => console.log(`Backend démarré sur le port ${PORT}`));
+    server.listen(PORT, () => {
+      console.log(`Backend démarré sur le port ${PORT}`);
+      // Vérification périodique des maintenances dues (toutes les 12h)
+      maintenanceController.checkDueAndNotify();
+      setInterval(maintenanceController.checkDueAndNotify, 12 * 60 * 60 * 1000);
+    });
   } catch (err) {
     console.error('❌ Erreur de connexion PostgreSQL :', err.message);
     process.exit(1);

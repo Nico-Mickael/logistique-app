@@ -19,6 +19,7 @@ import {
   IconMoon,
   IconSun,
   IconDeviceDesktop,
+  IconTool,
 } from '@tabler/icons-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +32,7 @@ const navConfig = {
     { label: 'Demandes', path: '/valider-demandes', icon: IconFileText },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
+    { label: 'Maintenance', path: '/maintenance', icon: IconTool },
     { label: 'Rapports', path: '/rapports', icon: IconReportAnalytics },
     { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
   ],
@@ -56,6 +58,7 @@ const navConfig = {
     { label: 'Demandes', path: '/valider-demandes', icon: IconFileText },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
+    { label: 'Maintenance', path: '/maintenance', icon: IconTool },
     { label: 'Rapports', path: '/rapports', icon: IconReportAnalytics },
     { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
   ],
@@ -64,7 +67,6 @@ const navConfig = {
 function Layout({ children }) {
   const [opened, { toggle }] = useDisclosure();
   const [collapsed, setCollapsed] = useState(false);
-  const [openParents, setOpenParents] = useState({});
   const { user } = useAuth();
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const dark = colorScheme === 'dark';
@@ -110,67 +112,9 @@ function Layout({ children }) {
         <AppShell.Section grow component={ScrollArea}>
           <Stack gap={2} className={collapsed ? 'nav-collapsed' : ''}>
             {navItems.map((item) => {
-              const isActive = item.children
-                ? item.children.some((c) => location.pathname.startsWith(c.path))
-                : item.path === '/'
-                  ? location.pathname === '/'
-                  : location.pathname.startsWith(item.path);
-
-              const isParentOpen = isActive || openParents[item.label];
-
-              if (item.children) {
-                const navLink = (
-                  <NavLink
-                    key={item.label}
-                    label={collapsed ? undefined : item.label}
-                    leftSection={<item.icon size={18} />}
-                    active={isActive}
-                    color="brand"
-                    variant={isActive ? 'light' : 'subtle'}
-                    opened={collapsed ? undefined : isParentOpen}
-                    onClick={() => {
-                      if (collapsed) {
-                        navigate(item.children[0].path);
-                        if (opened) toggle();
-                      } else {
-                        setOpenParents((prev) => ({ ...prev, [item.label]: !prev[item.label] }));
-                      }
-                    }}
-                    style={{ borderRadius: 8, justifyContent: collapsed ? 'center' : undefined }}
-                    p={collapsed ? 'sm' : undefined}
-                  >
-                    {!collapsed && item.children.map((child) => {
-                      const childActive = child.path === '/'
-                        ? location.pathname === '/'
-                        : location.pathname.startsWith(child.path);
-                      return (
-                        <NavLink
-                          key={child.path}
-                          label={child.label}
-                          leftSection={<child.icon size={16} />}
-                          active={childActive}
-                          color="brand"
-                          variant={childActive ? 'light' : 'subtle'}
-                          onClick={() => {
-                            navigate(child.path);
-                            if (opened) toggle();
-                          }}
-                          style={{ borderRadius: 8 }}
-                        />
-                      );
-                    })}
-                  </NavLink>
-                );
-
-                if (collapsed) {
-                  return (
-                    <Tooltip key={item.label} label={item.label} position="right" withArrow>
-                      {navLink}
-                    </Tooltip>
-                  );
-                }
-                return navLink;
-              }
+              const isActive = item.path === '/'
+                ? location.pathname === '/'
+                : location.pathname.startsWith(item.path);
 
               const navLink = (
                 <NavLink
