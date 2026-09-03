@@ -7,7 +7,7 @@ import { BarChart, PieChart } from '@mantine/charts';
 import { DataTable } from 'mantine-datatable';
 import {
   IconFileText, IconRoute, IconMapPin, IconCheck, IconX, IconDownload,
-  IconReportAnalytics, IconGauge, IconClock, IconCar, IconTool, IconGasStation,
+  IconReportAnalytics, IconGauge, IconClock, IconCar, IconTool,
   IconBuilding,
 } from '@tabler/icons-react';
 import dayjs from '../../utils/date';
@@ -108,9 +108,6 @@ export default function Reports() {
               <Menu.Item leftSection={<IconRoute size={16} />} onClick={() => handleExport(() => exportService.sortiesReport({ status: 'finished' }, 'xlsx'))}>
                 Rapport sorties
               </Menu.Item>
-              <Menu.Item leftSection={<IconTool size={16} />} onClick={() => handleExport(() => exportService.maintenanceReport('xlsx'))}>
-                Rapport maintenance
-              </Menu.Item>
               <Menu.Divider />
               <Menu.Label>CSV (Excel)</Menu.Label>
               <Menu.Item leftSection={<IconCar size={16} />} onClick={exportKmCSV}>
@@ -136,8 +133,6 @@ export default function Reports() {
               <StatCard label="Véhicules" value={fleet.vehicles?.total ?? '—'} icon={IconCar} />
               <StatCard label="Disponibles" value={fleet.vehicles?.byStatus?.available ?? 0} icon={IconCar} />
               <StatCard label="En maintenance" value={(fleet.vehicles?.byStatus?.maintenance ?? 0) + (fleet.vehicles?.byStatus?.broken ?? 0)} icon={IconTool} />
-              <StatCard label="Interventions à prévoir" value={fleet.maintenanceDue?.length ?? 0} icon={IconTool} />
-              <StatCard label="Coût carburant" value={`${Number(fleet.fuel?.totalCost ?? 0).toLocaleString('fr-FR')} Ar`} icon={IconGasStation} />
             </SimpleGrid>
           )}
 

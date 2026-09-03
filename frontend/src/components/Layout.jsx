@@ -12,14 +12,12 @@ import {
   IconPlus,
   IconCaravan,
   IconUsers,
-  IconDatabaseImport,
   IconReportAnalytics,
   IconChevronsLeft,
   IconChevronsRight,
   IconMoon,
   IconSun,
   IconDeviceDesktop,
-  IconTool,
 } from '@tabler/icons-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -32,7 +30,6 @@ const navConfig = {
     { label: 'Demandes', path: '/valider-demandes', icon: IconFileText },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
-    { label: 'Maintenance', path: '/maintenance', icon: IconTool },
     { label: 'Rapports', path: '/rapports', icon: IconReportAnalytics },
     { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
   ],
@@ -54,11 +51,9 @@ const navConfig = {
   superadmin: [
     { label: 'Accueil', path: '/', icon: IconHome },
     { label: 'Utilisateurs', path: '/utilisateurs', icon: IconUsers },
-    { label: 'Importation', path: '/importation', icon: IconDatabaseImport },
     { label: 'Demandes', path: '/valider-demandes', icon: IconFileText },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
-    { label: 'Maintenance', path: '/maintenance', icon: IconTool },
     { label: 'Rapports', path: '/rapports', icon: IconReportAnalytics },
     { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
   ],

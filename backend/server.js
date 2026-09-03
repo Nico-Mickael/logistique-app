@@ -11,12 +11,9 @@ const vehicleRoutes = require('./routes/vehicleRoutes');
 const sortieRoutes = require('./routes/sortieRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
-const importRoutes = require('./routes/importRoutes');
 const statsRoutes = require('./routes/statsRoutes');
-const maintenanceRoutes = require('./routes/maintenanceRoutes');
 const exportRoutes = require('./routes/exportRoutes');
 const { setupSocket } = require('./services/socketService');
-const maintenanceController = require('./controllers/maintenanceController');
 
 if (!process.env.JWT_SECRET) {
   console.error('❌ JWT_SECRET non défini dans les variables d\'environnement');
@@ -37,9 +34,7 @@ app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/sorties', sortieRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/employees', employeeRoutes);
-app.use('/api/import', importRoutes);
 app.use('/api/stats', statsRoutes);
-app.use('/api/maintenances', maintenanceRoutes);
 app.use('/api/export', exportRoutes);
 
 // --- Hébergement du frontend (build statique) en mode "serveur unique" ---
@@ -77,9 +72,6 @@ const start = async () => {
     console.log('✅ Connexion PostgreSQL réussie');
     server.listen(PORT, () => {
       console.log(`Backend démarré sur le port ${PORT}`);
-      // Vérification périodique des maintenances dues (toutes les 12h)
-      maintenanceController.checkDueAndNotify();
-      setInterval(maintenanceController.checkDueAndNotify, 12 * 60 * 60 * 1000);
     });
   } catch (err) {
     console.error('❌ Erreur de connexion PostgreSQL :', err.message);

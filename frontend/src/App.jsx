@@ -17,14 +17,12 @@ import ValidateRequests from './pages/chief/ValidateRequests';
 import Sorties from './pages/chief/Sorties';
 import CreateSortie from './pages/chief/CreateSortie';
 import Vehicles from './pages/chief/Vehicles';
-import Maintenance from './pages/chief/Maintenance';
 import Planning from './pages/chief/Planning';
 import Reports from './pages/chief/Reports';
 import MyTrips from './pages/employee/MyTrips';
 import MyReports from './pages/employee/MyReports';
 import DriverSorties from './pages/chauffeur/DriverSorties';
 import Users from './pages/superadmin/Users';
-import Import from './pages/superadmin/Import';
 import Sessions from './pages/Sessions';
 import ErrorPage from './pages/ErrorPage';
 
@@ -149,16 +147,6 @@ function App() {
                 }
               />
               <Route
-                path="/maintenance"
-                element={
-                  <PrivateRoute allowedRoles={['logistics_chief', 'admin', 'superadmin']}>
-                    <Layout>
-                      <Maintenance />
-                    </Layout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
                 path="/rapports"
                 element={
                   <PrivateRoute allowedRoles={['logistics_chief', 'admin', 'superadmin']}>
@@ -174,16 +162,6 @@ function App() {
                   <PrivateRoute allowedRoles={['superadmin']}>
                     <Layout>
                       <Users />
-                    </Layout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/importation"
-                element={
-                  <PrivateRoute allowedRoles={['superadmin']}>
-                    <Layout>
-                      <Import />
                     </Layout>
                   </PrivateRoute>
                 }

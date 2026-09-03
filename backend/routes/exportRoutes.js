@@ -9,6 +9,5 @@ router.use(auth, checkRole(CHIEF_ROLES));
 
 router.get('/fleet', exportController.fleetReport);
 router.get('/sorties', exportController.sortiesReport);
-router.get('/maintenance', exportController.maintenanceReport);
 
 module.exports = router;

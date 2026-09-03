@@ -1,5 +1,5 @@
 const XLSX = require('xlsx');
-const { Vehicle, Sortie, Maintenance, Employee } = require('../models');
+const { Vehicle, Sortie, Employee } = require('../models');
 const { Op } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -40,15 +40,12 @@ exports.fleetReport = asyncHandler(async (req, res) => {
   });
   const ids = vehicles.map((v) => v.id);
   const sortiesAll = await Sortie.findAll({ where: { vehicle_id: { [Op.in]: ids }, status: 'finished' }, attributes: ['vehicle_id', 'distance_km', 'fuel_cost', 'fuel_litres'], raw: true });
-  const maintAll = await Maintenance.findAll({ where: { vehicle_id: { [Op.in]: ids } }, attributes: ['vehicle_id', 'cost'], raw: true });
 
   const rows = vehicles.map((v) => {
     const sorties = sortiesAll.filter((s) => s.vehicle_id === v.id);
     const km = sorties.reduce((sum, s) => sum + (Number(s.distance_km) || 0), 0);
     const fuelCost = sorties.reduce((sum, s) => sum + (Number(s.fuel_cost) || 0), 0);
     const litres = sorties.reduce((sum, s) => sum + (Number(s.fuel_litres) || 0), 0);
-    const maints = maintAll.filter((m) => m.vehicle_id === v.id);
-    const maintCost = maints.reduce((sum, m) => sum + (Number(m.cost) || 0), 0);
     return [
       v.type,
       STATUS_LABELS[v.status] || v.status,
@@ -59,15 +56,13 @@ exports.fleetReport = asyncHandler(async (req, res) => {
       litres.toFixed(2),
       fuelCost.toFixed(2),
       km > 0 ? (fuelCost / km).toFixed(2) : '0.00',
-      maints.length,
-      maintCost.toFixed(2),
       v.maintenance_until ? new Date(v.maintenance_until).toLocaleDateString('fr-FR') : '—',
     ];
   });
 
   buildWorkbook(
     'Rapport flotte',
-    ['Véhicule', 'Statut', 'Capacité', 'Carburant', 'Km actuel', 'Km parcourus', 'Litres essence', 'Coût carburant (Ar)', 'Coût/km (Ar)', 'Nb maintenance', 'Coût maintenance (Ar)', 'Maintenance jusqu\'au'],
+    ['Véhicule', 'Statut', 'Capacité', 'Carburant', 'Km actuel', 'Km parcourus', 'Litres essence', 'Coût carburant (Ar)', 'Coût/km (Ar)', 'Maintenance jusqu\'au'],
     rows, res, req, 'rapport_flotte'
   );
 });
@@ -106,32 +101,5 @@ exports.sortiesReport = asyncHandler(async (req, res) => {
     'Rapport sorties',
     ['Date', 'Destination', 'Conducteur', 'Véhicule', 'Statut', 'Km départ', 'Km arrivée', 'Distance (km)', 'Litres essence', 'Coût carburant (Ar)'],
     rows, res, req, 'rapport_sorties'
-  );
-});
-
-// GET /api/export/maintenance?format=xlsx|csv
-// Historique détaillé des interventions de maintenance
-exports.maintenanceReport = asyncHandler(async (req, res) => {
-  const items = await Maintenance.findAll({
-    include: [{ model: Vehicle, as: 'vehicle', attributes: ['type'] }],
-    order: [['date', 'DESC']],
-    limit: 2000,
-  });
-
-  const rows = items.map((m) => [
-    new Date(m.date).toLocaleDateString('fr-FR'),
-    m.vehicle?.type || '—',
-    m.type,
-    m.description || '—',
-    m.cost ?? '—',
-    m.status === 'done' ? 'Réalisée' : 'À prévoir',
-    m.next_due_date ? new Date(m.next_due_date).toLocaleDateString('fr-FR') : '—',
-    m.next_due_km ?? '—',
-  ]);
-
-  buildWorkbook(
-    'Rapport maintenance',
-    ['Date', 'Véhicule', 'Type', 'Description', 'Coût (Ar)', 'Statut', 'Échéance date', 'Échéance km'],
-    rows, res, req, 'rapport_maintenance'
   );
 });

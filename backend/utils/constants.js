@@ -22,12 +22,8 @@ const ASSIGNABLE_TO_SORTIE_STATUSES = ['pending', 'approved'];
 // Véhicules
 const VEHICLE_STATUSES = ['available', 'busy', 'maintenance', 'broken'];
 
-// Maintenances
-const MAINTENANCE_STATUSES = ['planned', 'done'];
-
 // Divers
 const BCRYPT_ROUNDS = 10;
-const MAINTENANCE_HORIZON_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours (horizon maintenances à prévoir)
 
 module.exports = {
   CHIEF_ROLES,
@@ -38,7 +34,5 @@ module.exports = {
   ASSIGNABLE_TO_SORTIE_STATUSES,
   SORTIE_STATUSES,
   VEHICLE_STATUSES,
-  MAINTENANCE_STATUSES,
   BCRYPT_ROUNDS,
-  MAINTENANCE_HORIZON_MS,
 };
