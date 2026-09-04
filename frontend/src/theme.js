@@ -80,6 +80,31 @@ export const theme = createTheme({
         overlayProps: { backgroundOpacity: 0.5, blur: 4 },
         transitionProps: { transition: 'pop', duration: 200 },
         radius: 'lg',
+        centered: true,
+      },
+      styles: {
+        content: {
+          overflow: 'hidden',
+          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.18)',
+        },
+        header: {
+          padding: '16px 22px',
+          borderBottom: '1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4))',
+          backgroundColor: 'light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))',
+        },
+        title: {
+          fontWeight: 700,
+          fontSize: 17,
+          letterSpacing: 0.2,
+          color: 'light-dark(var(--mantine-color-gray-9), var(--mantine-color-gray-0))',
+        },
+        close: {
+          color: 'light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-2))',
+          '&:hover': { backgroundColor: 'light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4))', color: 'light-dark(var(--mantine-color-gray-8), var(--mantine-color-gray-1))' },
+        },
+        body: {
+          padding: '20px 22px 24px',
+        },
       },
     },
   },

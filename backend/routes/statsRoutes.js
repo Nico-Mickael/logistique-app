@@ -13,5 +13,6 @@ router.use(auth, checkRole(CHIEF_ROLES));
 router.get('/overview', statsController.overview);
 router.get('/kilometrage', statsController.kilometrage);
 router.get('/fleet', statsController.fleet);
+router.get('/sorties-passengers', statsController.sortiesPassengers);
 
 module.exports = router;

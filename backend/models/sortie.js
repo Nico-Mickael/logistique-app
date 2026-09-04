@@ -20,6 +20,7 @@ module.exports = (sequelize, DataTypes) => {
     driver_employee_id: DataTypes.INTEGER,
     driver_name: DataTypes.STRING,
     destination: DataTypes.STRING,
+    motif: DataTypes.STRING,
     departure_time: DataTypes.DATE,
     status: DataTypes.STRING,
     departure_km: DataTypes.INTEGER,

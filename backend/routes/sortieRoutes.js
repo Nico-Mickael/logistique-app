@@ -12,6 +12,8 @@ router.patch('/:id/driver/depart', auth, driverController.depart);
 router.patch('/:id/driver/arrivee', auth, driverController.arrivee);
 
 router.get('/mine', auth, sortieController.mine);
+router.get('/planned', auth, sortieController.planned);
+router.post('/:id/join', auth, sortieController.join);
 router.patch('/:id/return', auth, sortieController.employeeReturn);
 
 router.use(auth, checkRole(CHIEF_ROLES));

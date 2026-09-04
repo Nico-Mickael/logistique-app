@@ -18,13 +18,18 @@ export const requestStatusColor = {
 
 export const sortieStatusLabel = {
   planned: 'Planifiée',
+  imminent: 'Sortie imminente',
+  soon: 'Bientôt',
   ongoing: 'En cours',
   pending_return: 'Retour à valider',
   finished: 'Terminée',
+  cancelled: 'Annulée',
 };
 
 export const sortieStatusColor = {
   planned: 'gray',
+  imminent: 'orange',
+  soon: 'brandYellow',
   ongoing: 'brand',
   pending_return: 'orange',
   finished: 'brandYellow',

@@ -19,4 +19,5 @@ async function download(path, params, filename) {
 export const exportService = {
   fleetReport: (format = 'xlsx') => download('/export/fleet', { format }, `rapport_flotte.${format}`),
   sortiesReport: (params = {}, format = 'xlsx') => download('/export/sorties', { ...params, format }, `rapport_sorties.${format}`),
+  sortiesPassengersReport: (params = {}, format = 'xlsx') => download('/export/sorties-passengers', { ...params, format }, `rapport_sorties_passagers.${format}`),
 };

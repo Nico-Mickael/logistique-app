@@ -1,5 +1,5 @@
 const XLSX = require('xlsx');
-const { Vehicle, Sortie, Employee } = require('../models');
+const { Vehicle, Sortie, Employee, Request, SortieRequest } = require('../models');
 const { Op } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -101,5 +101,86 @@ exports.sortiesReport = asyncHandler(async (req, res) => {
     'Rapport sorties',
     ['Date', 'Destination', 'Conducteur', 'Véhicule', 'Statut', 'Km départ', 'Km arrivée', 'Distance (km)', 'Litres essence', 'Coût carburant (Ar)'],
     rows, res, req, 'rapport_sorties'
+  );
+});
+
+// GET /api/export/sorties-passengers?date=2026-09-04&vehicle_id=1&format=xlsx|csv
+// Rapport des sorties avec liste des passagers
+exports.sortiesPassengersReport = asyncHandler(async (req, res) => {
+  const { date, vehicle_id } = req.query;
+
+  if (!date) {
+    return res.status(400).json({ message: 'Le paramètre date est requis (format YYYY-MM-DD)' });
+  }
+
+  const startDate = new Date(date);
+  const endDate = new Date(date);
+  endDate.setDate(endDate.getDate() + 1);
+
+  const where = {
+    departure_time: { [Op.gte]: startDate, [Op.lt]: endDate },
+  };
+  if (vehicle_id) {
+    where.vehicle_id = parseInt(vehicle_id, 10);
+  }
+
+  const sorties = await Sortie.findAll({
+    where,
+    include: [
+      { model: Vehicle, attributes: ['type', 'capacity'] },
+      { model: Employee, as: 'driver', attributes: ['nom', 'prenom'] },
+      {
+        model: Request,
+        include: [{ model: Employee, attributes: ['nom', 'prenom', 'department'] }],
+        attributes: ['id', 'destination', 'motif'],
+        through: { attributes: [] },
+      },
+    ],
+    order: [['departure_time', 'ASC']],
+  });
+
+  const rows = [];
+  for (const s of sorties) {
+    const passengers = s.Requests || [];
+    const vehicleType = s.Vehicle?.type || '—';
+    const capacity = s.Vehicle?.capacity ?? '—';
+    const driver = s.driver ? `${s.driver.prenom} ${s.driver.nom}` : (s.driver_name || '—');
+    const departureDate = new Date(s.departure_time).toLocaleDateString('fr-FR');
+    const departureHour = s.departed_at ? new Date(s.departed_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
+    const returnHour = s.returned_at ? new Date(s.returned_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
+
+    if (passengers.length === 0) {
+      rows.push([
+        departureDate, s.id, vehicleType, capacity, driver,
+        s.destination, departureHour, returnHour,
+        s.departure_km ?? '—', s.arrival_km ?? '—', s.distance_km ?? '—',
+        0, capacity, '—', '—', '—',
+      ]);
+    } else {
+      for (const p of passengers) {
+        const emp = p.Employee;
+        rows.push([
+          departureDate, s.id, vehicleType, capacity, driver,
+          s.destination, departureHour, returnHour,
+          s.departure_km ?? '—', s.arrival_km ?? '—', s.distance_km ?? '—',
+          passengers.length, capacity,
+          emp ? `${emp.prenom} ${emp.nom}` : '—',
+          emp?.department || '—',
+          p.id,
+        ]);
+      }
+    }
+  }
+
+  buildWorkbook(
+    'Sorties & Passagers',
+    [
+      'Date', 'Sortie #', 'Véhicule', 'Capacité', 'Conducteur',
+      'Destination', 'Heure départ', 'Heure retour',
+      'Km départ', 'Km arrivée', 'Distance (km)',
+      'Nb passagers', 'Capacité max',
+      'Passager', 'Département', 'Demande #',
+    ],
+    rows, res, req, 'rapport_sorties_passagers'
   );
 });

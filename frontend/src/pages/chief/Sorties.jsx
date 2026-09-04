@@ -6,7 +6,7 @@ import {
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
-import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconExchange } from '@tabler/icons-react';
+import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconExchange, IconNote } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
@@ -46,6 +46,11 @@ function SortieCard({ sortie, chauffeurs, onAssignDriver, onDepart, onSuggestion
           <VehicleIcon type={sortie.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" style={{ verticalAlign: 'middle', marginRight: 4 }} />
           <Text span tt="capitalize" size="sm">{sortie.Vehicle?.type}</Text>
         </Text>
+        {sortie.motif && (
+          <Text size="sm">
+            <Text span c="dimmed" size="sm">Motif: </Text>{sortie.motif}
+          </Text>
+        )}
         {!isMoto && sortie.Requests?.some((r) => r.vehicle_id && r.vehicle_id !== sortie.vehicle_id) && (
           <Text size="xs" c="orange" fw={600}>
             <IconExchange size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
@@ -160,6 +165,7 @@ function Sorties() {
   const [editDriverEmployeeId, setEditDriverEmployeeId] = useState('');
   const [chauffeurs, setChauffeurs] = useState([]);
   const [editDestination, setEditDestination] = useState('');
+  const [editMotif, setEditMotif] = useState('');
   const [editDepartureTime, setEditDepartureTime] = useState(null);
 
   const [departOpened, { open: openDepart, close: closeDepart }] = useDisclosure(false);
@@ -235,6 +241,7 @@ function Sorties() {
     setEditDriverName(s.driver_name);
     setEditDriverEmployeeId(s.driver_employee_id ? String(s.driver_employee_id) : '');
     setEditDestination(s.destination);
+    setEditMotif(s.motif || '');
     setEditDepartureTime(new Date(s.departure_time));
     openEditModal();
   };
@@ -249,6 +256,7 @@ function Sorties() {
     try {
       await sortieService.update(editSortie.id, {
         destination: editDestination,
+        motif: editMotif,
         driver_name: effectiveName,
         departure_time: editDepartureTime,
         vehicle_id: editVehicleId ? parseInt(editVehicleId, 10) : undefined,
@@ -359,6 +367,7 @@ function Sorties() {
 
   const columns = [
     { accessor: 'destination', title: 'Destination', sortable: true },
+    { accessor: 'motif', title: 'Motif', sortable: true, render: (s) => <Text size="sm" truncate maw={150}>{s.motif || '—'}</Text> },
     { accessor: 'driver_name', title: 'Conducteur', sortable: true },
     {
       accessor: 'vehicle', title: 'Véhicule',
@@ -521,12 +530,12 @@ function Sorties() {
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
         transitionProps={{ transition: 'pop', duration: 200 }}
       >
-        <Stack gap="md" mt="sm">
-          <Select label="Véhicule" placeholder="Choisir un véhicule"
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
+          <Select label="Véhicule" placeholder="Choisir un véhicule" w="100%"
             data={vehicles.map((v) => ({ value: String(v.id), label: `${v.type} (${v.capacity} pers.)` }))}
             value={editVehicleId} onChange={setEditVehicleId} radius="md"
           />
-          <Select label="Chauffeur (compte)" placeholder="Choisir un chauffeur"
+          <Select label="Chauffeur (compte)" placeholder="Choisir un chauffeur" w="100%"
             data={chauffeurs.map((c) => ({ value: String(c.id), label: `${c.prenom} ${c.nom}`.trim() }))}
             value={editDriverEmployeeId || null}
             onChange={(v) => {
@@ -536,17 +545,21 @@ function Sorties() {
             }}
             clearable searchable radius="md"
           />
-          <TextInput label="Destination" placeholder="Antananarivo" required value={editDestination}
+          <TextInput label="Destination" placeholder="Antananarivo" required w="100%" value={editDestination}
             onChange={(e) => setEditDestination(e.currentTarget.value)} radius="md"
           />
-          <DateTimePicker label="Date et heure de départ" placeholder="Choisir une date" required
+          <TextInput label="Motif" placeholder="Motif de la sortie" required w="100%" value={editMotif}
+            onChange={(e) => setEditMotif(e.currentTarget.value)} radius="md"
+            leftSection={<IconNote size={16} />}
+          />
+          <DateTimePicker label="Date et heure de départ" placeholder="Choisir une date" required w="100%"
             value={editDepartureTime} onChange={setEditDepartureTime} radius="md"
           />
+        </SimpleGrid>
           <Group justify="end" mt="md">
             <Button variant="default" onClick={closeEditModal} radius="md">Annuler</Button>
             <Button color="brand" onClick={handleEditSave} loading={saving} radius="md">Enregistrer</Button>
           </Group>
-        </Stack>
       </Modal>
 
       <Modal opened={departOpened} onClose={closeDepart} title="Démarrer la sortie" size="md" radius="lg" centered

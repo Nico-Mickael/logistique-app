@@ -46,6 +46,16 @@ function App() {
                   </PrivateRoute>
                 }
               />
+                  <Route
+                path="/mes-rapports"
+                element={
+                  <PrivateRoute allowedRoles={['employee', 'chauffeur', 'superadmin']}>
+                    <Layout>
+                      <MyReports />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
               <Route
                 path="/mes-demandes"
                 element={
@@ -82,16 +92,6 @@ function App() {
                   <PrivateRoute allowedRoles={['chauffeur']}>
                     <Layout>
                       <DriverSorties />
-                    </Layout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/mes-rapports"
-                element={
-                  <PrivateRoute allowedRoles={['employee', 'chauffeur', 'superadmin']}>
-                    <Layout>
-                      <MyReports />
                     </Layout>
                   </PrivateRoute>
                 }

@@ -8,6 +8,40 @@ const { createNotification, notifyChiefsDb } = require('./notificationController
 const { notifyChiefs } = require('../services/socketService');
 const { logAudit } = require('../services/auditService');
 
+// Calcule le statut "affiché" dynamiquement à partir de la date de départ et du statut réel
+function computeDisplayStatus(sortie) {
+  const now = new Date();
+  const departure = new Date(sortie.departure_time);
+  const diffMs = departure.getTime() - now.getTime();
+  const diffMin = Math.round(diffMs / 60000);
+
+  if (sortie.status === 'finished') return { key: 'finished', label: 'Terminée', color: 'gray' };
+  if (sortie.status === 'ongoing') return { key: 'ongoing', label: 'En cours', color: 'brand' };
+  if (sortie.status === 'pending_return') return { key: 'pending_return', label: 'Retour à valider', color: 'orange' };
+
+  // planned
+  if (diffMin < 0) return { key: 'planned', label: 'Départ dépassé', color: 'red' };
+  if (diffMin <= 30) return { key: 'imminent', label: 'Sortie dans quelques minutes', color: 'orange' };
+  if (diffMin <= 60) return { key: 'soon', label: `Départ dans ${diffMin} min`, color: 'brandYellow' };
+  return { key: 'planned', label: 'Prévue', color: 'gray' };
+}
+
+// Notifie tous les employés (sauf le créateur) lors de la création d'une sortie
+async function notifyAllEmployees(sortie, vehicle, creatorId) {
+  const employees = await Employee.findAll({
+    where: { id: { [Op.ne]: creatorId } },
+    attributes: ['id'],
+  });
+  const departureDate = new Date(sortie.departure_time).toLocaleDateString('fr-FR');
+  const departureHour = new Date(sortie.departure_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const vehicleLabel = vehicle ? `${vehicle.type} (${vehicle.capacity} places)` : 'N/A';
+  const message = `Une sortie est prévue le ${departureDate} à ${departureHour} — ${sortie.destination}. Véhicule: ${vehicleLabel}. Motif: ${sortie.motif || 'Non précisé'}`;
+
+  await Promise.all(
+    employees.map((emp) => createNotification({ user_id: emp.id, message, type: 'sortie_created' }))
+  );
+}
+
 // Met à jour le kilométrage actuel d'un véhicule à partir du km d'arrivée.
 async function syncVehicleKm(vehicleId, arrivalKm) {
   if (vehicleId == null || arrivalKm == null) return;
@@ -33,7 +67,11 @@ const notifySortieEmployees = async (sortie, message, type) => {
 
 // Créer une sortie + assigner véhicule/conducteur
 exports.create = asyncHandler(async (req, res) => {
-  const { vehicle_id, driver_name, destination, departure_time, departure_km, driver_employee_id } = req.body;
+  const { vehicle_id, driver_name, destination, motif, departure_time, departure_km, driver_employee_id } = req.body;
+
+  if (!motif) {
+    return res.status(400).json({ message: 'Le motif de la sortie est obligatoire' });
+  }
 
   const vehicle = await Vehicle.findByPk(vehicle_id);
   if (!vehicle || vehicle.status !== 'available') {
@@ -48,7 +86,7 @@ exports.create = asyncHandler(async (req, res) => {
   }
 
   const sortie = await Sortie.create({
-    vehicle_id, driver_name, destination, departure_time,
+    vehicle_id, driver_name, destination, motif, departure_time,
     driver_employee_id: driver_employee_id || null,
     departure_km: departure_km || null,
     status: 'planned',
@@ -57,11 +95,14 @@ exports.create = asyncHandler(async (req, res) => {
   vehicle.status = 'busy';
   await vehicle.save();
 
-  await logAudit({ userId: req.user.id, action: 'create', entity: 'Sortie', entityId: sortie.id, newValue: { vehicle_id, destination, departure_time, driver_name }, req });
+  await logAudit({ userId: req.user.id, action: 'create', entity: 'Sortie', entityId: sortie.id, newValue: { vehicle_id, destination, motif, departure_time, driver_name }, req });
+
+  // Notification détaillée à tous les employés
+  await notifyAllEmployees(sortie, vehicle, req.user.id);
 
   notifyChiefs('sortie_created', sortie);
   await notifyChiefsDb({
-    message: `Nouvelle sortie planifiée vers ${sortie.destination}`,
+    message: `Nouvelle sortie planifiée vers ${sortie.destination} — ${sortie.motif}`,
     type: 'sortie_created',
     excludeUserId: req.user.id,
   });
@@ -187,7 +228,10 @@ exports.mine = asyncHandler(async (req, res) => {
     order: [['departure_time', 'DESC']],
   });
 
-  res.json(sorties);
+  res.json(sorties.map((s) => ({
+    ...s.toJSON(),
+    displayStatus: computeDisplayStatus(s),
+  })));
 });
 
 exports.getAll = asyncHandler(async (req, res) => {
@@ -214,7 +258,10 @@ exports.getAll = asyncHandler(async (req, res) => {
   });
 
   res.json({
-    data: rows,
+    data: rows.map((s) => ({
+      ...s.toJSON(),
+      displayStatus: computeDisplayStatus(s),
+    })),
     total: count,
     page: parseInt(page, 10),
     totalPages: Math.ceil(count / parseInt(limit, 10)),
@@ -294,7 +341,7 @@ exports.update = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Seules les sorties planifiées peuvent être modifiées' });
   }
 
-  const { destination, driver_name, departure_time, vehicle_id, driver_employee_id } = req.body;
+  const { destination, driver_name, departure_time, vehicle_id, driver_employee_id, motif } = req.body;
 
   if (driver_employee_id !== undefined && driver_employee_id !== null) {
     const driver = await Employee.findByPk(driver_employee_id);
@@ -318,6 +365,7 @@ exports.update = asyncHandler(async (req, res) => {
   if (destination !== undefined) sortie.destination = destination;
   if (driver_name !== undefined) sortie.driver_name = driver_name;
   if (departure_time !== undefined) sortie.departure_time = departure_time;
+  if (motif !== undefined) sortie.motif = motif;
 
   await sortie.save();
   notifyChiefs('sortie_updated', sortie);
@@ -445,4 +493,99 @@ exports.validateReturn = asyncHandler(async (req, res) => {
 
   notifyChiefs('sortie_updated', sortie);
   res.json(sortie);
+});
+
+// Employé : voir les sorties planifiées disponibles pour rejoindre
+exports.planned = asyncHandler(async (req, res) => {
+  const sorties = await Sortie.findAll({
+    where: { status: 'planned' },
+    include: [
+      { model: Vehicle, attributes: ['id', 'type', 'capacity'] },
+      { model: Employee, as: 'driver', attributes: ['nom', 'prenom'] },
+      {
+        model: Request,
+        attributes: ['id', 'nb_personnes'],
+        through: { attributes: [] },
+      },
+    ],
+    order: [['departure_time', 'ASC']],
+  });
+
+  const result = sorties.map((s) => {
+    const occupiedSeats = (s.Requests || []).reduce((sum, r) => sum + (r.nb_personnes || 1), 0);
+    const capacity = s.Vehicle?.capacity || 0;
+    const displayStatus = computeDisplayStatus(s);
+
+    return {
+      id: s.id,
+      destination: s.destination,
+      motif: s.motif,
+      departure_time: s.departure_time,
+      driver_name: s.driver ? `${s.driver.prenom} ${s.driver.nom}` : s.driver_name,
+      vehicle: s.Vehicle ? { id: s.Vehicle.id, type: s.Vehicle.type, capacity } : null,
+      occupiedSeats,
+      availableSeats: Math.max(0, capacity - occupiedSeats),
+      displayStatus,
+      passenger_count: (s.Requests || []).length,
+    };
+  });
+
+  res.json(result);
+});
+
+// Employé : rejoindre une sortie planifiée (crée automatiquement une demande liée)
+exports.join = asyncHandler(async (req, res) => {
+  const sortie = await Sortie.findByPk(req.params.id, { include: [Vehicle] });
+  if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+  if (sortie.status !== 'planned') {
+    return res.status(400).json({ message: 'Cette sortie n\'est plus disponible' });
+  }
+
+  // Vérifier si l'employé a déjà une demande liée à cette sortie
+  const existingRequest = await Request.findOne({
+    where: { employee_id: req.user.id },
+    include: [{
+      model: Sortie,
+      where: { id: sortie.id },
+      through: { attributes: [] },
+    }],
+  });
+  if (existingRequest) {
+    return res.status(400).json({ message: 'Vous avez déjà une demande pour cette sortie' });
+  }
+
+  // Vérifier la capacité
+  const currentLinks = await SortieRequest.findAll({ where: { sortie_id: sortie.id } });
+  const currentRequestIds = currentLinks.map((l) => l.request_id);
+  const currentRequests = await Request.findAll({ where: { id: currentRequestIds }, attributes: ['nb_personnes'] });
+  const occupiedSeats = currentRequests.reduce((sum, r) => sum + (r.nb_personnes || 1), 0);
+  const capacity = sortie.Vehicle?.capacity || 0;
+  const nbPersonnes = parseInt(req.body.nb_personnes, 10) || 1;
+
+  if (occupiedSeats + nbPersonnes > capacity) {
+    return res.status(400).json({ message: `Plus assez de places disponibles (${capacity - occupiedSeats} restante${capacity - occupiedSeats !== 1 ? 's' : ''})` });
+  }
+
+  // Créer la demande et la lier à la sortie
+  const request = await Request.create({
+    employee_id: req.user.id,
+    vehicle_id: sortie.vehicle_id,
+    destination: sortie.destination,
+    motif: sortie.motif,
+    date_souhaitee: sortie.departure_time,
+    nb_personnes: nbPersonnes,
+    status: 'approved',
+  });
+
+  await SortieRequest.create({ sortie_id: sortie.id, request_id: request.id, status: 'pending' });
+
+  await createNotification({
+    user_id: req.user.id,
+    message: `Votre demande pour la sortie vers ${sortie.destination} le ${new Date(sortie.departure_time).toLocaleDateString('fr-FR')} a été approuvée.`,
+    type: 'approved',
+  });
+
+  notifyChiefs('sortie_updated', sortie);
+
+  res.status(201).json({ message: 'Demande créée et liée à la sortie', request_id: request.id, sortie_id: sortie.id });
 });

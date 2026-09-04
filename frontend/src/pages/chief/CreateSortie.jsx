@@ -7,7 +7,7 @@ import { DateTimePicker } from '@mantine/dates';
 import {
   IconUsers, IconPlus,
   IconSteeringWheel, IconMapPin, IconClock, IconUser,
-  IconBuildingWarehouse,
+  IconBuildingWarehouse, IconNote,
 } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import VehicleModal from '../../components/VehicleModal';
@@ -290,6 +290,7 @@ function CreateSortie() {
   const [driverEmployeeId, setDriverEmployeeId] = useState('');
   const [chauffeurs, setChauffeurs] = useState([]);
   const [destination, setDestination] = useState('');
+  const [motif, setMotif] = useState('');
   const [departureTime, setDepartureTime] = useState(null);
   const [creating, setCreating] = useState(false);
 
@@ -343,6 +344,7 @@ function CreateSortie() {
     setSeatStates(initSeats(vehicle));
     setSeatAssignments([]);
     setDestination('');
+    setMotif('');
     setDriverName('');
     setDriverEmployeeId('');
     setDepartureTime(null);
@@ -350,8 +352,8 @@ function CreateSortie() {
   };
 
   const handleCreateSortie = async () => {
-    if (!selectedVehicle || !driverName || !destination || !departureTime) {
-      notifyError('Merci de remplir tous les champs');
+    if (!selectedVehicle || !driverName || !destination || !departureTime || !motif) {
+      notifyError('Merci de remplir tous les champs (motif obligatoire)');
       return;
     }
     const driverAccount = chauffeurs.find((c) => String(c.id) === String(driverEmployeeId));
@@ -364,6 +366,7 @@ function CreateSortie() {
         vehicle_id: selectedVehicle.id,
         driver_name: effectiveDriverName,
         destination,
+        motif,
         departure_time: departureTime,
         driver_employee_id: driverAccount ? driverAccount.id : null,
       });
@@ -797,6 +800,16 @@ function CreateSortie() {
             required
             radius="md"
             leftSection={<IconMapPin size={16} />}
+          />
+          <TextInput
+            label="Motif de la sortie"
+            placeholder="Ex: Livraison de matériel"
+            w="100%"
+            value={motif}
+            onChange={(e) => setMotif(e.currentTarget.value)}
+            required
+            radius="md"
+            leftSection={<IconNote size={16} />}
           />
           <DateTimePicker
             label="Date et heure de départ"

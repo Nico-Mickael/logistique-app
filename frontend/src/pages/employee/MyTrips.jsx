@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
-  Paper, Badge, Text, Group, Card, SimpleGrid, Stack, Button, Modal, NumberInput,
+  Paper, Badge, Text, Group, Card, SimpleGrid, Stack, Button, Modal, NumberInput, Progress,
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { DataTable } from 'mantine-datatable';
 import { useDisclosure } from '@mantine/hooks';
-import { IconRoute, IconMapPin, IconClock, IconGauge, IconFlag } from '@tabler/icons-react';
+import { IconRoute, IconMapPin, IconClock, IconGauge, IconFlag, IconCar, IconUsers, IconNote } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
@@ -17,16 +17,17 @@ import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sor
 
 function TripCard({ sortie, onReturn }) {
   const isMoto = sortie.Vehicle?.type === 'moto';
+  const ds = sortie.displayStatus;
   return (
     <Card withBorder radius="lg" p="lg" className="trip-card">
-      <div className="stat-card-accent" style={{ background: sortieStatusAccent[sortie.status] }} />
+      <div className="stat-card-accent" style={{ background: sortieStatusAccent[ds?.key || sortie.status] }} />
       <Group justify="space-between" mb="xs" wrap="nowrap">
         <Group gap="sm">
           <IconRoute size={20} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
           <Text fw={600} size="md">{sortie.destination}</Text>
         </Group>
-        <Badge color={statusColor[sortie.status]} variant="light">
-          {statusLabel[sortie.status]}
+        <Badge color={ds?.color || statusColor[sortie.status]} variant="light">
+          {ds?.label || statusLabel[sortie.status]}
         </Badge>
       </Group>
       <Stack gap={4} mb="md">
@@ -38,6 +39,12 @@ function TripCard({ sortie, onReturn }) {
           <IconClock size={14} color="var(--mantine-color-dimmed)" />
           <Text size="sm">{dayjs(sortie.departure_time).format('DD/MM/YYYY HH:mm')}</Text>
         </Group>
+        {sortie.motif && (
+          <Group gap="xs">
+            <IconNote size={14} color="var(--mantine-color-dimmed)" />
+            <Text size="sm" truncate>{sortie.motif}</Text>
+          </Group>
+        )}
         {!isMoto && sortie.departure_km && (
           <Group gap="xs">
             <IconGauge size={14} color="var(--mantine-color-dimmed)" />
@@ -114,6 +121,7 @@ function TripCard({ sortie, onReturn }) {
 
 function MyTrips() {
   const [sorties, setSorties] = useState([]);
+  const [plannedSorties, setPlannedSorties] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [returnOpened, { open: openReturn, close: closeReturn }] = useDisclosure(false);
@@ -122,6 +130,11 @@ function MyTrips() {
   const [returnKm, setReturnKm] = useState(0);
   const [returnedAt, setReturnedAt] = useState(null);
   const [returnLoading, setReturnLoading] = useState(false);
+
+  const [joinOpened, { open: openJoin, close: closeJoin }] = useDisclosure(false);
+  const [joinSortie, setJoinSortie] = useState(null);
+  const [joinNb, setJoinNb] = useState(1);
+  const [joinLoading, setJoinLoading] = useState(false);
 
   const fetchTrips = async () => {
     try {
@@ -134,9 +147,19 @@ function MyTrips() {
     }
   };
 
+  const fetchPlanned = useCallback(async () => {
+    try {
+      const { data } = await sortieService.planned();
+      setPlannedSorties(Array.isArray(data) ? data : []);
+    } catch {
+      // silently fail — section won't show
+    }
+  }, []);
+
   useEffect(() => {
     fetchTrips();
-  }, []);
+    fetchPlanned();
+  }, [fetchPlanned]);
 
   const openReturnModal = (s) => {
     setReturnSortie(s);
@@ -165,6 +188,28 @@ function MyTrips() {
     }
   };
 
+  const openJoinModal = (s) => {
+    setJoinSortie(s);
+    setJoinNb(1);
+    openJoin();
+  };
+
+  const handleJoin = async () => {
+    if (!joinSortie) return;
+    setJoinLoading(true);
+    try {
+      await sortieService.join(joinSortie.id, joinNb);
+      notifySuccess('Demande créée pour cette sortie');
+      closeJoin();
+      fetchTrips();
+      fetchPlanned();
+    } catch (err) {
+      notifyError(err.response?.data?.message || 'Impossible de rejoindre cette sortie');
+    } finally {
+      setJoinLoading(false);
+    }
+  };
+
   if (loading) return <PageLoader />;
 
   const ongoing = sorties.filter((s) => s.status === 'ongoing');
@@ -175,6 +220,64 @@ function MyTrips() {
   return (
     <div className="page-content">
       <PageHeader title="Mes trajets" subtitle={`${sorties.length} trajet${sorties.length !== 1 ? 's' : ''} associé${sorties.length !== 1 ? 's' : ''} à vos demandes`} />
+
+      {plannedSorties.length > 0 && (
+        <>
+          <Text size="sm" fw={600} mb="sm" c="brand">
+            <IconCar size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+            Sorties disponibles ({plannedSorties.length})
+          </Text>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" mb="xl">
+            {plannedSorties.map((s) => {
+              const capacityPct = s.vehicle?.capacity ? Math.round((s.occupiedSeats / s.vehicle.capacity) * 100) : 0;
+              return (
+                <Card key={s.id} withBorder radius="lg" p="lg" className="trip-card">
+                  <div className="stat-card-accent" style={{ background: s.displayStatus?.color === 'orange' ? 'var(--mantine-color-orange-6)' : 'var(--mantine-color-brandYellow-6)' }} />
+                  <Group justify="space-between" mb="xs" wrap="nowrap">
+                    <Group gap="sm">
+                      <VehicleIcon type={s.vehicle?.type} size={18} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
+                      <Text fw={600} size="sm" tt="capitalize">{s.vehicle?.type}</Text>
+                    </Group>
+                    <Badge color={s.displayStatus?.color || 'gray'} variant="light" size="sm">
+                      {s.displayStatus?.label || 'Prévue'}
+                    </Badge>
+                  </Group>
+                  <Stack gap={4} mb="md">
+                    <Group gap="xs">
+                      <IconRoute size={14} color="var(--mantine-color-dimmed)" />
+                      <Text size="sm">{s.destination}</Text>
+                    </Group>
+                    <Group gap="xs">
+                      <IconClock size={14} color="var(--mantine-color-dimmed)" />
+                      <Text size="sm">{dayjs(s.departure_time).format('DD/MM/YYYY HH:mm')}</Text>
+                    </Group>
+                    {s.motif && (
+                      <Group gap="xs">
+                        <IconNote size={14} color="var(--mantine-color-dimmed)" />
+                        <Text size="sm" truncate>{s.motif}</Text>
+                      </Group>
+                    )}
+                    <Group gap="xs">
+                      <IconUsers size={14} color="var(--mantine-color-dimmed)" />
+                      <Text size="sm">{s.passenger_count} / {s.vehicle?.capacity} passagers</Text>
+                    </Group>
+                  </Stack>
+                  <Progress value={capacityPct} color={capacityPct >= 100 ? 'red' : 'brand'} size="xs" mb="sm" radius="xl" />
+                  <Button
+                    color="brand"
+                    fullWidth
+                    leftSection={<IconUsers size={14} />}
+                    onClick={() => openJoinModal(s)}
+                    disabled={s.availableSeats <= 0}
+                  >
+                    {s.availableSeats <= 0 ? 'Complet' : 'Rejoindre cette sortie'}
+                  </Button>
+                </Card>
+              );
+            })}
+          </SimpleGrid>
+        </>
+      )}
 
       {sorties.length === 0 ? (
         <EmptyState icon={IconRoute} message="Aucun trajet associé à vos demandes" />
@@ -246,7 +349,39 @@ function MyTrips() {
         </>
       )}
 
-      <Modal opened={returnOpened} onClose={closeReturn} title="Marquer le retour" size="sm"
+      <Modal opened={joinOpened} onClose={closeJoin} title="Rejoindre cette sortie" size="md"
+        overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
+        transitionProps={{ transition: 'fade', duration: 200 }}
+      >
+        <Stack gap="md">
+          <Group gap="sm">
+            <IconRoute size={18} color="var(--mantine-color-brand-6)" />
+            <Text size="md" fw={600}>{joinSortie?.destination}</Text>
+          </Group>
+          <Text size="sm" c="dimmed">
+            {joinSortie?.vehicle?.type} — {dayjs(joinSortie?.departure_time).format('DD/MM/YYYY HH:mm')}
+          </Text>
+          {joinSortie?.motif && (
+            <Text size="sm" c="dimmed">Motif: {joinSortie.motif}</Text>
+          )}
+          <Text size="sm">
+            Places disponibles: <strong>{joinSortie?.availableSeats}</strong> / {joinSortie?.vehicle?.capacity}
+          </Text>
+          <NumberInput
+            label="Nombre de personnes"
+            min={1}
+            max={joinSortie?.availableSeats || 1}
+            value={joinNb}
+            onChange={setJoinNb}
+            required
+          />
+          <Button color="brand" fullWidth onClick={handleJoin} loading={joinLoading}>
+            Confirmer
+          </Button>
+        </Stack>
+      </Modal>
+
+      <Modal opened={returnOpened} onClose={closeReturn} title="Marquer le retour" size="md"
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
         transitionProps={{ transition: 'fade', duration: 200 }}
       >
@@ -256,12 +391,14 @@ function MyTrips() {
         </Text>
         <DateTimePicker label="Date et heure de retour" value={returnedAt} onChange={setReturnedAt}
           required mb="sm" />
-        <NumberInput label="Kilométrage au départ" placeholder="Ex: 12500"
-          min={0} value={returnDepKm} onChange={setReturnDepKm} mb="sm" required
-        />
-        <NumberInput label="Kilométrage au retour" placeholder="Ex: 12750"
-          min={Number(returnDepKm) || 0} value={returnKm} onChange={setReturnKm} mb="md" required
-        />
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mb="md">
+          <NumberInput label="Kilométrage au départ" placeholder="Ex: 12500"
+            min={0} value={returnDepKm} onChange={setReturnDepKm} required
+          />
+          <NumberInput label="Kilométrage au retour" placeholder="Ex: 12750"
+            min={Number(returnDepKm) || 0} value={returnKm} onChange={setReturnKm} required
+          />
+        </SimpleGrid>
         {Number(returnDepKm) > 0 && Number(returnKm) > Number(returnDepKm) && (
           <Text size="sm" c="dimmed" mb="md">
             Distance parcourue : <strong>{Number(returnKm) - Number(returnDepKm)} km</strong>

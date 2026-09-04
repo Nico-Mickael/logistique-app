@@ -366,15 +366,17 @@ function ValidateRequests() {
         )}
       </Modal>
 
-      <Modal opened={opened} onClose={close} title="Proposer une nouvelle date" size="sm"
+      <Modal opened={opened} onClose={close} title="Proposer une nouvelle date" size="md"
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
         transitionProps={{ transition: 'fade', duration: 200 }}
       >
-        <TextInput label="Employé"
-          value={`${selectedRequest?.Employee?.prenom || ''} ${selectedRequest?.Employee?.nom || ''}`}
-          disabled mb="sm"
-        />
-        <TextInput label="Destination" value={selectedRequest?.destination || ''} disabled mb="sm" />
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mb="sm">
+          <TextInput label="Employé"
+            value={`${selectedRequest?.Employee?.prenom || ''} ${selectedRequest?.Employee?.nom || ''}`}
+            disabled
+          />
+          <TextInput label="Destination" value={selectedRequest?.destination || ''} disabled />
+        </SimpleGrid>
         <DateTimePicker label="Nouvelle date proposée" value={newDate} onChange={setNewDate}
           minDate={new Date()} mb="md"
         />

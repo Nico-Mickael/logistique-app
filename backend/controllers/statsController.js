@@ -1,4 +1,4 @@
-const { Sortie, Request, Vehicle, SortieRequest } = require('../models');
+const { Sortie, Request, Vehicle, SortieRequest, Employee } = require('../models');
 const { Op, fn, col } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -149,6 +149,69 @@ exports.kilometrage = asyncHandler(async (req, res) => {
   });
 
   res.json(sorties);
+});
+
+// GET /api/stats/sorties-passengers?date=2026-09-04&vehicle_id=1
+// Rapport des sorties avec passagers (admin / chef logistique)
+exports.sortiesPassengers = asyncHandler(async (req, res) => {
+  const { date, vehicle_id } = req.query;
+
+  if (!date) {
+    return res.status(400).json({ message: 'Le paramètre date est requis (format YYYY-MM-DD)' });
+  }
+
+  const startDate = new Date(date);
+  const endDate = new Date(date);
+  endDate.setDate(endDate.getDate() + 1);
+
+  const where = {
+    departure_time: { [Op.gte]: startDate, [Op.lt]: endDate },
+  };
+  if (vehicle_id) {
+    where.vehicle_id = parseInt(vehicle_id, 10);
+  }
+
+  const sorties = await Sortie.findAll({
+    where,
+    include: [
+      { model: Vehicle, attributes: ['id', 'type', 'capacity'] },
+      { model: Employee, as: 'driver', attributes: ['id', 'nom', 'prenom'] },
+      {
+        model: Request,
+        include: [{ model: Employee, attributes: ['id', 'nom', 'prenom', 'department'] }],
+        attributes: ['id', 'destination', 'motif', 'nb_personnes'],
+        through: { attributes: [] },
+      },
+    ],
+    order: [['departure_time', 'ASC']],
+  });
+
+  const result = sorties.map((s) => {
+    const passengers = (s.Requests || []).map((r) => ({
+      request_id: r.id,
+      employee: r.Employee ? { id: r.Employee.id, nom: r.Employee.nom, prenom: r.Employee.prenom, department: r.Employee.department } : null,
+      destination: r.destination,
+      motif: r.motif,
+      nb_personnes: r.nb_personnes,
+    }));
+
+    return {
+      id: s.id,
+      destination: s.destination,
+      departure_time: s.departure_time,
+      departed_at: s.departed_at,
+      returned_at: s.returned_at,
+      departure_km: s.departure_km,
+      arrival_km: s.arrival_km,
+      distance_km: s.distance_km,
+      driver_name: s.driver ? `${s.driver.prenom} ${s.driver.nom}` : s.driver_name,
+      vehicle: s.Vehicle ? { id: s.Vehicle.id, type: s.Vehicle.type, capacity: s.Vehicle.capacity } : null,
+      passengers,
+      passenger_count: passengers.length,
+    };
+  });
+
+  res.json(result);
 });
 
 // GET /api/stats/fleet — santé de la flotte (pour le dashboard chef)

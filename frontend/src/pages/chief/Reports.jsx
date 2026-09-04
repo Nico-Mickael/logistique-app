@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Paper, Text, Group, Center, Badge, SimpleGrid,
-  Button, Select, ThemeIcon, Menu,
+  Paper, Text, Group, Center, Badge, SimpleGrid, Stack,
+  Button, Select, ThemeIcon, Menu, Divider, Table,
 } from '@mantine/core';
 import { BarChart, PieChart } from '@mantine/charts';
 import { DataTable } from 'mantine-datatable';
+import { DateInput } from '@mantine/dates';
 import {
   IconFileText, IconRoute, IconMapPin, IconCheck, IconX, IconDownload,
   IconReportAnalytics, IconGauge, IconClock, IconCar, IconTool,
-  IconBuilding,
+  IconBuilding, IconUsers, IconSearch,
 } from '@tabler/icons-react';
 import dayjs from '../../utils/date';
 import { yearOptions } from '../../utils/date';
@@ -30,6 +31,11 @@ export default function Reports() {
   const [fleet, setFleet] = useState(null);
   const [vehicleFilter, setVehicleFilter] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const [passengerDate, setPassengerDate] = useState(null);
+  const [passengerVehicle, setPassengerVehicle] = useState('');
+  const [passengerRows, setPassengerRows] = useState([]);
+  const [passengerLoading, setPassengerLoading] = useState(false);
 
   useEffect(() => {
     vehicleService.getAll()
@@ -85,6 +91,55 @@ export default function Reports() {
 
   const handleExport = (fn) => {
     fn().catch(() => notifyError("Échec de l'export"));
+  };
+
+  const fetchPassengerReport = () => {
+    if (!passengerDate) {
+      notifyError('Veuillez sélectionner une date');
+      return;
+    }
+    setPassengerLoading(true);
+    const params = { date: dayjs(passengerDate).format('YYYY-MM-DD') };
+    if (passengerVehicle) params.vehicle_id = passengerVehicle;
+    statsService.sortiesPassengers(params)
+      .then(({ data }) => setPassengerRows(data || []))
+      .catch(() => notifyError('Impossible de charger le rapport'))
+      .finally(() => setPassengerLoading(false));
+  };
+
+  const exportPassengerCSV = () => {
+    if (!passengerRows.length) return;
+    const rows = [];
+    for (const s of passengerRows) {
+      const base = [
+        dayjs(s.departure_time).format('DD/MM/YYYY'),
+        s.id,
+        s.vehicle?.type || '',
+        s.vehicle?.capacity ?? '',
+        s.driver_name,
+        s.destination,
+        s.departed_at ? dayjs(s.departed_at).format('HH:mm') : '',
+        s.returned_at ? dayjs(s.returned_at).format('HH:mm') : '',
+        s.departure_km ?? '',
+        s.arrival_km ?? '',
+        s.distance_km ?? '',
+        s.passenger_count,
+      ];
+      if (s.passengers.length === 0) {
+        rows.push([...base, '', '', ''].join(';'));
+      } else {
+        for (const p of s.passengers) {
+          const emp = p.employee;
+          rows.push([...base, emp ? `${emp.prenom} ${emp.nom}` : '', emp?.department || '', p.request_id || ''].join(';'));
+        }
+      }
+    }
+    downloadCSV('rapport_passagers.csv', [
+      'Date', 'Sortie #', 'Véhicule', 'Capacité', 'Conducteur',
+      'Destination', 'Heure départ', 'Heure retour',
+      'Km départ', 'Km arrivée', 'Distance', 'Nb passagers',
+      'Passager', 'Département', 'Demande #',
+    ], rows);
   };
 
   if (loading && !overview) return <PageLoader />;
@@ -248,6 +303,129 @@ export default function Reports() {
               ]}
             />
           </Paper>
+
+          <Paper p="lg" radius="lg" withBorder mt="md">
+            <Group justify="space-between" mb="md" wrap="wrap">
+              <Group gap="sm">
+                <ThemeIcon variant="light" color="brand" size={28} radius={8}>
+                  <IconUsers size={16} />
+                </ThemeIcon>
+                <Text fw={600} size="sm">Rapport des sorties &amp; passagers</Text>
+              </Group>
+              <Group gap="xs">
+                <DateInput
+                  placeholder="Date"
+                  valueFormat="DD/MM/YYYY"
+                  value={passengerDate}
+                  onChange={setPassengerDate}
+                  size="xs"
+                  w={150}
+                  clearable
+                />
+                <Select
+                  placeholder="Tous les véhicules"
+                  data={vehicles.map((v) => ({ value: String(v.id), label: v.type }))}
+                  value={passengerVehicle}
+                  onChange={(v) => setPassengerVehicle(v || '')}
+                  clearable
+                  size="xs"
+                  w={160}
+                />
+                <Button
+                  color="brand"
+                  leftSection={<IconSearch size={16} />}
+                  onClick={fetchPassengerReport}
+                  loading={passengerLoading}
+                  className="btn-action"
+                >
+                  Rechercher
+                </Button>
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  size="xs"
+                  leftSection={<IconX size={14} />}
+                  onClick={() => { setPassengerDate(null); setPassengerVehicle(''); setPassengerRows([]); }}
+                >
+                  Effacer
+                </Button>
+                {passengerRows.length > 0 && (
+                  <Menu shadow="lg" width={200} position="bottom-end">
+                    <Menu.Target>
+                      <Button variant="subtle" color="gray" leftSection={<IconDownload size={14} />} size="xs">
+                        Exporter
+                      </Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item leftSection={<IconFileText size={14} />} onClick={() => handleExport(() => exportService.sortiesPassengersReport({ date: dayjs(passengerDate).format('YYYY-MM-DD'), ...(passengerVehicle ? { vehicle_id: passengerVehicle } : {}) }, 'xlsx'))}>
+                        Excel (.xlsx)
+                      </Menu.Item>
+                      <Menu.Item leftSection={<IconFileText size={14} />} onClick={() => handleExport(() => exportService.sortiesPassengersReport({ date: dayjs(passengerDate).format('YYYY-MM-DD'), ...(passengerVehicle ? { vehicle_id: passengerVehicle } : {}) }, 'csv'))}>
+                        CSV
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item leftSection={<IconDownload size={14} />} onClick={exportPassengerCSV}>
+                        CSV rapide
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                )}
+              </Group>
+            </Group>
+
+            {passengerLoading && <Text c="dimmed" size="sm">Chargement...</Text>}
+
+            {!passengerLoading && passengerDate && passengerRows.length === 0 && (
+              <Text c="dimmed" size="sm">Aucune sortie trouvée pour cette date</Text>
+            )}
+
+            {!passengerLoading && passengerRows.length > 0 && (
+              <Stack gap="md">
+                {passengerRows.map((s) => (
+                  <Paper key={s.id} p="md" radius="md" withBorder>
+                    <Group justify="space-between" mb="sm" wrap="wrap">
+                      <Group gap="sm">
+                        <Badge variant="filled" color="brand" size="lg">Sortie #{s.id}</Badge>
+                        <Text fw={600} size="sm">{s.destination}</Text>
+                      </Group>
+                      <Group gap="xs">
+                        <Badge variant="light" color="gray">{s.vehicle?.type}</Badge>
+                        <Badge variant="light" color="gray">{s.vehicle?.capacity} places</Badge>
+                      </Group>
+                    </Group>
+
+                    <SimpleGrid cols={{ base: 2, sm: 4 }} mb="sm" spacing="xs">
+                      <Text size="xs" c="dimmed">Chauffeur</Text>
+                      <Text size="xs">{s.driver_name}</Text>
+                      <Text size="xs" c="dimmed">Départ</Text>
+                      <Text size="xs">{s.departed_at ? dayjs(s.departed_at).format('HH:mm') : '—'}</Text>
+                      <Text size="xs" c="dimmed">Retour</Text>
+                      <Text size="xs">{s.returned_at ? dayjs(s.returned_at).format('HH:mm') : '—'}</Text>
+                      <Text size="xs" c="dimmed">Distance</Text>
+                      <Text size="xs">{s.distance_km != null ? `${s.distance_km} km` : '—'}</Text>
+                      <Text size="xs" c="dimmed">Km départ</Text>
+                      <Text size="xs">{s.departure_km ?? '—'}</Text>
+                      <Text size="xs" c="dimmed">Km arrivée</Text>
+                      <Text size="xs">{s.arrival_km ?? '—'}</Text>
+                    </SimpleGrid>
+
+                    <Divider mb="sm" />
+
+                    <Group gap="xs" mb="xs">
+                      <IconUsers size={14} />
+                      <Text fw={600} size="xs">Personnes à bord ({s.passenger_count} / {s.vehicle?.capacity ?? '—'})</Text>
+                    </Group>
+
+                    {s.passengers.length === 0 ? (
+                      <Text size="xs" c="dimmed">Aucun passager enregistré</Text>
+                    ) : (
+                      <Tablestrip passengers={s.passengers} />
+                    )}
+                  </Paper>
+                ))}
+              </Stack>
+            )}
+          </Paper>
         </>
       )}
     </div>
@@ -267,5 +445,30 @@ function StackGapList({ destinations }) {
         </Group>
       ))}
     </div>
+  );
+}
+
+function Tablestrip({ passengers }) {
+  return (
+    <Table striped highlightOnHover withTableBorder fontSize="xs">
+      <Table.Thead>
+        <Table.Tr>
+          <Table.Th>#</Table.Th>
+          <Table.Th>Nom &amp; prénom</Table.Th>
+          <Table.Th>Département</Table.Th>
+          <Table.Th>Demande</Table.Th>
+        </Table.Tr>
+      </Table.Thead>
+      <Table.Tbody>
+        {passengers.map((p, i) => (
+          <Table.Tr key={p.request_id || i}>
+            <Table.Td>{i + 1}</Table.Td>
+            <Table.Td>{p.employee ? `${p.employee.prenom} ${p.employee.nom}` : '—'}</Table.Td>
+            <Table.Td>{p.employee?.department || '—'}</Table.Td>
+            <Table.Td>{p.request_id ? `#${p.request_id}` : '—'}</Table.Td>
+          </Table.Tr>
+        ))}
+      </Table.Tbody>
+    </Table>
   );
 }

@@ -4,7 +4,7 @@ import {
   Stack, Button, Modal, NumberInput, Avatar, Divider,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconRoute, IconClock, IconGauge, IconPlayerPlay, IconFlag, IconCar, IconCalendarEvent } from '@tabler/icons-react';
+import { IconRoute, IconClock, IconGauge, IconPlayerPlay, IconFlag, IconCar, IconCalendarEvent, IconNote } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
@@ -38,6 +38,12 @@ function DriverCard({ sortie, onStart, onArrivee, actionLoading }) {
           <IconCalendarEvent size={14} color="var(--mantine-color-dimmed)" />
           <Text size="sm">{dayjs(sortie.departure_time).format('DD/MM/YYYY')} á {dayjs(sortie.departure_time).format('HH:mm')}</Text>
         </Group>
+        {sortie.motif && (
+          <Group gap="xs">
+            <IconNote size={14} color="var(--mantine-color-dimmed)" />
+            <Text size="sm" fw={500}>{sortie.motif}</Text>
+          </Group>
+        )}
         {sortie.departure_km != null && (
           <Group gap="xs">
             <IconGauge size={14} color="var(--mantine-color-dimmed)" />
