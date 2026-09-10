@@ -7,7 +7,7 @@ import { IconPlus, IconEdit, IconTrash, IconUsers as IconUsersIcon, IconSearch }
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
 import EmptyState from '../../components/EmptyState';
-import { useDisclosure } from '@mantine/hooks';
+import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import api from '../../api/axios';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -38,8 +38,8 @@ function UserCard({ u, onEdit, onDelete }) {
                     roleColors[u.role] === 'brand' ? 'var(--mantine-color-brand-6)' :
                     'var(--mantine-color-gray-5)',
       }} />
-      <Group justify="space-between" mb="xs" wrap="nowrap">
-        <Text fw={600} size="md">{u.prenom} {u.nom}</Text>
+      <Group justify="space-between" mb="xs" wrap="wrap">
+        <Text fw={600} size="md" style={{ minWidth: 0, wordBreak: 'break-word' }}>{u.prenom} {u.nom}</Text>
         <Badge color={roleColors[u.role] || 'gray'} variant="light">{roleLabels[u.role] || u.role}</Badge>
       </Group>
       <Stack gap={4} mb="md">
@@ -66,6 +66,7 @@ export default function Users() {
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState('table');
   const pageSize = 10;
+  const isMobile = useMediaQuery('(max-width: 767px)');
 
   const [form, setForm] = useState({ nom: '', prenom: '', email: '', password: '', department: '', role: 'employee' });
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -165,7 +166,7 @@ export default function Users() {
     {
       accessor: 'actions', title: '',
       render: (u) => (
-        <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
+        <Group gap="xs" wrap="wrap" onClick={(e) => e.stopPropagation()}>
           <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => openEdit(u)}>Modifier</Button>
           {u.role !== 'superadmin' && (
             <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(u)}>Supprimer</Button>
@@ -173,7 +174,7 @@ export default function Users() {
         </Group>
       ),
     },
-  ];
+  ].filter((c) => !(isMobile && c.accessor === 'department'));
 
   if (loading) return <PageLoader />;
 
@@ -229,7 +230,7 @@ export default function Users() {
                 onPageChange={setPage}
                 totalRecords={filteredUsers.length}
                 recordsPerPage={pageSize}
-                paginationActiveBackgroundColor="#3FA34A"
+                paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
               />
             </Paper>
           ) : (

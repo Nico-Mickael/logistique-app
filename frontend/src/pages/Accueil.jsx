@@ -99,7 +99,7 @@ export default function Accueil() {
               <div key={m.year} className={`htl-item ${isFinal ? 'final' : ''} hero-text`} style={{ animationDelay: `${0.12 * i}s` }}>
                 <div className="htl-year">{m.year}</div>
                 <div className="htl-track">
-                  <div className="htl-dot"><m.icon size={10} color={isFinal ? '#6E4E00' : '#2E7D32'} /></div>
+                  <div className="htl-dot"><m.icon size={10} color="currentColor" /></div>
                 </div>
                 <div className="htl-title">{m.title}</div>
                 <div className="htl-text">{m.text}</div>
@@ -112,7 +112,7 @@ export default function Accueil() {
       {/* ── Message de clôture ── */}
       <Flex align="center" gap="md" mt="xl" className="hero-text" style={{ animationDelay: '0.7s', marginBottom: '0.5rem' }}>
         <Divider style={{ flex: 1 }} color="light-dark(#F0E6C8, #3F3A28)" />
-        <Group gap={8} wrap="nowrap">
+        <Group gap={8} wrap="wrap" justify="center">
           <IconConfetti size={16} color="#D4920A" />
           <Text fw={600} size="sm" c="light-dark(#8A6A00, #F5C542)">Merci de faire partie de l'aventure</Text>
           <IconConfetti size={16} color="#D4920A" />

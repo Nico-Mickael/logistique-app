@@ -8,6 +8,7 @@ import {
   IconFileText, IconRoute, IconMapPin, IconCheck, IconX,
   IconGauge, IconClock,
 } from '@tabler/icons-react';
+import { useMediaQuery } from '@mantine/hooks';
 import { statsService } from '../../api/statsService';
 import { notifyError } from '../../utils/toast';
 import { requestStatusLabel, PIE_COLORS } from '../../utils/labels';
@@ -20,6 +21,8 @@ export default function MyReports() {
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const isNarrow = useMediaQuery('(max-width: 399px)');
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +55,7 @@ export default function MyReports() {
 
       {data && (
         <>
-          <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} mb="xl" spacing="md">
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mb="xl" spacing="md">
             <StatCard label="Mes demandes" value={totalRequests} icon={IconFileText} />
             <StatCard label="Validées" value={data.requests.approved || 0} icon={IconCheck} />
             <StatCard label="En attente" value={data.requests.pending || 0} icon={IconClock} />
@@ -69,7 +72,7 @@ export default function MyReports() {
                 <Text fw={600} size="sm">Kilomètres parcourus par mois ({year})</Text>
               </Group>
               <BarChart
-                h={260}
+                h={isNarrow ? 220 : 260}
                 data={data.kmByMonth}
                 dataKey="month"
                 series={[{ name: 'km', color: 'brand.6', label: 'Km' }]}
@@ -88,15 +91,18 @@ export default function MyReports() {
               {requestPieData.length === 0 ? (
                 <Center h={200}><Text c="dimmed" size="sm">Aucune donnée</Text></Center>
               ) : (
-                <PieChart
-                  h={260}
-                  data={requestPieData}
-                  withLabelsLine
-                  labelsPosition="outside"
-                  labelsType="percent"
-                  withLabels
-                  withTooltip
-                />
+                <Center>
+                  <PieChart
+                    h={isNarrow ? 220 : 260}
+                    m="sm"
+                    data={requestPieData}
+                    withLabelsLine={!isMobile}
+                    labelsPosition={isMobile ? 'inside' : 'outside'}
+                    labelsType="percent"
+                    withLabels
+                    withTooltip
+                  />
+                </Center>
               )}
             </Paper>
           </SimpleGrid>

@@ -5,11 +5,13 @@
  */
 const stores = new Map();
 
-function rateLimit({ windowMs = 15 * 60 * 1000, max = 100, message = 'Trop de requêtes, réessayez plus tard' } = {}) {
+function rateLimit({ windowMs = 15 * 60 * 1000, max = 100, message = 'Trop de requêtes, réessayez plus tard', keyGenerator } = {}) {
   const keyPrefix = `rl_${windowMs}_${max}`;
 
   return (req, res, next) => {
-    const key = `${keyPrefix}_${req.ip}`;
+    // Par défaut, clé = IP client (req.ip tient compte de trust proxy).
+    // Une clé personnalisée permet d'ajouter une dimension (ex. email du compte ciblé).
+    const key = `${keyPrefix}_${keyGenerator ? keyGenerator(req) : req.ip}`;
     const now = Date.now();
 
     let entry = stores.get(key);
@@ -32,7 +34,8 @@ function rateLimit({ windowMs = 15 * 60 * 1000, max = 100, message = 'Trop de re
   };
 }
 
-// Nettoyage périodique des entrées expirées (toutes les 10 min)
+// Nettoyage périodique des entrées expirées (toutes les 10 min).
+// unref() : ne bloque pas la sortie du process dans les tests (node --test).
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of stores) {
@@ -41,6 +44,6 @@ setInterval(() => {
       stores.delete(key);
     }
   }
-}, 10 * 60 * 1000);
+}, 10 * 60 * 1000).unref();
 
 module.exports = { rateLimit };

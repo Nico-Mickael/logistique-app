@@ -6,4 +6,5 @@ export const authService = {
   logoutAll: () => api.post('/auth/logout-all'),
   sessions: () => api.get('/auth/sessions'),
   revokeSession: (id) => api.delete(`/auth/sessions/${id}`),
+  deleteSessions: (ids) => api.delete('/auth/sessions', { data: { ids } }),
 };

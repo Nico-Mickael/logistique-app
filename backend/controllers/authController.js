@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { Op } = require('sequelize');
 const { Employee, Session } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const { ALL_ROLES, BCRYPT_ROUNDS } = require('../utils/constants');
@@ -248,4 +249,41 @@ exports.revokeSession = asyncHandler(async (req, res) => {
     await logAudit({ userId: req.user.id, action: 'revoke_session', entity: 'Session', entityId: session.id, req });
 
     res.json({ message: 'Session révoquée' });
+});
+
+// Suppression multiple de sessions TERMINÉES (révoquées). Sécurité :
+// uniquement les propres sessions révoquées de l'utilisateur — la session
+// courante ne peut jamais être supprimée ici. Suppression physique sans impact
+// sur les données métier (sorties/demandes/véhicules/passagers).
+exports.deleteSessions = asyncHandler(async (req, res) => {
+  const ids = Array.isArray(req.body?.ids)
+    ? req.body.ids.map((i) => Number(i)).filter((i) => Number.isInteger(i) && i > 0)
+    : [];
+  if (ids.length === 0) {
+    return res.status(400).json({ message: 'Aucune session sélectionnée' });
+  }
+
+  const targets = await Session.findAll({
+    where: { id: { [Op.in]: ids }, user_id: req.user.id, revoked: true },
+    attributes: ['id'],
+  });
+  if (targets.length === 0) {
+    return res.status(400).json({ message: 'Sessions terminées introuvables' });
+  }
+
+  const validIds = targets.map((s) => s.id);
+  const validSet = new Set(validIds);
+  const ignored = ids.filter((i) => !validSet.has(i));
+
+  const count = await Session.destroy({ where: { id: { [Op.in]: validIds } } });
+
+  await logAudit({
+    userId: req.user.id,
+    action: 'delete_sessions',
+    entity: 'Session',
+    oldValue: { count, ids: validIds, ignored },
+    req,
+  });
+
+  res.json({ message: `${count} session(s) supprimée(s)`, count });
 });

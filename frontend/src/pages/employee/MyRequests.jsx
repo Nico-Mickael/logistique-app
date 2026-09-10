@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   Paper, Badge, Center, Text, Group, Button, Card,
-  SimpleGrid, Stack, Modal, TextInput, Textarea, NumberInput, SegmentedControl, Pagination,
+  SimpleGrid, Stack, Modal, TextInput, Textarea, NumberInput, SegmentedControl, Pagination, Grid, ScrollArea,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
+import { useMediaQuery } from '@mantine/hooks';
 import { IconCheck, IconX, IconTrash, IconInbox, IconEdit, IconSend, IconBan } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
@@ -14,7 +15,9 @@ import ConfirmModal from '../../components/ConfirmModal';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
 import EmptyState from '../../components/EmptyState';
-import { requestStatusLabel as statusLabel, requestStatusColor as statusColor } from '../../utils/labels';
+import MotifCell from '../../components/MotifCell';
+import RequestDetailModal from '../../components/RequestDetailModal';
+import { requestStatusLabel as statusLabel, requestStatusColor as statusColor, vehicleDisplayName } from '../../utils/labels';
 
 function RequestCard({ request, onRespond, onCancel, onEdit, onDetail, onDelete }) {
   const canCancel = ['pending', 'approved'].includes(request.status);
@@ -28,8 +31,8 @@ function RequestCard({ request, onRespond, onCancel, onEdit, onDetail, onDelete 
                      request.status === 'rescheduled' ? 'var(--mantine-color-brandYellow-6)' :
                      'var(--mantine-color-gray-5)'
       }} />
-      <Group justify="space-between" mb="xs" wrap="nowrap">
-        <Text fw={600} size="md">{request.destination}</Text>
+      <Group justify="space-between" mb="xs" wrap="wrap">
+        <Text fw={600} size="md" style={{ minWidth: 0, wordBreak: 'break-word' }}>{request.destination}</Text>
         <Badge color={statusColor[request.status]} variant="light">
           {statusLabel[request.status]}
         </Badge>
@@ -43,7 +46,7 @@ function RequestCard({ request, onRespond, onCancel, onEdit, onDetail, onDelete 
         {request.Vehicle && (
           <Text size="sm">
             <Text span c="dimmed" size="sm">Véhicule: </Text>
-            <Text span tt="capitalize" size="sm">{request.Vehicle.type}</Text>
+            <Text span size="sm">{vehicleDisplayName(request.Vehicle)}</Text>
           </Text>
         )}
       </Stack>
@@ -192,9 +195,11 @@ function MyRequests() {
 
   const canCancel = (r) => ['pending', 'approved'].includes(r.status);
 
-  const columns = [
+  const isMobile = useMediaQuery('(max-width: 767px)');
+
+  const allColumns = [
     { accessor: 'destination', title: 'Destination', sortable: true },
-    { accessor: 'motif', title: 'Motif' },
+    { accessor: 'motif', title: 'Motif', render: (r) => <MotifCell motif={r.motif} maxWidth={140} /> },
     {
       accessor: 'date_souhaitee', title: 'Date souhaitée', sortable: true,
       render: (r) => dayjs(r.date_souhaitee).format('DD/MM/YYYY HH:mm'),
@@ -205,7 +210,7 @@ function MyRequests() {
       render: (r) => r.Vehicle ? (
         <Group gap={4}>
           <VehicleIcon type={r.Vehicle.type} size={14} color="var(--mantine-color-dimmed)" />
-          <Text size="sm" tt="capitalize">{r.Vehicle.type}</Text>
+          <Text size="sm">{vehicleDisplayName(r.Vehicle)}</Text>
         </Group>
       ) : '\u2014',
     },
@@ -216,7 +221,7 @@ function MyRequests() {
     {
       accessor: 'actions', title: '',
       render: (r) => (
-        <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
+        <Group gap="xs" wrap="wrap" onClick={(e) => e.stopPropagation()}>
           {r.status === 'pending' && (
             <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />}
               onClick={() => openEdit(r)}
@@ -244,6 +249,11 @@ function MyRequests() {
       ),
     },
   ];
+
+  // Colonnes secondaires masquées sur mobile (détail visible dans les cartes/détails)
+  const columns = isMobile
+    ? allColumns.filter((c) => !['motif', 'nb_personnes', 'vehicle'].includes(c.accessor))
+    : allColumns;
 
   if (loading) return <PageLoader />;
 
@@ -300,49 +310,42 @@ function MyRequests() {
         </>
       )}
 
-      <Modal opened={detailOpened} onClose={() => setDetailOpened(false)} title="Détail de la demande" size="lg" radius="md"
-        fullScreen={{ base: true, sm: false }}
-        overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
-      >
-        {detailRequest && (
-          <Stack gap="sm">
-            <div><Text size="xs" c="dimmed">Destination</Text><Text fw={500}>{detailRequest.destination}</Text></div>
-            <div><Text size="xs" c="dimmed">Motif</Text><Text>{detailRequest.motif}</Text></div>
-            <Group grow>
-              <div><Text size="xs" c="dimmed">Date souhaitée</Text><Text fw={500}>{dayjs(detailRequest.date_souhaitee).format('DD/MM/YYYY HH:mm')}</Text></div>
-              <div><Text size="xs" c="dimmed">Personnes</Text><Text fw={500}>{detailRequest.nb_personnes}</Text></div>
-            </Group>
-            <Group grow>
-              <div><Text size="xs" c="dimmed">Statut</Text><Badge color={statusColor[detailRequest.status] || 'gray'} variant="light">{statusLabel[detailRequest.status] || detailRequest.status}</Badge></div>
-              {detailRequest.Vehicle && (
-                <div><Text size="xs" c="dimmed">Véhicule</Text><Text fw={500} tt="capitalize">{detailRequest.Vehicle.type} ({detailRequest.Vehicle.capacity} pers.)</Text></div>
-              )}
-            </Group>
-            <Group grow>
-              <div><Text size="xs" c="dimmed">Créée le</Text><Text>{dayjs(detailRequest.createdAt).format('DD/MM/YYYY HH:mm')}</Text></div>
-              <div><Text size="xs" c="dimmed">Dernière modification</Text><Text>{dayjs(detailRequest.updatedAt).format('DD/MM/YYYY HH:mm')}</Text></div>
-            </Group>
-            {detailRequest.Sorties?.length > 0 && detailRequest.Sorties[0]?.returned_at && (
-              <div><Text size="xs" c="dimmed">Retourné le</Text><Text>{dayjs(detailRequest.Sorties[0].returned_at).format('DD/MM/YYYY HH:mm')}</Text></div>
-            )}
-          </Stack>
-        )}
-      </Modal>
+      <RequestDetailModal
+        opened={detailOpened}
+        onClose={() => setDetailOpened(false)}
+        request={detailRequest}
+        showEmployee={false}
+      />
 
       <Modal opened={!!editRequest} onClose={() => setEditRequest(null)}
-        title="Modifier la demande" size="lg" radius="md"
-        fullScreen={{ base: true, sm: false }}>
+        title="Modifier la demande" size="lg" radius="lg" centered
+        overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
+        scrollAreaComponent={ScrollArea.Autosize}>
         {editRequest && (
           <Stack gap="sm">
-            <TextInput label="Destination" value={editDestination}
-              onChange={(e) => setEditDestination(e.currentTarget.value)} required />
-            <Textarea label="Motif" value={editMotif}
-              onChange={(e) => setEditMotif(e.currentTarget.value)} required minRows={2} />
-            <DateTimePicker label="Date souhaitée" value={editDate}
-              onChange={setEditDate} required minDate={new Date()} />
-            <NumberInput label="Nombre de personnes" value={editNb}
-              onChange={setEditNb} min={1} max={20} required />
+            <Grid gutter="md">
+              <Grid.Col span={{ base: 12, sm: 6 }}>
+                <TextInput label="Destination" value={editDestination}
+                  onChange={(e) => setEditDestination(e.currentTarget.value)} required w="100%" radius="md" />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6 }}>
+                <DateTimePicker label="Date souhaitée" value={editDate}
+                  onChange={setEditDate} required minDate={new Date()} w="100%" radius="md" />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6 }}>
+                <NumberInput label="Nombre de personnes" value={editNb}
+                  onChange={setEditNb} min={1} max={20} required w="100%" radius="md" />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6 }}>
+                <TextInput label="Statut" value={statusLabel[editRequest.status] || editRequest.status}
+                  disabled w="100%" />
+              </Grid.Col>
+              <Grid.Col span={12}>
+                <Textarea label="Motif" value={editMotif}
+                  onChange={(e) => setEditMotif(e.currentTarget.value)} required minRows={2} w="100%" radius="md" />
+              </Grid.Col>
+            </Grid>
             <Group justify="end" mt="md">
               <Button variant="default" onClick={() => setEditRequest(null)}>Annuler</Button>
               <Button leftSection={<IconSend size={16} />} onClick={handleEditSave} loading={saving}>

@@ -12,26 +12,27 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
 import EmptyState from '../../components/EmptyState';
-import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent } from '../../utils/labels';
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent, vehicleDisplayName } from '../../utils/labels';
 
 function DriverCard({ sortie, onStart, onArrivee, actionLoading }) {
+  const ds = sortie.displayStatus;
   return (
     <Card withBorder radius="lg" p="lg" className="driver-card">
-      <div className="stat-card-accent" style={{ background: sortieStatusAccent[sortie.status] }} />
-      <Group justify="space-between" mb="sm" wrap="nowrap">
-        <Group gap="sm">
+      <div className="stat-card-accent" style={{ background: sortieStatusAccent[ds?.key || sortie.status] }} />
+      <Group justify="space-between" mb="sm" wrap="wrap">
+        <Group gap="sm" wrap="wrap" style={{ minWidth: 0 }}>
           <IconRoute size={20} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
-          <Text fw={600} size="md">{sortie.destination}</Text>
+          <Text fw={600} size="md" style={{ wordBreak: 'break-word' }}>{sortie.destination}</Text>
         </Group>
-        <Badge color={statusColor[sortie.status]} variant="light">
-          {statusLabel[sortie.status]}
+        <Badge color={ds?.color || statusColor[sortie.status]} variant="light">
+          {ds?.label || statusLabel[sortie.status]}
         </Badge>
       </Group>
 
       <Stack gap={5} mb="md">
         <Group gap="xs">
           <VehicleIcon type={sortie.Vehicle?.type} size={15} color="var(--mantine-color-dimmed)" />
-          <Text size="sm" tt="capitalize" fw={500}>{sortie.Vehicle?.type}</Text>
+          <Text size="sm" fw={500}>{sortie.Vehicle ? vehicleDisplayName(sortie.Vehicle) : '—'}</Text>
           <Text size="xs" c="dimmed">({sortie.Vehicle?.capacity} places)</Text>
         </Group>
         <Group gap="xs">

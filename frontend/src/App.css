@@ -1,3 +1,20 @@
+/* ══════════════════════════════════════════════════════════
+   SURFACES APPLICATION (light / dark)
+   Valeurs historiques de l'app, centralisées ici pour ne pas
+   dupliquer les couleurs dans les composants Layout/Header.
+   ══════════════════════════════════════════════════════════ */
+:root {
+  --app-bg: #f5f7f5;
+  --app-sidebar-bg: #ffffff;
+  --app-sidebar-border: #f0f0f0;
+}
+
+:root[data-mantine-color-scheme="dark"] {
+  --app-bg: #101113;
+  --app-sidebar-bg: #1A1B1E;
+  --app-sidebar-border: #2C2E33;
+}
+
 @media (max-width: 1024px) {
   .hide-on-mobile {
     display: none !important;
@@ -206,6 +223,7 @@
   height: 22px;
   border-radius: 50%;
   background: #fff;
+  color: #2E7D32;
   border: 3px solid #3FA34A;
   display: flex;
   align-items: center;
@@ -221,6 +239,7 @@
 .htl-item.final .htl-dot {
   background: linear-gradient(145deg, #FFE08A, #FFB300);
   border-color: #fff;
+  color: #6E4E00;
   box-shadow: 0 0 0 4px rgba(255, 179, 0, 0.28);
 }
 
@@ -271,25 +290,8 @@
 [data-mantine-color-scheme="dark"] .htl-year { color: #7BC88A; }
 [data-mantine-color-scheme="dark"] .htl-item.final .htl-year { color: #FFB300; }
 [data-mantine-color-scheme="dark"] .htl-title { color: #f1f3f5; }
-[data-mantine-color-scheme="dark"] .htl-dot { background: #1A1B1E; }
-[data-mantine-color-scheme="dark"] .htl-item.final .htl-dot { border-color: #1A1B1E; }
-
-[data-mantine-color-scheme="dark"] .rdt_TableHeadRow {
-  background-color: transparent;
-  border-bottom-color: #373A40;
-}
-[data-mantine-color-scheme="dark"] .rdt_TableRow {
-  background-color: transparent;
-  color: var(--mantine-color-text);
-}
-[data-mantine-color-scheme="dark"] .rdt_TableCell,
-[data-mantine-color-scheme="dark"] .rdt_TableCol {
-  color: var(--mantine-color-text);
-}
-[data-mantine-color-scheme="dark"] .rdt_Pagination {
-  background-color: transparent;
-  color: var(--mantine-color-text);
-}
+[data-mantine-color-scheme="dark"] .htl-dot { background: #1A1B1E; color: #7BC88A; }
+[data-mantine-color-scheme="dark"] .htl-item.final .htl-dot { border-color: #1A1B1E; color: #6E4E00; }
 
 /* ── Formulaires : largeur, espacement, alignement des libellés ── */
 .mantine-InputWrapper-label {
@@ -337,5 +339,86 @@
   .dashboard-panel,
   .filters-panel {
     animation: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   RESPONSIVE GLOBAL — sprint full responsive
+   Breakpoints : mobile < 576px · tablette 576–991px · desktop ≥ 992px
+   ══════════════════════════════════════════════════════════ */
+
+/* Conteneur de page : largeur contenue sur très grands écrans,
+   jamais plus large que le viewport. Toutes les pages l'utilisent. */
+.page-content {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Éviter qu'un enfant flexible (graphique, tableau, carte) ne déborde
+   de sa grille : tout élément de grille est rétrécissable. */
+.mantine-SimpleGrid-root,
+.mantine-Grid-root,
+.mantine-Grid-col {
+  min-width: 0;
+}
+
+.mantine-Paper-root,
+.mantine-Card-root,
+.mantine-Modal-content,
+.recharts-wrapper,
+.recharts-surface {
+  max-width: 100%;
+}
+
+/* Graphiques centrés et lisibles sur petit écran */
+.recharts-pie-label-line,
+.recharts-pie-label-text {
+  user-select: none;
+}
+
+.step-indicator {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+/* ── Mobile < 576px ── */
+@media (max-width: 575.98px) {
+  /* Tableaux (mantine-datatable) : texte et espacement allégés pour
+     afficher plus de colonnes utiles sans forcer le scroll horizontal */
+  .mantine-datatable {
+    font-size: 13px;
+  }
+
+  .mantine-datatable .mantine-datatable-row {
+    vertical-align: middle;
+  }
+
+  /* Étiquettes de graphiques lisibles */
+  .recharts-pie-label-text {
+    font-size: 10px;
+  }
+  .recharts-text {
+    font-size: 11px;
+  }
+
+  /* Titres de page : jamais tronqués */
+  .page-content .mantine-Title {
+    font-size: clamp(20px, 6vw, 26px);
+    line-height: 1.25;
+  }
+}
+
+/* ── Cibles tactiles (mobile/tablette) ── */
+@media (pointer: coarse) {
+  .mantine-Button-root,
+  .mantine-ActionIcon-root {
+    min-height: 36px;
+  }
+  .mantine-InputWrapper-root .mantine-Input-wrapper,
+  .mantine-Select-wrapper,
+  .mantine-PasswordInput-wrapper {
+    min-height: 38px;
   }
 }

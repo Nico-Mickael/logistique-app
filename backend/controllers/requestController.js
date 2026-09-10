@@ -65,8 +65,8 @@ exports.mine = asyncHandler(async (req, res) => {
   const requests = await Request.findAll({
     where: { employee_id: req.user.id },
     include: [
-      { model: Vehicle, attributes: ['id', 'type', 'capacity'] },
-      { model: Sortie, attributes: ['id', 'destination', 'status', 'departure_km', 'arrival_km', 'distance_km', 'return_km', 'returned_at', 'departure_time'], through: { attributes: [] } },
+      { model: Vehicle, attributes: ['id', 'type', 'capacity', 'name'] },
+      { model: Sortie, attributes: ['id', 'destination', 'status', 'motif', 'departure_km', 'arrival_km', 'distance_km', 'return_km', 'returned_at', 'departure_time'], through: { attributes: [] } },
     ],
     order: [['createdAt', 'DESC']],
   });
@@ -93,8 +93,8 @@ exports.all = asyncHandler(async (req, res) => {
     where,
     include: [
       { model: Employee, attributes: ['id', 'nom', 'prenom', 'department'] },
-      { model: Vehicle, attributes: ['id', 'type', 'capacity'] },
-      { model: Sortie, attributes: ['id', 'destination', 'status', 'departure_km', 'arrival_km', 'distance_km', 'return_km', 'returned_at', 'departure_time'], through: { attributes: [] } },
+      { model: Vehicle, attributes: ['id', 'type', 'capacity', 'name'] },
+      { model: Sortie, attributes: ['id', 'destination', 'status', 'motif', 'departure_km', 'arrival_km', 'distance_km', 'return_km', 'returned_at', 'departure_time'], through: { attributes: [] } },
     ],
     order: [['createdAt', 'DESC']],
     offset,
@@ -169,13 +169,29 @@ exports.cancel = asyncHandler(async (req, res) => {
 
   await logAudit({ userId: req.user.id, action: 'cancel', entity: 'Request', entityId: request.id, oldValue: { status: request.status }, newValue: { status: 'cancelled' }, req });
 
+  const sortieIds = wasApproved
+    ? [...new Set((await SortieRequest.findAll({ where: { request_id: request.id }, attributes: ['sortie_id'] })).map((l) => l.sortie_id))]
+    : [];
+
   await SortieRequest.destroy({ where: { request_id: request.id } });
 
   request.status = 'cancelled';
   request.vehicle_id = null;
   await request.save();
 
+  // Si l'annulation vide la seule/dernière sortie liée, on la supprime (sortie planifiée)
+  // et on libère le véhicule. Sinon on ne libère que si le véhicule n'a plus d'activité.
   if (wasApproved && vehicleId) {
+    for (const sortieId of sortieIds) {
+      const remaining = await SortieRequest.count({ where: { sortie_id: sortieId } });
+      if (remaining === 0) {
+        const sortie = await Sortie.findByPk(sortieId);
+        if (sortie && sortie.status === 'planned') {
+          await sortie.destroy();
+          notifyChiefs('sortie_updated', { id: sortie.id, deleted: true });
+        }
+      }
+    }
     await vehicleService.releaseIfIdle(vehicleId);
   }
 
@@ -273,13 +289,16 @@ exports.remove = asyncHandler(async (req, res) => {
     const sortieIds = [...new Set(links.map((l) => l.sortie_id))];
 
     for (const sortieId of sortieIds) {
+      const remaining = await SortieRequest.count({
+        where: { sortie_id: sortieId, request_id: { [Op.ne]: request.id } },
+      });
       await SortieRequest.destroy({ where: { sortie_id: sortieId, request_id: request.id } });
-      const remaining = await SortieRequest.count({ where: { sortie_id: sortieId } });
       if (remaining === 0) {
         const sortie = await Sortie.findByPk(sortieId);
         if (sortie && ['planned', 'ongoing', 'pending_return'].includes(sortie.status)) {
-          await vehicleService.setAvailable(sortie.vehicle_id);
+          const wasVehicleId = sortie.vehicle_id;
           await sortie.destroy();
+          await vehicleService.releaseIfIdle(wasVehicleId);
           notifyChiefs('sortie_updated', { id: sortie.id, deleted: true });
         }
       }

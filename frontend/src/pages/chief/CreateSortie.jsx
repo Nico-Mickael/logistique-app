@@ -18,7 +18,7 @@ import { requestService } from '../../api/requestService';
 import { employeeService } from '../../api/employeeService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import { getSeatLayout, getSeatColor } from '../../utils/seatLayout';
-import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor } from '../../utils/labels';
+import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor, vehicleDisplayName } from '../../utils/labels';
 
 // Critère de regroupement du cahier des charges : écart horaire ≤ 30 min
 const COMPAT_WINDOW_MIN = 30;
@@ -126,16 +126,16 @@ function VehicleCard({ vehicle, seatStates, isSelected, onClick, requestsBySeat 
               minHeight: '100%',
             }}
           >
-            <Group justify="space-between" mb="sm" wrap="nowrap">
-              <Group gap="sm">
+            <Group justify="space-between" mb="sm" wrap="wrap">
+              <Group gap="sm" wrap="wrap" style={{ minWidth: 0 }}>
                 <div className="vehicle-icon-container">
                   <VehicleIcon type={vehicle.type} size={22} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
                 </div>
                 <div>
-                  <Text fw={600} size="sm" tt="capitalize">{vehicle.type}</Text>
+                  <Text fw={600} size="sm">{vehicleDisplayName(vehicle)}</Text>
                   <Group gap={4}>
                     <IconUsers size={12} color="var(--mantine-color-dimmed)" />
-                    <Text size="xs" c="dimmed">{vehicle.capacity} places</Text>
+                    <Text size="xs" c="dimmed" tt="capitalize">{vehicle.type} · {vehicle.capacity} places</Text>
                   </Group>
                 </div>
               </Group>
@@ -226,14 +226,14 @@ function RequestCard({ request, onAdd, adding, disabled }) {
       withBorder
       className="request-glass-card"
       style={{
-        background: 'rgba(255,255,255,0.85)',
+        background: 'light-dark(rgba(255,255,255,0.85), rgba(48,50,55,0.85))',
         backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(255,255,255,0.3)',
+        border: '1px solid light-dark(rgba(255,255,255,0.3), rgba(255,255,255,0.08))',
         transition: 'all 0.3s ease',
         opacity: disabled ? 0.5 : 1,
       }}
     >
-      <Group rowGap={4} wrap="nowrap" align="flex-start">
+      <Group rowGap={4} wrap="wrap" align="flex-start">
         <Avatar color="brand" radius="xl" size="md">
           {`${request.Employee?.prenom?.[0] || ''}${request.Employee?.nom?.[0] || ''}`}
         </Avatar>
@@ -563,10 +563,10 @@ function CreateSortie() {
           animation: card-pop 0.25s ease-out;
         }
         .glass-panel {
-          background: rgba(255,255,255,0.7);
+          background: light-dark(rgba(255,255,255,0.7), rgba(48,50,55,0.7));
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255,255,255,0.3);
+          border: 1px solid light-dark(rgba(255,255,255,0.3), rgba(255,255,255,0.08));
         }
         .step-indicator {
           display: flex;
@@ -675,7 +675,7 @@ function CreateSortie() {
 
       <div className="step-indicator">
         <div className={`step-circle ${selectedVehicle ? 'step-circle--done' : 'step-circle--active'}`}>1</div>
-        <Text size="sm" fw={selectedVehicle ? 400 : 600} c={selectedVehicle ? 'dimmed' : '#1f1f1f'}>
+        <Text size="sm" fw={selectedVehicle ? 400 : 600} c={selectedVehicle ? 'dimmed' : 'var(--mantine-color-text)'}>
           Véhicule
         </Text>
         <div className={`step-line ${selectedVehicle ? 'step-line--done' : ''}`} />

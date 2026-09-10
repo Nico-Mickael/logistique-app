@@ -12,6 +12,7 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
   Sortie.belongsTo(models.Vehicle, { foreignKey: 'vehicle_id' });
   Sortie.belongsTo(models.Employee, { as: 'driver', foreignKey: 'driver_employee_id' });
+  Sortie.belongsTo(models.Employee, { as: 'rescheduler', foreignKey: 'rescheduled_by' });
   Sortie.belongsToMany(models.Request, { through: models.SortieRequest, foreignKey: 'sortie_id' });
 }
   }
@@ -30,7 +31,10 @@ module.exports = (sequelize, DataTypes) => {
     returned_at: DataTypes.DATE,
     departed_at: DataTypes.DATE,
     fuel_litres: DataTypes.DECIMAL(8, 2),
-    fuel_cost: DataTypes.DECIMAL(10, 2)
+    fuel_cost: DataTypes.DECIMAL(10, 2),
+    previous_departure_time: DataTypes.DATE,
+    reschedule_reason: DataTypes.STRING,
+    rescheduled_by: DataTypes.INTEGER
   }, {
     sequelize,
     modelName: 'Sortie',

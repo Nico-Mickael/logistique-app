@@ -1,8 +1,9 @@
-import { MantineProvider } from '@mantine/core';
+import { MantineProvider, useMantineColorScheme } from '@mantine/core';
 import { ToastContainer } from 'react-toastify';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
+import { PushProvider } from './context/PushContext';
 import { theme } from './theme';
 
 import Login from './pages/Login';
@@ -26,14 +27,21 @@ import Users from './pages/superadmin/Users';
 import Sessions from './pages/Sessions';
 import ErrorPage from './pages/ErrorPage';
 
+function AppToasts() {
+  const { colorScheme } = useMantineColorScheme();
+  return (
+    <ToastContainer position="top-right" autoClose={3500} theme={colorScheme === 'dark' ? 'dark' : 'light'} />
+  );
+}
 
 function App() {
   return (
     <MantineProvider theme={theme}>
       <BrowserRouter>
         <AuthProvider>
-          <SocketProvider>
-            <Routes>
+          <PushProvider>
+            <SocketProvider>
+              <Routes>
               <Route path="/login" element={<Login />} />
 
               <Route
@@ -178,10 +186,11 @@ function App() {
               />
               <Route path="*" element={<ErrorPage code={404} />} />
             </Routes>
-          </SocketProvider>
+            </SocketProvider>
+          </PushProvider>
         </AuthProvider>
       </BrowserRouter>
-      <ToastContainer position="top-right" autoClose={3500} theme="light" />
+      <AppToasts />
       <LoginConfetti />
     </MantineProvider>
   );

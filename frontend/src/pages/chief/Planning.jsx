@@ -15,7 +15,7 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import VehicleIcon from '../../components/VehicleIcon';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
-import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, VEHICLE_TYPE_OPTIONS } from '../../utils/labels';
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, VEHICLE_TYPE_OPTIONS, vehicleDisplayName } from '../../utils/labels';
 
 const vehicleTypeOptions = [
   { value: 'all', label: 'Tous les véhicules' },
@@ -257,7 +257,7 @@ function Planning() {
                   </Group>
                   <Group gap={4} mb={2}>
                     <VehicleIcon type={s.Vehicle?.type} size={12} color="var(--mantine-color-dimmed)" />
-                    <Text size="xs" c="dimmed" tt="capitalize">{s.Vehicle?.type || 'N/A'}</Text>
+                    <Text size="xs" c="dimmed">{s.Vehicle ? vehicleDisplayName(s.Vehicle) : 'N/A'}</Text>
                   </Group>
                   <Text size="xs" c="dimmed">
                     {s.driver_name} · {dayjs(s.departure_time).format('HH:mm')}

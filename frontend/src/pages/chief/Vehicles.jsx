@@ -4,7 +4,7 @@ import {
   TextInput, Select, NumberInput, Card, SimpleGrid, Stack, SegmentedControl,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
-import { useDisclosure } from '@mantine/hooks';
+import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { IconPlus, IconTool, IconCar, IconEdit, IconTrash } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import { DateInput } from '@mantine/dates';
@@ -15,7 +15,7 @@ import ConfirmModal from '../../components/ConfirmModal';
 import EmptyState from '../../components/EmptyState';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
-import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor, VEHICLE_TYPE_OPTIONS } from '../../utils/labels';
+import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor, VEHICLE_TYPE_OPTIONS, vehicleDisplayName } from '../../utils/labels';
 
 function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete, availableLoading }) {
   return (
@@ -25,10 +25,13 @@ function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete, av
                      vehicle.status === 'maintenance' ? 'var(--mantine-color-red-6)' :
                      'var(--mantine-color-brandYellow-6)'
       }} />
-      <Group justify="space-between" mb="xs" wrap="nowrap">
-        <Group gap="sm">
+      <Group justify="space-between" mb="xs" wrap="wrap">
+        <Group gap="sm" wrap="wrap">
           <VehicleIcon type={vehicle.type} size={22} color="var(--mantine-color-brand-6)" />
-          <Text fw={600} size="md" tt="capitalize">{vehicle.type}</Text>
+          <div style={{ minWidth: 0 }}>
+            <Text fw={600} size="md" style={{ wordBreak: 'break-word' }}>{vehicleDisplayName(vehicle)}</Text>
+            <Text size="xs" c="dimmed" tt="capitalize">{vehicle.type}</Text>
+          </div>
         </Group>
         <Badge color={statusColor[vehicle.status]} variant="light">
           {statusLabel[vehicle.status]}
@@ -79,8 +82,10 @@ function Vehicles() {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('table');
+  const isMobile = useMediaQuery('(max-width: 767px)');
 
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
+  const [name, setName] = useState('');
   const [type, setType] = useState('');
   const [capacity, setCapacity] = useState(4);
   const [creating, setCreating] = useState(false);
@@ -92,6 +97,7 @@ function Vehicles() {
   const [availableId, setAvailableId] = useState(null);
 
   const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
+  const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('');
   const [editCapacity, setEditCapacity] = useState(4);
   const [saving, setSaving] = useState(false);
@@ -116,9 +122,10 @@ function Vehicles() {
     if (!type || !capacity) { notifyError('Merci de remplir tous les champs'); return; }
     setCreating(true);
     try {
-      await vehicleService.create({ type, capacity });
+      await vehicleService.create({ name: name.trim() || undefined, type, capacity });
       notifySuccess('Véhicule ajouté');
       closeCreate();
+      setName('');
       setType('');
       setCapacity(4);
       fetchVehicles();
@@ -156,6 +163,7 @@ function Vehicles() {
 
   const openEditModal = (v) => {
     setSelectedVehicle(v);
+    setEditName(v.name || '');
     setEditType(v.type);
     setEditCapacity(v.capacity);
     openEdit();
@@ -165,7 +173,7 @@ function Vehicles() {
     if (!editType || !editCapacity) { notifyError('Merci de remplir tous les champs'); return; }
     setSaving(true);
     try {
-      await vehicleService.update(selectedVehicle.id, { type: editType, capacity: editCapacity });
+      await vehicleService.update(selectedVehicle.id, { name: editName.trim() || null, type: editType, capacity: editCapacity });
       notifySuccess('Véhicule modifié');
       closeEdit();
       fetchVehicles();
@@ -219,15 +227,16 @@ function Vehicles() {
                 highlightOnHover
                 verticalSpacing="sm"
                 columns={[
+                  { accessor: 'name', title: 'Nom', sortable: true, render: (v) => v.name || '—' },
                   { accessor: 'type', title: 'Type', sortable: true, render: (v) => <Text tt="capitalize">{v.type}</Text> },
                   { accessor: 'capacity', title: 'Capacité', render: (v) => `${v.capacity} pers.` },
                   { accessor: 'occupied', title: 'Occupé', render: (v) => v.status === 'available' ? ((v.occupiedSeats ?? 0) + ' / ' + v.capacity) : '—' },
                   { accessor: 'status', title: 'Statut', render: (v) => <Badge color={statusColor[v.status]} variant="light">{statusLabel[v.status]}</Badge> },
-                  { accessor: 'maintenance_until', title: 'Maintenance jusqu\'au', render: (v) => v.maintenance_until ? dayjs(v.maintenance_until).format('DD/MM/YYYY') : '—' },
+                  ...(isMobile ? [] : [{ accessor: 'maintenance_until', title: 'Maintenance jusqu\'au', render: (v) => v.maintenance_until ? dayjs(v.maintenance_until).format('DD/MM/YYYY') : '—' }]),
                   {
                     accessor: 'actions', title: '',
                     render: (v) => (
-                      <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
+                      <Group gap="xs" wrap="wrap" onClick={(e) => e.stopPropagation()}>
                         {v.status !== 'busy' && (
                           <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />}
                             onClick={() => openEditModal(v)}>Modifier</Button>
@@ -275,6 +284,9 @@ function Vehicles() {
         transitionProps={{ transition: 'pop', duration: 200 }}
       >
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
+          <TextInput label="Nom (optionnel)" placeholder="Ex: Peugeot Partner"
+            value={name} onChange={(e) => setName(e.currentTarget.value)} radius="md" w="100%"
+          />
           <Select label="Type" placeholder="Choisir un type"
             data={VEHICLE_TYPE_OPTIONS}
             value={type} onChange={setType} required radius="md" w="100%"
@@ -294,7 +306,7 @@ function Vehicles() {
         transitionProps={{ transition: 'pop', duration: 200 }}
       >
         <Stack gap="md" mt="sm">
-          <TextInput label="Véhicule" value={selectedVehicle?.type || ''} disabled tt="capitalize" radius="md" />
+          <TextInput label="Véhicule" value={selectedVehicle ? vehicleDisplayName(selectedVehicle) : ''} disabled radius="md" />
           <DateInput label="Retour prévu le" value={maintenanceUntil} onChange={setMaintenanceUntil}
             minDate={new Date()} radius="md"
           />
@@ -310,6 +322,9 @@ function Vehicles() {
         transitionProps={{ transition: 'pop', duration: 200 }}
       >
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
+          <TextInput label="Nom (optionnel)" placeholder="Ex: Peugeot Partner"
+            value={editName} onChange={(e) => setEditName(e.currentTarget.value)} radius="md" w="100%"
+          />
           <Select label="Type" placeholder="Choisir un type"
             data={VEHICLE_TYPE_OPTIONS}
             value={editType} onChange={setEditType} required radius="md" w="100%"
@@ -328,7 +343,7 @@ function Vehicles() {
         opened={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        title={`Supprimer ${deleteTarget?.type || ''} (${deleteTarget?.capacity} pers.) ?`}
+        title={`Supprimer ${deleteTarget ? vehicleDisplayName(deleteTarget) : ''} (${deleteTarget?.capacity} pers.) ?`}
         message="Cette action est irréversible."
         confirmLabel="Supprimer"
         variant="danger"

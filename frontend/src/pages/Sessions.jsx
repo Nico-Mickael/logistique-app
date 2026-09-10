@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Text, Paper, Stack, Group, Badge, ActionIcon, Button, Divider,
-  Tooltip, Loader, Center, Alert, Pagination,
+  Tooltip, Loader, Center, Alert, Pagination, Checkbox,
 } from '@mantine/core';
 import {
   IconDeviceDesktop, IconDeviceMobile, IconDeviceTablet,
@@ -9,6 +9,7 @@ import {
 } from '@tabler/icons-react';
 import { authService } from '../api/authService';
 import { notifySuccess, notifyError } from '../utils/toast';
+import ConfirmModal from '../components/ConfirmModal';
 
 const deviceIcon = (device) => {
   if (/mobile/i.test(device)) return IconDeviceMobile;
@@ -33,6 +34,9 @@ export default function Sessions() {
   const [error, setError] = useState(null);
   const [revokedPage, setRevokedPage] = useState(1);
   const revokedPerPage = 5;
+  const [selected, setSelected] = useState([]);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -70,6 +74,23 @@ export default function Sessions() {
     }
   };
 
+  const handleDeleteSelected = async () => {
+    const targets = selected.filter((id) => revokedSessions.some((s) => s.id === id));
+    if (targets.length === 0) return;
+    setDeleting(true);
+    try {
+      const { data } = await authService.deleteSessions(targets);
+      notifySuccess(data.message || `${targets.length} session(s) supprimée(s)`);
+      setSelected([]);
+      setDeleteConfirm(false);
+      fetchSessions();
+    } catch (err) {
+      notifyError(err.response?.data?.message || 'Erreur lors de la suppression');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Center py="xl">
@@ -80,6 +101,17 @@ export default function Sessions() {
 
   const activeSessions = sessions.filter((s) => s.active);
   const revokedSessions = sessions.filter((s) => !s.active);
+  const revokedIds = revokedSessions.map((s) => s.id);
+  const selectedRevoked = selected.filter((id) => revokedIds.includes(id));
+  const allSelected = revokedIds.length > 0 && revokedIds.every((id) => selected.includes(id));
+  const someSelected = selectedRevoked.length > 0;
+  const toggleSelectAll = () => {
+    if (allSelected) setSelected([]);
+    else setSelected(Array.from(new Set([...selected, ...revokedIds])));
+  };
+  const toggleSelect = (id) => {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
   const revokedTotalPages = Math.max(1, Math.ceil(revokedSessions.length / revokedPerPage));
   const revokedPageSessions = revokedSessions.slice(
     (revokedPage - 1) * revokedPerPage,
@@ -126,7 +158,7 @@ export default function Sessions() {
           const Icon = deviceIcon(s.device);
           return (
             <Paper key={s.id} p="sm" withBorder radius="md">
-              <Group justify="space-between" wrap="nowrap">
+              <Group justify="space-between" wrap="wrap">
                 <Group gap="sm" wrap="nowrap">
                   <Icon size={24} color="var(--mantine-color-dimmed)" />
                   <div>
@@ -164,12 +196,37 @@ export default function Sessions() {
       {revokedSessions.length > 0 && (
         <>
           <Divider label="Sessions terminées" labelPosition="center" />
+          <Group justify="space-between" gap="sm" wrap="wrap">
+            <Checkbox
+              label="Tout sélectionner"
+              checked={allSelected}
+              indeterminate={!allSelected && someSelected}
+              onChange={toggleSelectAll}
+              size="sm"
+            />
+            <Button
+              size="xs"
+              color="red"
+              variant="light"
+              leftSection={<IconTrash size={14} />}
+              disabled={!someSelected}
+              onClick={() => setDeleteConfirm(true)}
+            >
+              Supprimer{someSelected ? ` (${selectedRevoked.length})` : ''}
+            </Button>
+          </Group>
           <Stack gap="xs">
             {revokedPageSessions.map((s) => {
               const Icon = deviceIcon(s.device);
               return (
                 <Paper key={s.id} p="sm" withBorder radius="md" opacity={0.5}>
-                  <Group gap="sm" wrap="nowrap">
+                  <Group gap="sm" wrap="wrap">
+                    <Checkbox
+                      checked={selected.includes(s.id)}
+                      onChange={() => toggleSelect(s.id)}
+                      size="sm"
+                      aria-label={`Sélectionner la session ${s.device || s.id}`}
+                    />
                     <Icon size={20} color="var(--mantine-color-dimmed)" />
                     <div>
                       <Text size="sm">{s.device || 'Appareil inconnu'}</Text>
@@ -195,6 +252,17 @@ export default function Sessions() {
           )}
         </>
       )}
+
+      <ConfirmModal
+        opened={deleteConfirm}
+        onClose={() => setDeleteConfirm(false)}
+        onConfirm={handleDeleteSelected}
+        title="Supprimer ces sessions ?"
+        message={`${selectedRevoked.length} session${selectedRevoked.length > 1 ? 's' : ''} terminée${selectedRevoked.length > 1 ? 's' : ''} ${selectedRevoked.length > 1 ? 'seront' : 'sera'} définitivement supprimée${selectedRevoked.length > 1 ? 's' : ''}.`}
+        confirmLabel="Supprimer"
+        variant="danger"
+        loading={deleting}
+      />
     </Stack>
   );
 }

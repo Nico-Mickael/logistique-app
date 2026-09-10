@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 function AccessDenied() {
   return (
-    <Center h="100vh" style={{ background: 'var(--mantine-color-gray-0)' }}>
+    <Center h="100vh" style={{ background: 'light-dark(var(--mantine-color-gray-0), var(--app-bg))' }}>
       <Paper
         p="xl"
         radius="xl"

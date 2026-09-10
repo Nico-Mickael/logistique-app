@@ -1,4 +1,5 @@
-import { Modal, Group, Button, Stack } from '@mantine/core';
+import { Modal, Group, Button, Stack, ScrollArea } from '@mantine/core';
+import { vehicleDisplayName } from '../utils/labels';
 
 export default function VehicleModal({
   opened,
@@ -14,12 +15,13 @@ export default function VehicleModal({
     <Modal
       opened={opened}
       onClose={onClose}
-      title={vehicle ? `${vehicle.type} (${vehicle.capacity} places)` : 'Véhicule'}
-      size="md"
+      title={vehicle ? `${vehicleDisplayName(vehicle)} (${vehicle.capacity} places)` : 'Véhicule'}
+      size="lg"
       radius="lg"
       centered
       overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
       transitionProps={{ transition: 'pop', duration: 200 }}
+      scrollAreaComponent={ScrollArea.Autosize}
     >
       <Stack gap="md" mt="sm">
         {children}

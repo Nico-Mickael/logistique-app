@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Badge, Center, Text, Group, Button, Modal,
-  TextInput, Stack, Flex, Select, Card, SimpleGrid, Pagination, SegmentedControl,
+  TextInput, Stack, Flex, Select, Card, SimpleGrid, Pagination, SegmentedControl, Collapse,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
-import { useDisclosure } from '@mantine/hooks';
-import { IconCheck, IconX, IconCalendar, IconInbox, IconSearch, IconDownload, IconEye, IconTrash } from '@tabler/icons-react';
+import { useDisclosure, useMediaQuery } from '@mantine/hooks';
+import { IconCheck, IconX, IconCalendar, IconInbox, IconSearch, IconDownload, IconEye, IconTrash, IconFilter } from '@tabler/icons-react';
 import dayjs from '../../utils/date';
 import { requestService } from '../../api/requestService';
 import { notifySuccess, notifyError } from '../../utils/toast';
@@ -15,6 +15,8 @@ import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
 import { requestStatusLabel as statusLabel, requestStatusColor as statusColor } from '../../utils/labels';
 import { downloadCSV } from '../../utils/csv';
+import MotifCell from '../../components/MotifCell';
+import RequestDetailModal from '../../components/RequestDetailModal';
 
 const statusOptions = [
   { value: '', label: 'Tous' },
@@ -34,8 +36,8 @@ function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail, o
                     statusColor[r.status] === 'brandYellow' ? 'var(--mantine-color-brandYellow-6)' :
                     'var(--mantine-color-gray-5)',
       }} />
-      <Group justify="space-between" mb="xs" wrap="nowrap">
-        <Text fw={600} size="md">{r.Employee?.prenom} {r.Employee?.nom}</Text>
+      <Group justify="space-between" mb="xs" wrap="wrap">
+        <Text fw={600} size="md" style={{ minWidth: 0, wordBreak: 'break-word' }}>{r.Employee?.prenom} {r.Employee?.nom}</Text>
         <Badge color={statusColor[r.status]} variant="light">{statusLabel[r.status]}</Badge>
       </Group>
       <Stack gap={4} mb="md">
@@ -44,14 +46,13 @@ function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail, o
         <Text size="sm"><Text span c="dimmed">Personnes: </Text>{r.nb_personnes}</Text>
       </Stack>
       <Group gap="xs" wrap="wrap">
-        {r.status === 'pending' ? (
+        <Button size="xs" variant="subtle" color="brand" leftSection={<IconEye size={14} />} onClick={() => onDetail(r)}>Détail</Button>
+        {r.status === 'pending' && (
           <>
             <Button size="xs" color="brand" leftSection={<IconCheck size={14} />} onClick={() => onApprove(r.id)} loading={approving === r.id}>Valider</Button>
             <Button size="xs" variant="outline" color="brandYellow" leftSection={<IconCalendar size={14} />} onClick={() => onReschedule(r)}>Replanifier</Button>
             <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />} onClick={() => onReject(r)}>Refuser</Button>
           </>
-        ) : (
-          <Button size="xs" variant="subtle" color="brand" leftSection={<IconEye size={14} />} onClick={() => onDetail(r)}>Détail</Button>
         )}
         <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => onDelete(r)}>Supprimer</Button>
       </Group>
@@ -81,6 +82,8 @@ function ValidateRequests() {
   const [total, setTotal] = useState(0);
   const [viewMode, setViewMode] = useState('table');
   const limit = 20;
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const [filtersOpen, { toggle: toggleFilters }] = useDisclosure(true);
 
   const fetchRequests = useCallback(async (p = page) => {
     try {
@@ -199,6 +202,7 @@ function ValidateRequests() {
       render: (r) => `${r.Employee?.prenom || ''} ${r.Employee?.nom || ''}`,
     },
     { accessor: 'destination', title: 'Destination', sortable: true },
+    { accessor: 'motif', title: 'Motif', render: (r) => <MotifCell motif={r.motif} maxWidth={140} /> },
     {
       accessor: 'date_souhaitee', title: 'Date souhaitée', sortable: true,
       render: (r) => dayjs(r.date_souhaitee).format('DD/MM/YYYY HH:mm'),
@@ -211,9 +215,10 @@ function ValidateRequests() {
     {
       accessor: 'actions', title: '',
       render: (r) => (
-        <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
+        <Group gap="xs" wrap="wrap" onClick={(e) => e.stopPropagation()}>
           {r.status === 'pending' ? (
             <>
+              <Button size="xs" variant="subtle" color="brand" leftSection={<IconEye size={14} />} onClick={() => openDetail(r)}>Détail</Button>
               <Button size="xs" color="brand" leftSection={<IconCheck size={14} />} onClick={() => handleApprove(r.id)} loading={approvingId === r.id}>Valider</Button>
               <Button size="xs" variant="outline" color="brandYellow" leftSection={<IconCalendar size={14} />} onClick={() => openRescheduleModal(r)}>Replanifier</Button>
               <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />} onClick={() => setRejectTarget(r)}>Refuser</Button>
@@ -225,7 +230,7 @@ function ValidateRequests() {
         </Group>
       ),
     },
-  ];
+  ].filter((c) => !(isMobile && ['motif', 'nb_personnes'].includes(c.accessor)));
 
   if (loading) return <PageLoader />;
 
@@ -249,20 +254,27 @@ function ValidateRequests() {
         </Group>
       </PageHeader>
 
-      <Paper p="md" radius="lg" withBorder mb="md" className="filters-panel">
-        <Group gap="sm" wrap="wrap" align="flex-end">
-          <Select placeholder="Statut" data={statusOptions} value={statusFilter}
-            onChange={(v) => { setStatusFilter(v || ''); setPage(1); }} clearable size="xs" w={140} />
-          <TextInput placeholder="Destination..." leftSection={<IconSearch size={14} />}
-            value={destinationFilter} onChange={(e) => { setDestinationFilter(e.currentTarget.value); setPage(1); }} size="xs" w={{ base: '100%', sm: 180 }} />
-          <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
-          <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
-          {hasFilters && (
-            <Button variant="subtle" color="gray" size="xs" leftSection={<IconX size={14} />} onClick={clearFilters}>
-              Effacer
-            </Button>
-          )}
+      <Paper p={{ base: 'xs', sm: 'md' }} radius="lg" withBorder mb="md" className="filters-panel">
+        <Group justify="space-between" wrap="nowrap" hiddenFrom="sm" mb={filtersOpen ? 'xs' : 0}>
+          <Button variant="subtle" color="gray" size="xs" leftSection={<IconFilter size={14} />} onClick={toggleFilters} w="100%">
+            {filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'}
+          </Button>
         </Group>
+        <Collapse in={filtersOpen}>
+          <Group gap="sm" wrap="wrap" align="flex-end">
+            <Select placeholder="Statut" data={statusOptions} value={statusFilter}
+              onChange={(v) => { setStatusFilter(v || ''); setPage(1); }} clearable size="xs" w={{ base: '100%', sm: 140 }} />
+            <TextInput placeholder="Destination..." leftSection={<IconSearch size={14} />}
+              value={destinationFilter} onChange={(e) => { setDestinationFilter(e.currentTarget.value); setPage(1); }} size="xs" w={{ base: '100%', sm: 180 }} />
+            <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+            <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+            {hasFilters && (
+              <Button variant="subtle" color="gray" size="xs" leftSection={<IconX size={14} />} onClick={clearFilters}>
+                Effacer
+              </Button>
+            )}
+          </Group>
+        </Collapse>
       </Paper>
 
       {requests.length === 0 ? (
@@ -315,58 +327,13 @@ function ValidateRequests() {
         </>
       )}
 
-      <Modal opened={detailOpened} onClose={() => setDetailOpened(false)} title="Détail de la demande"
-        size="lg" fullScreen={{ base: true, sm: false }}
-        overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
-      >
-        {detailRequest && (
-          <Stack gap="sm">
-            <Group grow>
-              <div><Text size="xs" c="dimmed">Employé</Text><Text fw={500}>{detailRequest.Employee?.prenom} {detailRequest.Employee?.nom}</Text></div>
-              <div><Text size="xs" c="dimmed">Département</Text><Text fw={500}>{detailRequest.Employee?.department || '\u2014'}</Text></div>
-            </Group>
-            <div><Text size="xs" c="dimmed">Destination</Text><Text fw={500}>{detailRequest.destination}</Text></div>
-            <div><Text size="xs" c="dimmed">Motif</Text><Text>{detailRequest.motif}</Text></div>
-            <Group grow>
-              <div><Text size="xs" c="dimmed">Date souhaitée</Text><Text fw={500}>{dayjs(detailRequest.date_souhaitee).format('DD/MM/YYYY HH:mm')}</Text></div>
-              <div><Text size="xs" c="dimmed">Personnes</Text><Text fw={500}>{detailRequest.nb_personnes}</Text></div>
-            </Group>
-            <Group grow>
-              <div><Text size="xs" c="dimmed">Statut</Text><Badge color={statusColor[detailRequest.status] || 'gray'} variant="light">{statusLabel[detailRequest.status] || detailRequest.status}</Badge></div>
-              {detailRequest.Vehicle && (
-                <div><Text size="xs" c="dimmed">Véhicule</Text><Text fw={500} tt="capitalize">{detailRequest.Vehicle.type} ({detailRequest.Vehicle.capacity} pers.)</Text></div>
-              )}
-            </Group>
-            <Group grow>
-              <div><Text size="xs" c="dimmed">Créée le</Text><Text>{dayjs(detailRequest.createdAt).format('DD/MM/YYYY HH:mm')}</Text></div>
-              <div><Text size="xs" c="dimmed">Dernière modification</Text><Text>{dayjs(detailRequest.updatedAt).format('DD/MM/YYYY HH:mm')}</Text></div>
-            </Group>
-            {detailRequest.Sorties?.length > 0 && (
-              <>
-                <div style={{ borderTop: '1px solid var(--mantine-color-default-border)', margin: '4px 0' }} />
-                <Text size="xs" c="dimmed" fw={600}>Trajet associé</Text>
-                <Group grow>
-                  {detailRequest.Sorties[0].departure_km && (
-                    <div><Text size="xs" c="dimmed">Km départ</Text><Text>{detailRequest.Sorties[0].departure_km}</Text></div>
-                  )}
-                  {(detailRequest.Sorties[0].return_km || detailRequest.Sorties[0].arrival_km) && (
-                    <div><Text size="xs" c="dimmed">{detailRequest.Sorties[0].return_km ? 'Km retour' : 'Km arrivée'}</Text><Text>{detailRequest.Sorties[0].return_km || detailRequest.Sorties[0].arrival_km}</Text></div>
-                  )}
-                </Group>
-                {detailRequest.Sorties[0].returned_at && (
-                  <div><Text size="xs" c="dimmed">Retourné le</Text><Text>{dayjs(detailRequest.Sorties[0].returned_at).format('DD/MM/YYYY HH:mm')}</Text></div>
-                )}
-                {detailRequest.Sorties[0].distance_km && (
-                  <div><Text size="xs" c="dimmed">Distance totale</Text><Text>{detailRequest.Sorties[0].distance_km} km</Text></div>
-                )}
-              </>
-            )}
-          </Stack>
-        )}
-      </Modal>
+      <RequestDetailModal
+        opened={detailOpened}
+        onClose={() => setDetailOpened(false)}
+        request={detailRequest}
+      />
 
-      <Modal opened={opened} onClose={close} title="Proposer une nouvelle date" size="md"
+      <Modal opened={opened} onClose={close} title="Proposer une nouvelle date" size="md" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
         transitionProps={{ transition: 'fade', duration: 200 }}
       >

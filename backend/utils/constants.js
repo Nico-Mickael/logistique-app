@@ -4,11 +4,11 @@
  */
 
 // Rôles "chef" (accès aux modules logistique : demandes, sorties, véhicules, stats)
-const CHIEF_ROLES = ['logistics_chief', 'admin', 'superadmin'];
+const CHIEF_ROLES = ['logistics_chief','superadmin'];
 const ALL_ROLES = ['employee', 'chauffeur', ...CHIEF_ROLES];
 // Rôles attribuables à la création d'un compte
 // (pas de superadmin via import/register classique ; 'admin' est un chef de niveau intermédiaire)
-const ASSIGNABLE_ROLES = ['employee', 'chauffeur', 'logistics_chief', 'admin'];
+const ASSIGNABLE_ROLES = ['employee', 'chauffeur', 'logistics_chief', 'superadmin'];
 
 // Demandes de transport
 const ACTIVE_REQUEST_STATUSES = ['pending', 'approved', 'rescheduled'];

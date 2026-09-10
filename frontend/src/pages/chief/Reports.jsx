@@ -5,7 +5,8 @@ import {
 } from '@mantine/core';
 import { BarChart, PieChart } from '@mantine/charts';
 import { DataTable } from 'mantine-datatable';
-import { DateInput } from '@mantine/dates';
+import { DateInput, TimeInput } from '@mantine/dates';
+import { useMediaQuery } from '@mantine/hooks';
 import {
   IconFileText, IconRoute, IconMapPin, IconCheck, IconX, IconDownload,
   IconReportAnalytics, IconGauge, IconClock, IconCar, IconTool,
@@ -18,7 +19,7 @@ import { vehicleService } from '../../api/vehicleService';
 import { exportService } from '../../api/exportService';
 import { notifyError } from '../../utils/toast';
 import { downloadCSV } from '../../utils/csv';
-import { requestStatusLabel, PIE_COLORS } from '../../utils/labels';
+import { requestStatusLabel, PIE_COLORS, sortieStatusLabel, sortieStatusColor, VEHICLE_TYPE_OPTIONS, vehicleDisplayName } from '../../utils/labels';
 import StatCard from '../../components/StatCard';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
@@ -31,9 +32,14 @@ export default function Reports() {
   const [fleet, setFleet] = useState(null);
   const [vehicleFilter, setVehicleFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const isNarrow = useMediaQuery('(max-width: 399px)');
 
   const [passengerDate, setPassengerDate] = useState(null);
   const [passengerVehicle, setPassengerVehicle] = useState('');
+  const [passengerType, setPassengerType] = useState('');
+  const [passengerTimeFrom, setPassengerTimeFrom] = useState('');
+  const [passengerTimeTo, setPassengerTimeTo] = useState('');
   const [passengerRows, setPassengerRows] = useState([]);
   const [passengerLoading, setPassengerLoading] = useState(false);
 
@@ -79,7 +85,7 @@ export default function Reports() {
       ['Date', 'Véhicule', 'Conducteur', 'Destination', 'Km départ', 'Km arrivée', 'Distance'],
       kmRows.map((s) => [
         dayjs(s.departure_time).format('DD/MM/YYYY'),
-        s.Vehicle?.type || '',
+        s.Vehicle ? vehicleDisplayName(s.Vehicle) : '',
         s.driver_name,
         s.destination,
         s.departure_km ?? '',
@@ -101,6 +107,9 @@ export default function Reports() {
     setPassengerLoading(true);
     const params = { date: dayjs(passengerDate).format('YYYY-MM-DD') };
     if (passengerVehicle) params.vehicle_id = passengerVehicle;
+    if (passengerType) params.vehicle_type = passengerType;
+    if (passengerTimeFrom) params.time_from = passengerTimeFrom;
+    if (passengerTimeTo) params.time_to = passengerTimeTo;
     statsService.sortiesPassengers(params)
       .then(({ data }) => setPassengerRows(data || []))
       .catch(() => notifyError('Impossible de charger le rapport'))
@@ -114,12 +123,14 @@ export default function Reports() {
       const base = [
         dayjs(s.departure_time).format('DD/MM/YYYY'),
         s.id,
-        s.vehicle?.type || '',
+        s.vehicle ? vehicleDisplayName(s.vehicle) : '',
         s.vehicle?.capacity ?? '',
         s.driver_name,
         s.destination,
+        dayjs(s.departure_time).format('HH:mm'),
         s.departed_at ? dayjs(s.departed_at).format('HH:mm') : '',
         s.returned_at ? dayjs(s.returned_at).format('HH:mm') : '',
+        sortieStatusLabel[s.status] || s.status,
         s.departure_km ?? '',
         s.arrival_km ?? '',
         s.distance_km ?? '',
@@ -136,7 +147,7 @@ export default function Reports() {
     }
     downloadCSV('rapport_passagers.csv', [
       'Date', 'Sortie #', 'Véhicule', 'Capacité', 'Conducteur',
-      'Destination', 'Heure départ', 'Heure retour',
+      'Destination', 'Heure prévue', 'Heure départ', 'Heure retour', 'Statut',
       'Km départ', 'Km arrivée', 'Distance', 'Nb passagers',
       'Passager', 'Département', 'Demande #',
     ], rows);
@@ -146,7 +157,7 @@ export default function Reports() {
 
   return (
     <div className="page-content">
-      <PageHeader title="Rapports & statistiques" subtitle={`Activité de l'année ${year}`}>
+      <PageHeader title="Dashboard" subtitle={`Activité de l'année ${year}`}>
         <Group gap="sm">
           <Select data={yearOptions} value={year} onChange={setYear} size="xs" w={110} />
           <Menu shadow="lg" width={230} position="bottom-end">
@@ -175,7 +186,7 @@ export default function Reports() {
 
       {overview && (
         <>
-          <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} mb="xl" spacing="md">
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mb="xl" spacing="md">
             <StatCard label="Demandes" value={totalRequests} icon={IconFileText} />
             <StatCard label="Validées" value={overview.requests.approved || 0} icon={IconCheck} />
             <StatCard label="En attente" value={overview.requests.pending || 0} icon={IconClock} />
@@ -184,7 +195,7 @@ export default function Reports() {
           </SimpleGrid>
 
           {fleet && (
-            <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} mb="xl" spacing="md">
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mb="xl" spacing="md">
               <StatCard label="Véhicules" value={fleet.vehicles?.total ?? '—'} icon={IconCar} />
               <StatCard label="Disponibles" value={fleet.vehicles?.byStatus?.available ?? 0} icon={IconCar} />
               <StatCard label="En maintenance" value={(fleet.vehicles?.byStatus?.maintenance ?? 0) + (fleet.vehicles?.byStatus?.broken ?? 0)} icon={IconTool} />
@@ -200,7 +211,7 @@ export default function Reports() {
                 <Text fw={600} size="sm">Kilomètres parcourus par mois</Text>
               </Group>
               <BarChart
-                h={260}
+                h={isNarrow ? 220 : 260}
                 data={overview.kmByMonth}
                 dataKey="month"
                 series={[{ name: 'km', color: 'brand.6', label: 'Km' }]}
@@ -219,15 +230,18 @@ export default function Reports() {
               {requestPieData.length === 0 ? (
                 <Center h={200}><Text c="dimmed" size="sm">Aucune donnée</Text></Center>
               ) : (
-                <PieChart
-                  h={260}
-                  data={requestPieData}
-                  withLabelsLine
-                  labelsPosition="outside"
-                  labelsType="percent"
-                  withLabels
-                  withTooltip
-                />
+                <Center>
+                  <PieChart
+                    h={isNarrow ? 220 : 260}
+                    m="sm"
+                    data={requestPieData}
+                    withLabelsLine={!isMobile}
+                    labelsPosition={isMobile ? 'inside' : 'outside'}
+                    labelsType="percent"
+                    withLabels
+                    withTooltip
+                  />
+                </Center>
               )}
             </Paper>
           </SimpleGrid>
@@ -274,12 +288,12 @@ export default function Reports() {
               </Group>
               <Select
                 placeholder="Tous les véhicules"
-                data={vehicles.map((v) => ({ value: String(v.id), label: v.type }))}
+                data={vehicles.map((v) => ({ value: String(v.id), label: vehicleDisplayName(v) }))}
                 value={vehicleFilter}
                 onChange={(v) => setVehicleFilter(v || '')}
                 clearable
                 size="xs"
-                w={180}
+                w={{ base: '100%', sm: 180 }}
               />
             </Group>
             <DataTable
@@ -294,13 +308,13 @@ export default function Reports() {
               paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
               columns={[
                 { accessor: 'departure_time', title: 'Date', render: (s) => dayjs(s.departure_time).format('DD/MM/YYYY') },
-                { accessor: 'vehicle', title: 'Véhicule', render: (s) => <Text tt="capitalize">{s.Vehicle?.type}</Text> },
+                { accessor: 'vehicle', title: 'Véhicule', render: (s) => <Text>{s.Vehicle ? vehicleDisplayName(s.Vehicle) : '—'}</Text> },
                 { accessor: 'driver_name', title: 'Conducteur' },
                 { accessor: 'destination', title: 'Destination' },
                 { accessor: 'departure_km', title: 'Km départ', textAlign: 'right' },
                 { accessor: 'arrival_km', title: 'Km arrivée', textAlign: 'right' },
                 { accessor: 'distance_km', title: 'Distance', textAlign: 'right', render: (s) => <Badge variant="light" color="brand">{s.distance_km} km</Badge> },
-              ]}
+              ].filter((c) => !(isMobile && ['departure_km', 'arrival_km', 'driver_name'].includes(c.accessor)))}
             />
           </Paper>
 
@@ -312,24 +326,48 @@ export default function Reports() {
                 </ThemeIcon>
                 <Text fw={600} size="sm">Rapport des sorties &amp; passagers</Text>
               </Group>
-              <Group gap="xs">
+              <Group gap="xs" wrap="wrap">
                 <DateInput
                   placeholder="Date"
                   valueFormat="DD/MM/YYYY"
                   value={passengerDate}
                   onChange={setPassengerDate}
                   size="xs"
-                  w={150}
+                  w={{ base: '100%', sm: 150 }}
                   clearable
                 />
                 <Select
                   placeholder="Tous les véhicules"
-                  data={vehicles.map((v) => ({ value: String(v.id), label: v.type }))}
+                  data={vehicles.map((v) => ({ value: String(v.id), label: vehicleDisplayName(v) }))}
                   value={passengerVehicle}
                   onChange={(v) => setPassengerVehicle(v || '')}
                   clearable
                   size="xs"
-                  w={160}
+                  w={{ base: '100%', sm: 150 }}
+                />
+                <Select
+                  placeholder="Tous types"
+                  data={VEHICLE_TYPE_OPTIONS}
+                  value={passengerType}
+                  onChange={(v) => setPassengerType(v || '')}
+                  clearable
+                  size="xs"
+                  w={{ base: '100%', sm: 120 }}
+                />
+                <TimeInput
+                  label={null}
+                  value={passengerTimeFrom}
+                  onChange={(e) => setPassengerTimeFrom(e.currentTarget.value || '')}
+                  size="xs"
+                  w={90}
+                />
+                <Text size="xs" c="dimmed">→</Text>
+                <TimeInput
+                  label={null}
+                  value={passengerTimeTo}
+                  onChange={(e) => setPassengerTimeTo(e.currentTarget.value || '')}
+                  size="xs"
+                  w={90}
                 />
                 <Button
                   color="brand"
@@ -345,7 +383,7 @@ export default function Reports() {
                   color="gray"
                   size="xs"
                   leftSection={<IconX size={14} />}
-                  onClick={() => { setPassengerDate(null); setPassengerVehicle(''); setPassengerRows([]); }}
+                  onClick={() => { setPassengerDate(null); setPassengerVehicle(''); setPassengerType(''); setPassengerTimeFrom(''); setPassengerTimeTo(''); setPassengerRows([]); }}
                 >
                   Effacer
                 </Button>
@@ -357,10 +395,22 @@ export default function Reports() {
                       </Button>
                     </Menu.Target>
                     <Menu.Dropdown>
-                      <Menu.Item leftSection={<IconFileText size={14} />} onClick={() => handleExport(() => exportService.sortiesPassengersReport({ date: dayjs(passengerDate).format('YYYY-MM-DD'), ...(passengerVehicle ? { vehicle_id: passengerVehicle } : {}) }, 'xlsx'))}>
+                      <Menu.Item leftSection={<IconFileText size={14} />} onClick={() => handleExport(() => exportService.sortiesPassengersReport({
+                        date: dayjs(passengerDate).format('YYYY-MM-DD'),
+                        ...(passengerVehicle ? { vehicle_id: passengerVehicle } : {}),
+                        ...(passengerType ? { vehicle_type: passengerType } : {}),
+                        ...(passengerTimeFrom ? { time_from: passengerTimeFrom } : {}),
+                        ...(passengerTimeTo ? { time_to: passengerTimeTo } : {}),
+                      }, 'xlsx'))}>
                         Excel (.xlsx)
                       </Menu.Item>
-                      <Menu.Item leftSection={<IconFileText size={14} />} onClick={() => handleExport(() => exportService.sortiesPassengersReport({ date: dayjs(passengerDate).format('YYYY-MM-DD'), ...(passengerVehicle ? { vehicle_id: passengerVehicle } : {}) }, 'csv'))}>
+                      <Menu.Item leftSection={<IconFileText size={14} />} onClick={() => handleExport(() => exportService.sortiesPassengersReport({
+                        date: dayjs(passengerDate).format('YYYY-MM-DD'),
+                        ...(passengerVehicle ? { vehicle_id: passengerVehicle } : {}),
+                        ...(passengerType ? { vehicle_type: passengerType } : {}),
+                        ...(passengerTimeFrom ? { time_from: passengerTimeFrom } : {}),
+                        ...(passengerTimeTo ? { time_to: passengerTimeTo } : {}),
+                      }, 'csv'))}>
                         CSV
                       </Menu.Item>
                       <Menu.Divider />
@@ -389,15 +439,18 @@ export default function Reports() {
                         <Text fw={600} size="sm">{s.destination}</Text>
                       </Group>
                       <Group gap="xs">
-                        <Badge variant="light" color="gray">{s.vehicle?.type}</Badge>
+                        <Badge variant="light" color={sortieStatusColor[s.status] || 'gray'}>{sortieStatusLabel[s.status] || s.status}</Badge>
+                        <Badge variant="light" color="gray">{s.vehicle ? vehicleDisplayName(s.vehicle) : '—'}</Badge>
                         <Badge variant="light" color="gray">{s.vehicle?.capacity} places</Badge>
                       </Group>
                     </Group>
 
                     <SimpleGrid cols={{ base: 2, sm: 4 }} mb="sm" spacing="xs">
                       <Text size="xs" c="dimmed">Chauffeur</Text>
-                      <Text size="xs">{s.driver_name}</Text>
-                      <Text size="xs" c="dimmed">Départ</Text>
+                      <Text size="xs">{s.driver_name}{s.driver_department ? ` (${s.driver_department})` : ''}</Text>
+                      <Text size="xs" c="dimmed">Départ prévu</Text>
+                      <Text size="xs">{dayjs(s.departure_time).format('HH:mm')}</Text>
+                      <Text size="xs" c="dimmed">Départ réel</Text>
                       <Text size="xs">{s.departed_at ? dayjs(s.departed_at).format('HH:mm') : '—'}</Text>
                       <Text size="xs" c="dimmed">Retour</Text>
                       <Text size="xs">{s.returned_at ? dayjs(s.returned_at).format('HH:mm') : '—'}</Text>

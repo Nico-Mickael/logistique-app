@@ -1,7 +1,11 @@
 const XLSX = require('xlsx');
-const { Vehicle, Sortie, Employee, Request, SortieRequest } = require('../models');
+const { Vehicle, Sortie } = require('../models');
 const { Op } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
+const passengerReportService = require('../services/passengerReportService');
+
+const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
+const fmtTime = (d) => (d ? new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—');
 
 const STATUS_LABELS = {
   available: 'Disponible', busy: 'En cours', maintenance: 'Maintenance', broken: 'En panne', retired: 'Retiré',
@@ -35,7 +39,7 @@ function buildWorkbook(sheetName, headers, rows, res, req, filename) {
 // Rapport par véhicule : km, carburant, maintenance, statut, coût/km
 exports.fleetReport = asyncHandler(async (req, res) => {
   const vehicles = await Vehicle.findAll({
-    attributes: ['id', 'type', 'capacity', 'status', 'maintenance_until', 'fuel_type', 'current_km'],
+    attributes: ['id', 'name', 'type', 'capacity', 'status', 'maintenance_until', 'fuel_type', 'current_km'],
     order: [['type', 'ASC']],
   });
   const ids = vehicles.map((v) => v.id);
@@ -47,7 +51,7 @@ exports.fleetReport = asyncHandler(async (req, res) => {
     const fuelCost = sorties.reduce((sum, s) => sum + (Number(s.fuel_cost) || 0), 0);
     const litres = sorties.reduce((sum, s) => sum + (Number(s.fuel_litres) || 0), 0);
     return [
-      v.type,
+      v.name || v.type,
       STATUS_LABELS[v.status] || v.status,
       v.capacity,
       v.fuel_type || '—',
@@ -78,7 +82,7 @@ exports.sortiesReport = asyncHandler(async (req, res) => {
   const sorties = await Sortie.findAll({
     where,
     include: [
-      { model: Vehicle, attributes: ['type'] },
+      { model: Vehicle, attributes: ['type', 'name'] },
       { model: Employee, as: 'driver', attributes: ['nom', 'prenom'] },
     ],
     order: [['departure_time', 'DESC']],
@@ -88,7 +92,7 @@ exports.sortiesReport = asyncHandler(async (req, res) => {
     new Date(s.departure_time).toLocaleDateString('fr-FR'),
     s.destination,
     s.driver ? `${s.driver.prenom} ${s.driver.nom}` : (s.driver_name || '—'),
-    s.Vehicle?.type || '—',
+    s.Vehicle ? (s.Vehicle.name || s.Vehicle.type || '—') : '—',
     SORTIE_STATUS_LABELS[s.status] || s.status,
     s.departure_km ?? '—',
     s.arrival_km ?? '—',
@@ -104,69 +108,44 @@ exports.sortiesReport = asyncHandler(async (req, res) => {
   );
 });
 
-// GET /api/export/sorties-passengers?date=2026-09-04&vehicle_id=1&format=xlsx|csv
-// Rapport des sorties avec liste des passagers
+// GET /api/export/sorties-passengers?date=YYYY-MM-DD&vehicle_id=&vehicle_type=&time_from=&time_to=&format=xlsx|csv
+// Rapport des sorties avec liste des passagers (même source de vérité que
+// /api/stats/sorties-passengers : sorties effectuées + demandes validées).
 exports.sortiesPassengersReport = asyncHandler(async (req, res) => {
-  const { date, vehicle_id } = req.query;
-
-  if (!date) {
-    return res.status(400).json({ message: 'Le paramètre date est requis (format YYYY-MM-DD)' });
+  const result = await passengerReportService.findReport(req.query);
+  if (result.error) {
+    return res.status(result.status || 400).json({ message: result.error });
   }
-
-  const startDate = new Date(date);
-  const endDate = new Date(date);
-  endDate.setDate(endDate.getDate() + 1);
-
-  const where = {
-    departure_time: { [Op.gte]: startDate, [Op.lt]: endDate },
-  };
-  if (vehicle_id) {
-    where.vehicle_id = parseInt(vehicle_id, 10);
-  }
-
-  const sorties = await Sortie.findAll({
-    where,
-    include: [
-      { model: Vehicle, attributes: ['type', 'capacity'] },
-      { model: Employee, as: 'driver', attributes: ['nom', 'prenom'] },
-      {
-        model: Request,
-        include: [{ model: Employee, attributes: ['nom', 'prenom', 'department'] }],
-        attributes: ['id', 'destination', 'motif'],
-        through: { attributes: [] },
-      },
-    ],
-    order: [['departure_time', 'ASC']],
-  });
 
   const rows = [];
-  for (const s of sorties) {
-    const passengers = s.Requests || [];
-    const vehicleType = s.Vehicle?.type || '—';
-    const capacity = s.Vehicle?.capacity ?? '—';
-    const driver = s.driver ? `${s.driver.prenom} ${s.driver.nom}` : (s.driver_name || '—');
-    const departureDate = new Date(s.departure_time).toLocaleDateString('fr-FR');
-    const departureHour = s.departed_at ? new Date(s.departed_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
-    const returnHour = s.returned_at ? new Date(s.returned_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
+  for (const s of result.data) {
+    const passengers = s.passengers;
+    const vehicleType = s.vehicle?.type || '—';
+    const capacity = s.vehicle?.capacity ?? '—';
+    const driver = s.driver_name || '—';
+    const departureDate = fmtDate(s.departure_time);
+    const departHour = fmtTime(s.departed_at || s.departure_time);
+    const returnHour = fmtTime(s.returned_at);
+    const statusLabel = SORTIE_STATUS_LABELS[s.status] || s.status;
 
     if (passengers.length === 0) {
       rows.push([
         departureDate, s.id, vehicleType, capacity, driver,
-        s.destination, departureHour, returnHour,
+        s.destination, departHour, returnHour, statusLabel,
         s.departure_km ?? '—', s.arrival_km ?? '—', s.distance_km ?? '—',
         0, capacity, '—', '—', '—',
       ]);
     } else {
       for (const p of passengers) {
-        const emp = p.Employee;
+        const emp = p.employee;
         rows.push([
           departureDate, s.id, vehicleType, capacity, driver,
-          s.destination, departureHour, returnHour,
+          s.destination, departHour, returnHour, statusLabel,
           s.departure_km ?? '—', s.arrival_km ?? '—', s.distance_km ?? '—',
           passengers.length, capacity,
           emp ? `${emp.prenom} ${emp.nom}` : '—',
           emp?.department || '—',
-          p.id,
+          p.request_id,
         ]);
       }
     }
@@ -176,7 +155,7 @@ exports.sortiesPassengersReport = asyncHandler(async (req, res) => {
     'Sorties & Passagers',
     [
       'Date', 'Sortie #', 'Véhicule', 'Capacité', 'Conducteur',
-      'Destination', 'Heure départ', 'Heure retour',
+      'Destination', 'Heure départ', 'Heure retour', 'Statut',
       'Km départ', 'Km arrivée', 'Distance (km)',
       'Nb passagers', 'Capacité max',
       'Passager', 'Département', 'Demande #',

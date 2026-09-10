@@ -48,7 +48,7 @@ export default function ErrorPage({ code: propCode }) {
   const Icon = config.icon;
 
   return (
-    <Center h="100vh" style={{ background: 'var(--mantine-color-gray-0)' }}>
+    <Center style={{ minHeight: '100svh', padding: '16px', background: 'light-dark(var(--mantine-color-gray-0), var(--app-bg))' }}>
       <Paper
         p="xl"
         radius="xl"
@@ -80,7 +80,7 @@ export default function ErrorPage({ code: propCode }) {
           <div style={{ textAlign: 'center' }}>
             <Text
               fw={800}
-              size="80px"
+              size="clamp(56px, 14vw, 80px)"
               lh={1}
               style={{
                 background: `linear-gradient(135deg, ${config.color}, color-mix(in srgb, ${config.color} 60%, #888))`,

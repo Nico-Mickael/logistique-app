@@ -1,13 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Badge, Center, Text, Group, Button, Modal,
-  TextInput, Select, Stack, NumberInput, Card, SimpleGrid, Flex, SegmentedControl, Pagination,
+  TextInput, Select, Stack, NumberInput, Card, SimpleGrid, Flex, SegmentedControl, Pagination, ScrollArea, Collapse,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
-import { useDisclosure } from '@mantine/hooks';
-import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconExchange, IconNote } from '@tabler/icons-react';
+import { useDisclosure, useMediaQuery } from '@mantine/hooks';
+import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconExchange, IconNote, IconEye, IconAlertTriangle, IconFilter } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
+import SortieDetailModal from '../../components/SortieDetailModal';
+import MotifCell from '../../components/MotifCell';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { vehicleService } from '../../api/vehicleService';
@@ -17,7 +19,7 @@ import ConfirmModal from '../../components/ConfirmModal';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
 import { useNavigate } from 'react-router-dom';
-import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent } from '../../utils/labels';
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent, vehicleDisplayName } from '../../utils/labels';
 import { downloadCSV } from '../../utils/csv';
 
 const statusFilterOptions = [
@@ -28,15 +30,22 @@ const statusFilterOptions = [
   { label: 'Terminées', value: 'finished' },
 ];
 
-function SortieCard({ sortie, chauffeurs, onAssignDriver, onDepart, onSuggestions, onDelete, onValidateReturn, onArrivee, actionLoading }) {
+// Options véhicules proposées lors d'un changement : seuls les véhicules
+// disponibles + le véhicule actuel (règle du backend : nouveau véhicule indisponible)
+const vehicleOptionsFor = (vehicles, sortie) => vehicles
+  .filter((v) => v.status === 'available' || v.id === sortie.vehicle_id)
+  .map((v) => ({ value: String(v.id), label: `${vehicleDisplayName(v)} (${v.capacity} pers.)` }));
+
+function SortieCard({ sortie, chauffeurs, vehicles, onAssignDriver, onChangeVehicle, onDetail, onEdit, onDepart, onSuggestions, onDelete, onValidateReturn, onArrivee, actionLoading }) {
   const isMoto = sortie.Vehicle?.type === 'moto';
+  const ds = sortie.displayStatus;
   return (
     <Card withBorder radius="lg" p="lg" className="sortie-card">
-      <div className="stat-card-accent" style={{ background: sortieStatusAccent[sortie.status] }} />
-      <Group justify="space-between" mb="xs" wrap="nowrap">
-        <Text fw={600} size="md">{sortie.destination}</Text>
-        <Badge color={statusColor[sortie.status]} variant="light">
-          {statusLabel[sortie.status]}
+      <div className="stat-card-accent" style={{ background: sortieStatusAccent[ds?.key || sortie.status] }} />
+      <Group justify="space-between" mb="xs" wrap="wrap">
+        <Text fw={600} size="md" style={{ minWidth: 0, wordBreak: 'break-word' }}>{sortie.destination}</Text>
+        <Badge color={ds?.color || statusColor[sortie.status]} variant="light">
+          {ds?.label || statusLabel[sortie.status]}
         </Badge>
       </Group>
       <Stack gap={4} mb="md">
@@ -44,7 +53,7 @@ function SortieCard({ sortie, chauffeurs, onAssignDriver, onDepart, onSuggestion
         <Text size="sm">
           <Text span c="dimmed" size="sm">Véhicule: </Text>
           <VehicleIcon type={sortie.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" style={{ verticalAlign: 'middle', marginRight: 4 }} />
-          <Text span tt="capitalize" size="sm">{sortie.Vehicle?.type}</Text>
+          <Text span size="sm">{sortie.Vehicle ? vehicleDisplayName(sortie.Vehicle) : '—'}</Text>
         </Text>
         {sortie.motif && (
           <Text size="sm">
@@ -99,23 +108,41 @@ function SortieCard({ sortie, chauffeurs, onAssignDriver, onDepart, onSuggestion
         {sortie.status === 'planned' && (
           <>
             {!isMoto && (
-              <Select
-                size="xs"
-                placeholder={sortie.driver_name ? `Chauffeur: ${sortie.driver_name}` : 'Affecter un chauffeur'}
-                data={chauffeurs.map((c) => ({ value: String(c.id), label: `${c.prenom} ${c.nom}`.trim() }))}
-                value={sortie.driver_employee_id ? String(sortie.driver_employee_id) : null}
-                onChange={(v) => onAssignDriver(sortie, v)}
-                clearable searchable radius="md"
-                w={180}
-                disabled={actionLoading === 'assignDriver'}
-                styles={{ input: sortie.driver_employee_id ? {} : { borderColor: 'var(--mantine-color-brand-6)' } }}
-              />
+              <Group gap="xs" wrap="wrap">
+                <Select
+                  size="xs"
+                  placeholder={sortie.driver_name ? `Chauffeur: ${sortie.driver_name}` : 'Affecter un chauffeur'}
+                  data={chauffeurs.map((c) => ({ value: String(c.id), label: `${c.prenom} ${c.nom}`.trim() }))}
+                  value={sortie.driver_employee_id ? String(sortie.driver_employee_id) : null}
+                  onChange={(v) => onAssignDriver(sortie, v)}
+                  clearable searchable radius="md"
+                  w={{ base: '100%', sm: 170 }}
+                  disabled={actionLoading === 'assignDriver'}
+                  styles={{ input: sortie.driver_employee_id ? {} : { borderColor: 'var(--mantine-color-brand-6)' } }}
+                />
+                <Select
+                  size="xs"
+                  placeholder="Changer de véhicule"
+                  data={vehicleOptionsFor(vehicles, sortie)}
+                  value={String(sortie.vehicle_id)}
+                  onChange={(v) => { if (v && String(v) !== String(sortie.vehicle_id)) onChangeVehicle(sortie, v); }}
+                  searchable radius="md" w={{ base: '100%', sm: 190 }}
+                  disabled={actionLoading === 'vehicle'}
+                  leftSection={<VehicleIcon type={sortie.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" />}
+                />
+              </Group>
             )}
             <Button size="xs" color="brand" leftSection={<IconPlayerPlay size={14} />} onClick={() => onDepart(sortie)} loading={actionLoading === 'depart'}>
               Démarrer
             </Button>
             <Button size="xs" variant="outline" color="brand" leftSection={<IconUsers size={14} />} onClick={() => onSuggestions(sortie.id)}>
               Demandes
+            </Button>
+            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
+              Détails
+            </Button>
+            <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => onEdit(sortie)}>
+              Modifier
             </Button>
             <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={onDelete}>
               Supprimer
@@ -127,21 +154,32 @@ function SortieCard({ sortie, chauffeurs, onAssignDriver, onDepart, onSuggestion
             <Button size="xs" color="brand" leftSection={<IconFlag size={14} />} onClick={() => onArrivee(sortie)} loading={actionLoading === 'arrivee'}>
               Saisir arrivée
             </Button>
+            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
+              Détails
+            </Button>
             <Text size="xs" c="dimmed">En attente du retour de l'employé</Text>
           </Group>
         )}
         {sortie.status === 'pending_return' && (
-          <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={onValidateReturn} loading={actionLoading === 'validateReturn'}>
-            Valider le retour
-          </Button>
+          <Group gap="xs">
+            <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={onValidateReturn} loading={actionLoading === 'validateReturn'}>
+              Valider le retour
+            </Button>
+            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
+              Détails
+            </Button>
+          </Group>
         )}
         {sortie.status === 'finished' && (
-          <>
+          <Group gap="xs">
             <Text size="xs" c="dimmed">Terminée le {dayjs(sortie.updatedAt).format('DD/MM/YYYY')}</Text>
+            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
+              Détails
+            </Button>
             <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={onDelete}>
               Supprimer
             </Button>
-          </>
+          </Group>
         )}
       </Group>
     </Card>
@@ -157,6 +195,8 @@ function Sorties() {
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState('table');
   const limit = 20;
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const [filtersOpen, { toggle: toggleFilters }] = useDisclosure(true);
 
   const [editOpened, { open: openEditModal, close: closeEditModal }] = useDisclosure(false);
   const [editSortie, setEditSortie] = useState(null);
@@ -167,6 +207,7 @@ function Sorties() {
   const [editDestination, setEditDestination] = useState('');
   const [editMotif, setEditMotif] = useState('');
   const [editDepartureTime, setEditDepartureTime] = useState(null);
+  const [editRescheduleReason, setEditRescheduleReason] = useState('');
 
   const [departOpened, { open: openDepart, close: closeDepart }] = useDisclosure(false);
   const [selectedSortie, setSelectedSortie] = useState(null);
@@ -190,6 +231,10 @@ function Sorties() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [validateReturnTarget, setValidateReturnTarget] = useState(null);
 
+  const [detailSortie, setDetailSortie] = useState(null);
+  const [detailOpened, { open: openDetailModal, close: closeDetailModal }] = useDisclosure(false);
+  const openDetail = (s) => { setDetailSortie(s); openDetailModal(); };
+
   const fetchSorties = useCallback(async (p = page) => {
     try {
       const params = { page: p, limit };
@@ -212,6 +257,19 @@ function Sorties() {
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
+  const [overdue, setOverdue] = useState([]);
+  const fetchOverdue = useCallback(async () => {
+    try {
+      const { data } = await sortieService.getAll({ status: 'planned', limit: 9999 });
+      const now = new Date();
+      setOverdue((data.data || []).filter((s) => new Date(s.departure_time) < now));
+    } catch {
+      // Section non bloquante : on l'ignore silencieusement en cas d'échec
+    }
+  }, []);
+
+  useEffect(() => { fetchOverdue(); }, [fetchOverdue]);
 
   const fetchVehicles = useCallback(async () => {
     const [vehRes, chRes] = await Promise.allSettled([
@@ -243,12 +301,19 @@ function Sorties() {
     setEditDestination(s.destination);
     setEditMotif(s.motif || '');
     setEditDepartureTime(new Date(s.departure_time));
+    setEditRescheduleReason('');
     openEditModal();
   };
 
   const handleEditSave = async () => {
     if (!editDestination || !editDepartureTime) {
       notifyError('Merci de remplir tous les champs'); return;
+    }
+    const departureChanged = editSortie && editDepartureTime &&
+      new Date(editDepartureTime).getTime() !== new Date(editSortie.departure_time).getTime();
+    if (departureChanged && !editRescheduleReason) {
+      notifyError('Un motif de replanification est requis quand la date change');
+      return;
     }
     const chauffeurAcc = chauffeurs.find((c) => String(c.id) === String(editDriverEmployeeId));
     const effectiveName = chauffeurAcc ? `${chauffeurAcc.prenom} ${chauffeurAcc.nom}`.trim() : editDriverName;
@@ -261,6 +326,7 @@ function Sorties() {
         departure_time: editDepartureTime,
         vehicle_id: editVehicleId ? parseInt(editVehicleId, 10) : undefined,
         driver_employee_id: chauffeurAcc ? chauffeurAcc.id : null,
+        ...(departureChanged ? { reschedule_reason: editRescheduleReason } : {}),
       });
       notifySuccess('Sortie modifiée');
       closeEditModal();
@@ -286,6 +352,17 @@ function Sorties() {
     } finally { setActionLoading(null); }
   };
 
+  const handleChangeVehicle = async (sortie, vehicleId) => {
+    setActionLoading('vehicle');
+    try {
+      await sortieService.update(sortie.id, { vehicle_id: parseInt(vehicleId, 10) });
+      notifySuccess('Véhicule modifié');
+      fetchSorties(page);
+    } catch (err) {
+      notifyError(err.response?.data?.message || 'Erreur lors du changement de véhicule');
+    } finally { setActionLoading(null); }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setActionLoading('delete');
@@ -294,6 +371,7 @@ function Sorties() {
       notifySuccess('Sortie supprimée');
       setDeleteTarget(null);
       fetchSorties(page);
+      fetchOverdue();
     } catch { notifyError('Erreur lors de la suppression'); }
     finally { setActionLoading(null); }
   };
@@ -303,7 +381,7 @@ function Sorties() {
     const km = Number(departureKm);
     if (!km || km <= 0) { notifyError('Saisissez un kilométrage valide supérieur à 0'); return; }
     setActionLoading('depart');
-    try { await sortieService.depart(selectedSortie.id, km); notifySuccess('Départ enregistré'); closeDepart(); fetchSorties(page); }
+    try { await sortieService.depart(selectedSortie.id, km); notifySuccess('Départ enregistré'); closeDepart(); fetchSorties(page); fetchOverdue(); }
     catch { notifyError("Erreur lors de l'enregistrement du départ"); }
     finally { setActionLoading(null); }
   };
@@ -357,7 +435,7 @@ function Sorties() {
       downloadCSV('sorties.csv',
         ['Destination', 'Conducteur', 'Véhicule', 'Départ prévu', 'Statut', 'Km départ', 'Km arrivée', 'Distance'],
         allSorties.map((s) =>
-          [s.destination, s.driver_name, s.Vehicle?.type || '', dayjs(s.departure_time).format('DD/MM/YYYY HH:mm'), statusLabel[s.status] || s.status, s.departure_km || '', s.arrival_km || '', s.distance_km || ''].join(';')
+          [s.destination, s.driver_name, s.Vehicle ? vehicleDisplayName(s.Vehicle) : '', dayjs(s.departure_time).format('DD/MM/YYYY HH:mm'), statusLabel[s.status] || s.status, s.departure_km || '', s.arrival_km || '', s.distance_km || ''].join(';')
         )
       );
     } catch {
@@ -365,17 +443,51 @@ function Sorties() {
     }
   };
 
-  const columns = [
+  const allColumns = [
     { accessor: 'destination', title: 'Destination', sortable: true },
-    { accessor: 'motif', title: 'Motif', sortable: true, render: (s) => <Text size="sm" truncate maw={150}>{s.motif || '—'}</Text> },
-    { accessor: 'driver_name', title: 'Conducteur', sortable: true },
+    { accessor: 'motif', title: 'Motif', sortable: true, render: (s) => <MotifCell motif={s.motif} maxWidth={180} /> },
+    {
+      accessor: 'driver_name', title: 'Conducteur', sortable: true,
+      render: (s) => (
+        s.status === 'planned' && s.Vehicle?.type !== 'moto' ? (
+          <Select
+            size="xs"
+            placeholder={s.driver_name ? s.driver_name : 'Affecter un chauffeur'}
+            data={chauffeurs.map((c) => ({ value: String(c.id), label: `${c.prenom} ${c.nom}`.trim() }))}
+            value={s.driver_employee_id ? String(s.driver_employee_id) : null}
+            onChange={(v) => handleAssignDriver(s, v)}
+            clearable searchable radius="md" w={{ base: 130, sm: 170 }}
+            disabled={actionLoading === 'assignDriver'}
+            styles={{ input: s.driver_employee_id ? {} : { borderColor: 'var(--mantine-color-brand-6)' } }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <Text size="sm">{s.driver_name || '—'}</Text>
+        )
+      ),
+    },
     {
       accessor: 'vehicle', title: 'Véhicule',
       render: (s) => (
-        <Group gap={4}>
-          <VehicleIcon type={s.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" />
-          <Text tt="capitalize" size="sm">{s.Vehicle?.type}</Text>
-        </Group>
+        s.status === 'planned' && s.Vehicle?.type !== 'moto' ? (
+          <Select
+            size="xs"
+            placeholder="Changer de véhicule"
+            data={vehicleOptionsFor(vehicles, s)}
+            value={String(s.vehicle_id)}
+            onChange={(v) => { if (v && String(v) !== String(s.vehicle_id)) handleChangeVehicle(s, v); }}
+            searchable radius="md" w={{ base: 140, sm: 180 }}
+            disabled={actionLoading === 'vehicle'}
+            leftSection={<VehicleIcon type={s.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" />}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <Group gap={4}>
+            <VehicleIcon type={s.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" />
+            <Text size="sm">{s.Vehicle ? vehicleDisplayName(s.Vehicle) : '—'}</Text>
+            {s.Vehicle?.capacity != null && <Text size="xs" c="dimmed">({s.Vehicle.capacity} pers.)</Text>}
+          </Group>
+        )
       ),
     },
     {
@@ -384,7 +496,7 @@ function Sorties() {
     },
     {
       accessor: 'status', title: 'Statut', sortable: true,
-      render: (s) => <Badge color={statusColor[s.status]} variant="light">{statusLabel[s.status]}</Badge>,
+      render: (s) => <Badge color={s.displayStatus?.color || statusColor[s.status]} variant="light">{s.displayStatus?.label || statusLabel[s.status]}</Badge>,
     },
     {
       accessor: 'km', title: 'Km',
@@ -405,24 +517,32 @@ function Sorties() {
     {
       accessor: 'actions', title: '',
       render: (s) => (
-        <Group gap="xs" wrap="nowrap" onClick={(e) => e.stopPropagation()}>
+        <Group gap="xs" wrap="wrap" onClick={(e) => e.stopPropagation()}>
           {s.status === 'planned' && (
             <>
               <Button size="xs" color="brand" leftSection={<IconPlayerPlay size={14} />} onClick={() => openDepartModal(s)} loading={actionLoading === 'depart'}>Démarrer</Button>
               <Button size="xs" variant="outline" color="brand" leftSection={<IconUsers size={14} />} onClick={() => openSuggestionsModal(s.id)}>Demandes</Button>
+              <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => openDetail(s)}>Détails</Button>
               <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => openEdit(s)}>Modifier</Button>
               <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
             </>
           )}
           {s.status === 'ongoing' && (
-            <Button size="xs" color="brand" leftSection={<IconFlag size={14} />} onClick={() => openArriveeModal(s)} loading={actionLoading === 'arrivee'}>Saisir arrivée</Button>
+            <Group gap="xs" wrap="wrap">
+              <Button size="xs" color="brand" leftSection={<IconFlag size={14} />} onClick={() => openArriveeModal(s)} loading={actionLoading === 'arrivee'}>Saisir arrivée</Button>
+              <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => openDetail(s)}>Détails</Button>
+            </Group>
           )}
           {s.status === 'pending_return' && (
-            <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={() => setValidateReturnTarget(s)} loading={actionLoading === 'validateReturn'}>Valider le retour</Button>
+            <Group gap="xs" wrap="wrap">
+              <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={() => setValidateReturnTarget(s)} loading={actionLoading === 'validateReturn'}>Valider le retour</Button>
+              <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => openDetail(s)}>Détails</Button>
+            </Group>
           )}
           {s.status === 'finished' && (
-            <Group gap="xs" wrap="nowrap">
+            <Group gap="xs" wrap="wrap">
               <Text size="xs" c="dimmed">Terminée</Text>
+              <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => openDetail(s)}>Détails</Button>
               <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
             </Group>
           )}
@@ -430,6 +550,11 @@ function Sorties() {
       ),
     },
   ];
+
+  // Colonnes secondaires masquées sur mobile : le tableau reste lisible
+  // sans forcer le scroll horizontal (contenu détaillé dans les cartes / détails).
+  const hiddenOnMobile = ['motif', 'km', 'departure_time'];
+  const columns = isMobile ? allColumns.filter((c) => !hiddenOnMobile.includes(c.accessor)) : allColumns;
 
   if (loading) return <PageLoader />;
 
@@ -456,27 +581,67 @@ function Sorties() {
         </Group>
       </PageHeader>
 
-      <Paper p="md" radius="lg" withBorder mb="md" className="filters-panel">
-        <Group gap="sm" wrap="wrap" align="flex-end">
-          <SegmentedControl value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }}
-            data={statusFilterOptions} size="xs" color="brand" />
-          <Select placeholder="Véhicule"
-            data={vehicles.map((v) => ({ value: String(v.id), label: v.type }))}
-            value={vehicleFilter} onChange={(v) => { setVehicleFilter(v || ''); setPage(1); }}
-            clearable size="xs" w={140} />
-          <TextInput placeholder="Rechercher une destination..."
-            leftSection={<IconSearch size={14} />}
-            value={searchQuery} onChange={(e) => { setSearchQuery(e.currentTarget.value); setPage(1); }}
-            size="xs" w={{ base: '100%', sm: 200 }} />
-          <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
-          <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
-          {hasFilters && (
-            <Button variant="subtle" color="gray" size="xs" leftSection={<IconX size={14} />} onClick={clearFilters}>
-              Effacer
-            </Button>
-          )}
+      <Paper p={{ base: 'xs', sm: 'md' }} radius="lg" withBorder mb="md" className="filters-panel">
+        <Group justify="space-between" wrap="nowrap" hiddenFrom="sm" mb={filtersOpen ? 'xs' : 0}>
+          <Button variant="subtle" color="gray" size="xs" leftSection={<IconFilter size={14} />} onClick={toggleFilters} w="100%">
+            {filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'}
+          </Button>
         </Group>
+        <Collapse in={filtersOpen}>
+          <Group gap="sm" wrap="wrap" align="flex-end">
+            <SegmentedControl value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }}
+              data={statusFilterOptions} size="xs" color="brand" w={{ base: '100%', sm: 'auto' }} fullWidth={isMobile} />
+            <Select placeholder="Véhicule"
+              data={vehicles.map((v) => ({ value: String(v.id), label: vehicleDisplayName(v) }))}
+              value={vehicleFilter} onChange={(v) => { setVehicleFilter(v || ''); setPage(1); }}
+              clearable size="xs" w={{ base: '100%', sm: 180 }} />
+            <TextInput placeholder="Rechercher une destination..."
+              leftSection={<IconSearch size={14} />}
+              value={searchQuery} onChange={(e) => { setSearchQuery(e.currentTarget.value); setPage(1); }}
+              size="xs" w={{ base: '100%', sm: 200 }} />
+            <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+            <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+            {hasFilters && (
+              <Button variant="subtle" color="gray" size="xs" leftSection={<IconX size={14} />} onClick={clearFilters}>
+                Effacer
+              </Button>
+            )}
+          </Group>
+        </Collapse>
       </Paper>
+
+      {overdue.length > 0 && (
+        <Paper p="md" radius="lg" withBorder mb="md" className="overdue-panel">
+          <Group justify="space-between" mb="sm" wrap="wrap">
+            <Group gap="xs">
+              <Text fw={600} size="sm" c="red">
+                <IconAlertTriangle size={18} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                Départs dépassés
+              </Text>
+              <Badge color="red" variant="light">{overdue.length}</Badge>
+            </Group>
+            <Text size="xs" c="dimmed">Sorties planifiées dont l'heure de départ est dépassée</Text>
+          </Group>
+          <Stack gap={6}>
+            {overdue.map((s) => (
+              <Group key={s.id} justify="space-between" wrap="wrap" gap="sm">
+                <Group gap="sm" wrap="wrap" style={{ flex: 1, minWidth: 240 }}>
+                  <Text size="sm" fw={600}>{s.destination}</Text>
+                  <Text size="xs" c="dimmed">{s.driver_name || 'Sans chauffeur'}</Text>
+                  <VehicleIcon type={s.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" />
+                  <Text size="xs" c="dimmed">{s.Vehicle ? vehicleDisplayName(s.Vehicle) : ''}</Text>
+                  <Text size="xs" c="dimmed">prévu {dayjs(s.departure_time).format('DD/MM/YYYY HH:mm')}</Text>
+                  <Text size="xs" c="dimmed">({s.Requests?.length || 0} passager{s.Requests?.length > 1 ? 's' : ''})</Text>
+                </Group>
+                <Group gap="xs">
+                  <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => openDetail(s)}>Détails</Button>
+                  <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
+                </Group>
+              </Group>
+            ))}
+          </Stack>
+        </Paper>
+      )}
 
       {sorties.length === 0 ? (
         <Paper p="xl" radius="lg" withBorder>
@@ -511,9 +676,11 @@ function Sorties() {
             <>
               <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                 {sorties.map((s) => (
-                  <SortieCard key={s.id} sortie={s} chauffeurs={chauffeurs} onAssignDriver={handleAssignDriver}
+                  <SortieCard key={s.id} sortie={s} chauffeurs={chauffeurs} vehicles={vehicles}
+                    onAssignDriver={handleAssignDriver} onChangeVehicle={handleChangeVehicle}
+                    onDetail={openDetail} onEdit={openEdit}
                     onDepart={openDepartModal} onSuggestions={openSuggestionsModal}
-                    onEdit={openEdit} onDelete={() => setDeleteTarget(s)} onValidateReturn={() => setValidateReturnTarget(s)}
+                    onDelete={() => setDeleteTarget(s)} onValidateReturn={() => setValidateReturnTarget(s)}
                     onArrivee={openArriveeModal} actionLoading={actionLoading}
                   />
                 ))}
@@ -532,7 +699,7 @@ function Sorties() {
       >
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
           <Select label="Véhicule" placeholder="Choisir un véhicule" w="100%"
-            data={vehicles.map((v) => ({ value: String(v.id), label: `${v.type} (${v.capacity} pers.)` }))}
+            data={vehicles.map((v) => ({ value: String(v.id), label: `${vehicleDisplayName(v)} (${v.capacity} pers.)` }))}
             value={editVehicleId} onChange={setEditVehicleId} radius="md"
           />
           <Select label="Chauffeur (compte)" placeholder="Choisir un chauffeur" w="100%"
@@ -555,6 +722,15 @@ function Sorties() {
           <DateTimePicker label="Date et heure de départ" placeholder="Choisir une date" required w="100%"
             value={editDepartureTime} onChange={setEditDepartureTime} radius="md"
           />
+          {editSortie && editDepartureTime &&
+            new Date(editDepartureTime).getTime() !== new Date(editSortie.departure_time).getTime() && (
+            <TextInput label="Motif de replanification" placeholder="Pourquoi déplacer cette sortie ?"
+              description={`Date initiale prévue : ${dayjs(editSortie.departure_time).format('DD/MM/YYYY HH:mm')}`}
+              required w="100%" value={editRescheduleReason}
+              onChange={(e) => setEditRescheduleReason(e.currentTarget.value)} radius="md"
+              leftSection={<IconNote size={16} />}
+            />
+          )}
         </SimpleGrid>
           <Group justify="end" mt="md">
             <Button variant="default" onClick={closeEditModal} radius="md">Annuler</Button>
@@ -594,10 +770,10 @@ function Sorties() {
         </Stack>
       </Modal>
 
-      <Modal opened={suggestOpened} onClose={closeSuggest} title="Demandes compatibles" size="lg"
-        fullScreen={{ base: true, sm: false }}
+      <Modal opened={suggestOpened} onClose={closeSuggest} title="Demandes compatibles" size="lg" radius="lg" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
+        scrollAreaComponent={ScrollArea.Autosize}
       >
         {suggestions.length === 0 ? (
           <Center h={80}><Text c="dimmed" size="sm">Aucune demande compatible disponible</Text></Center>
@@ -633,6 +809,8 @@ function Sorties() {
         )}
       </Modal>
 
+      <SortieDetailModal opened={detailOpened} onClose={closeDetailModal} sortie={detailSortie} />
+
       <ConfirmModal
         opened={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -660,6 +838,10 @@ function Sorties() {
           position: relative;
           overflow: hidden;
           animation: panel-in 0.35s ease-out;
+        }
+        .overdue-panel {
+          border-color: light-dark(var(--mantine-color-red-6), var(--mantine-color-red-9)) !important;
+          background: light-dark(var(--mantine-color-red-0), #2b1418) !important;
         }
         @media (prefers-reduced-motion: reduce) {
           .sortie-card { animation: none; }

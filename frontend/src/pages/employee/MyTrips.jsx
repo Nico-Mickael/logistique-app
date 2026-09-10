@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Paper, Badge, Text, Group, Card, SimpleGrid, Stack, Button, Modal, NumberInput, Progress,
+  Paper, Badge, Text, Group, Card, SimpleGrid, Stack, Button, Modal, NumberInput, Progress, ScrollArea,
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { DataTable } from 'mantine-datatable';
@@ -13,7 +13,7 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
 import EmptyState from '../../components/EmptyState';
-import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent } from '../../utils/labels';
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent, vehicleDisplayName } from '../../utils/labels';
 
 function TripCard({ sortie, onReturn }) {
   const isMoto = sortie.Vehicle?.type === 'moto';
@@ -21,10 +21,10 @@ function TripCard({ sortie, onReturn }) {
   return (
     <Card withBorder radius="lg" p="lg" className="trip-card">
       <div className="stat-card-accent" style={{ background: sortieStatusAccent[ds?.key || sortie.status] }} />
-      <Group justify="space-between" mb="xs" wrap="nowrap">
-        <Group gap="sm">
+      <Group justify="space-between" mb="xs" wrap="wrap">
+        <Group gap="sm" wrap="wrap" style={{ minWidth: 0 }}>
           <IconRoute size={20} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
-          <Text fw={600} size="md">{sortie.destination}</Text>
+          <Text fw={600} size="md" style={{ wordBreak: 'break-word' }}>{sortie.destination}</Text>
         </Group>
         <Badge color={ds?.color || statusColor[sortie.status]} variant="light">
           {ds?.label || statusLabel[sortie.status]}
@@ -33,7 +33,7 @@ function TripCard({ sortie, onReturn }) {
       <Stack gap={4} mb="md">
         <Group gap="xs">
           <VehicleIcon type={sortie.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" />
-          <Text size="sm" tt="capitalize">{sortie.Vehicle?.type}</Text>
+          <Text size="sm">{sortie.Vehicle ? vehicleDisplayName(sortie.Vehicle) : '—'}</Text>
         </Group>
         <Group gap="xs">
           <IconClock size={14} color="var(--mantine-color-dimmed)" />
@@ -233,10 +233,10 @@ function MyTrips() {
               return (
                 <Card key={s.id} withBorder radius="lg" p="lg" className="trip-card">
                   <div className="stat-card-accent" style={{ background: s.displayStatus?.color === 'orange' ? 'var(--mantine-color-orange-6)' : 'var(--mantine-color-brandYellow-6)' }} />
-                  <Group justify="space-between" mb="xs" wrap="nowrap">
-                    <Group gap="sm">
+                  <Group justify="space-between" mb="xs" wrap="wrap">
+                    <Group gap="sm" wrap="wrap" style={{ minWidth: 0 }}>
                       <VehicleIcon type={s.vehicle?.type} size={18} color="light-dark(var(--mantine-color-brand-6), #7BC88A)" />
-                      <Text fw={600} size="sm" tt="capitalize">{s.vehicle?.type}</Text>
+                      <Text fw={600} size="sm" style={{ wordBreak: 'break-word' }}>{vehicleDisplayName(s.vehicle)}</Text>
                     </Group>
                     <Badge color={s.displayStatus?.color || 'gray'} variant="light" size="sm">
                       {s.displayStatus?.label || 'Prévue'}
@@ -322,7 +322,7 @@ function MyTrips() {
                     verticalSpacing="sm"
                     columns={[
                       { accessor: 'destination', title: 'Destination', sortable: true },
-                      { accessor: 'vehicle', title: 'Véhicule', render: (s) => <Text tt="capitalize">{s.Vehicle?.type}</Text> },
+                      { accessor: 'vehicle', title: 'Véhicule', render: (s) => <Text>{s.Vehicle ? vehicleDisplayName(s.Vehicle) : '—'}</Text> },
                       { accessor: 'departure_time', title: 'Départ', render: (s) => dayjs(s.departure_time).format('DD/MM/YYYY HH:mm') },
                       { accessor: 'distance_km', title: 'Distance', textAlign: 'right', render: (s) => {
                         const isMoto = s.Vehicle?.type === 'moto';
@@ -349,9 +349,10 @@ function MyTrips() {
         </>
       )}
 
-      <Modal opened={joinOpened} onClose={closeJoin} title="Rejoindre cette sortie" size="md"
+      <Modal opened={joinOpened} onClose={closeJoin} title="Rejoindre cette sortie" size="md" radius="lg" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
+        scrollAreaComponent={ScrollArea.Autosize}
       >
         <Stack gap="md">
           <Group gap="sm">
@@ -359,7 +360,7 @@ function MyTrips() {
             <Text size="md" fw={600}>{joinSortie?.destination}</Text>
           </Group>
           <Text size="sm" c="dimmed">
-            {joinSortie?.vehicle?.type} — {dayjs(joinSortie?.departure_time).format('DD/MM/YYYY HH:mm')}
+            {joinSortie?.vehicle ? vehicleDisplayName(joinSortie.vehicle) : ''} — {dayjs(joinSortie?.departure_time).format('DD/MM/YYYY HH:mm')}
           </Text>
           {joinSortie?.motif && (
             <Text size="sm" c="dimmed">Motif: {joinSortie.motif}</Text>
@@ -381,9 +382,10 @@ function MyTrips() {
         </Stack>
       </Modal>
 
-      <Modal opened={returnOpened} onClose={closeReturn} title="Marquer le retour" size="md"
+      <Modal opened={returnOpened} onClose={closeReturn} title="Marquer le retour" size="md" radius="lg" centered
         overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
-        transitionProps={{ transition: 'fade', duration: 200 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
+        scrollAreaComponent={ScrollArea.Autosize}
       >
         <Text size="sm" mb="sm">
           <Text span fw={600}>{returnSortie?.destination}</Text>

@@ -9,6 +9,7 @@ import Logo from '../components/Logo';
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordTouched, setPasswordTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -88,19 +89,21 @@ function Login() {
         <div className="login-orb login-orb--bottom" />
 
         <Paper p="xl" w="100%" maw={400} shadow="lg" radius="lg" withBorder className="login-card">
-          <Title order={3} mb={4} c="#1f1f1f">
+          <Title order={3} mb={4} c="var(--mantine-color-text)">
             Connexion
           </Title>
           <Text size="sm" c="dimmed" mb="lg">
             Connectez-vous avec votre adresse email
           </Text>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} autoComplete="off">
             <Stack>
               <TextInput
                 label="Email"
                 placeholder="votre@email.mg"
                 required
-                autoComplete="email"
+                name="email-login"
+                autoComplete="off"
+                data-lpignore="true"
                 value={email}
                 onChange={(e) => setEmail(e.currentTarget.value)}
               />
@@ -108,7 +111,11 @@ function Login() {
                 label="Mot de passe"
                 placeholder="Votre mot de passe"
                 required
-                autoComplete="current-password"
+                name="password-login"
+                autoComplete="new-password"
+                data-lpignore="true"
+                readOnly={!passwordTouched}
+                onFocus={() => setPasswordTouched(true)}
                 value={password}
                 onChange={(e) => setPassword(e.currentTarget.value)}
               />
@@ -137,7 +144,7 @@ function Login() {
 
         .login-brand-panel {
           flex: 1;
-          background: #fff;
+          background: var(--mantine-color-body);
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -149,7 +156,7 @@ function Login() {
         .login-title {
           font-size: 38px;
           line-height: 1.15;
-          color: var(--mantine-color-brandYellow-6, #C98A00);
+          color: light-dark(var(--mantine-color-brandYellow-6, #C98A00), var(--mantine-color-brandYellow-5, #F5B301));
           letter-spacing: -0.02em;
         }
 
@@ -174,12 +181,12 @@ function Login() {
         .stat-value {
           font-weight: 700;
           font-size: 18px;
-          color: #1f1f1f;
+          color: var(--mantine-color-text);
         }
 
         .stat-label {
           font-size: 12px;
-          color: #868e96;
+          color: var(--mantine-color-dimmed);
         }
 
         .login-form-panel {
@@ -222,7 +229,7 @@ function Login() {
         }
 
         .login-card {
-          background: rgba(255,255,255,0.97);
+          background: light-dark(rgba(255,255,255,0.97), rgba(24,25,28,0.97));
           position: relative;
           animation: card-in 0.5s ease-out;
         }
@@ -248,6 +255,7 @@ function Login() {
         @media (max-width: 768px) {
           .login-page {
             flex-direction: column;
+            min-height: 100svh;
           }
           .login-brand-panel {
             padding: 32px 20px;
@@ -258,6 +266,27 @@ function Login() {
           }
           .login-form-panel {
             padding: 24px 20px;
+          }
+        }
+
+        @media (max-width: 575.98px) {
+          .login-brand-panel {
+            padding: 20px 16px 12px;
+          }
+          .login-brand-panel .login-title {
+            font-size: 26px;
+          }
+          .login-subtitle {
+            font-size: 13px;
+          }
+          .login-stats {
+            display: none;
+          }
+          .login-form-panel {
+            padding: 20px 14px;
+          }
+          .login-card {
+            padding: 22px 18px;
           }
         }
       `}</style>

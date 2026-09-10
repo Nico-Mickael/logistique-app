@@ -4,6 +4,10 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   font-family: 'Inter', system-ui, sans-serif;
@@ -11,11 +15,17 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: var(--mantine-color-body);
   color: var(--mantine-color-text);
+  overflow-x: hidden;
 }
 
 #root {
   min-height: 100vh;
+  min-width: 0;
 }
+
+/* Contrôles natifs (select, input date, etc.) adaptés au thème */
+:root[data-mantine-color-scheme="light"] { color-scheme: light; }
+:root[data-mantine-color-scheme="dark"] { color-scheme: dark; }
 
 ::-webkit-scrollbar {
   width: 6px;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Paper, Title, Text, Group, Stack, Badge, TextInput, Textarea,
-  NumberInput, Loader, Center, Avatar, SimpleGrid,
+  NumberInput, Loader, Center, Avatar, SimpleGrid, Grid,
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import {
@@ -15,7 +15,7 @@ import { vehicleService } from '../../api/vehicleService';
 import { requestService } from '../../api/requestService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import { getSeatLayout, getSeatColor } from '../../utils/seatLayout';
-import { vehicleStatusLabel, vehicleStatusColor } from '../../utils/labels';
+import { vehicleStatusLabel, vehicleStatusColor, vehicleDisplayName } from '../../utils/labels';
 
 function CarVisual({ vehicle, seatStates, compact, onClick }) {
   const layout = getSeatLayout(vehicle.type, vehicle.capacity);
@@ -174,8 +174,8 @@ function VehicleSelectCard({ vehicle, isSelected, onSelect, seatStates, nextDepa
               minHeight: '100%',
             }}
           >
-            <Group justify="space-between" mb="xs" wrap="nowrap">
-              <Group gap="sm">
+            <Group justify="space-between" mb="xs" wrap="wrap">
+              <Group gap="sm" wrap="wrap" style={{ minWidth: 0 }}>
                 <div style={{
                   width: 38, height: 38, borderRadius: 10,
                   background: 'rgba(46,125,50,0.08)',
@@ -184,7 +184,7 @@ function VehicleSelectCard({ vehicle, isSelected, onSelect, seatStates, nextDepa
                   <VehicleIcon type={vehicle.type} size={20} color="var(--mantine-color-brand-6)" />
                 </div>
                 <div>
-                  <Text fw={600} size="sm" tt="capitalize">{vehicle.type}</Text>
+                  <Text fw={600} size="sm">{vehicleDisplayName(vehicle)}</Text>
                   <Group gap={4}>
                     <IconUsers size={12} color="var(--mantine-color-dimmed)" />
                     <Text size="xs" c="dimmed">{vehicle.capacity} places</Text>
@@ -419,7 +419,7 @@ function NewRequest() {
           text-align: left;
           overflow-y: auto;
         }
-        .glass-panel { background: rgba(255,255,255,0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.3); }
+        .glass-panel { background: light-dark(rgba(255,255,255,0.7), rgba(48,50,55,0.7)); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid light-dark(rgba(255,255,255,0.3), rgba(255,255,255,0.08)); }
         .capacity-bar { height: 6px; border-radius: 3px; background: light-dark(#e9ecef, #373A40); overflow: hidden; margin-top: 4px; }
         .capacity-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
         .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
@@ -461,7 +461,7 @@ function NewRequest() {
 
       <div className="step-indicator">
         <div className={`step-circle ${selectedVehicle ? 'step-circle--done' : 'step-circle--active'}`}>1</div>
-        <Text size="sm" fw={selectedVehicle ? 400 : 600} c={selectedVehicle ? 'dimmed' : '#1f1f1f'}>
+        <Text size="sm" fw={selectedVehicle ? 400 : 600} c={selectedVehicle ? 'dimmed' : 'var(--mantine-color-text)'}>
           Véhicule
         </Text>
         <div className={`step-line ${selectedVehicle ? 'step-line--done' : ''}`} />
@@ -533,71 +533,79 @@ function NewRequest() {
       >
         {selectedVehicle && activeVehicleData && (
           <form id="newRequestForm" onSubmit={handleSubmit}>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-              <TextInput
-                label="Destination"
-                placeholder="Antananarivo"
-                required
-                w="100%"
-                value={destination}
-                onChange={(e) => setDestination(e.currentTarget.value)}
-                radius="md"
-                leftSection={<IconMapPin size={16} />}
-              />
-              <DateTimePicker
-                label="Date et heure de départ souhaitées"
-                placeholder="Choisir une date"
-                required
-                w="100%"
-                value={dateSouhaitee}
-                onChange={setDateSouhaitee}
-                minDate={new Date()}
-                radius="md"
-              />
-              <Textarea
-                label="Motif"
-                placeholder="Réunion client, livraison..."
-                required
-                w="100%"
-                minRows={3}
-                value={motif}
-                onChange={(e) => setMotif(e.currentTarget.value)}
-                radius="md"
-              />
-              <div>
-                <NumberInput
-                  label="Nombre de personnes"
-                  min={1}
-                  max={Math.max(1, activeVehicleData.availableSeats)}
+            <Grid gutter="md">
+              <Grid.Col span={{ base: 12, sm: 6 }}>
+                <TextInput
+                  label="Destination"
+                  placeholder="Antananarivo"
                   required
                   w="100%"
-                  value={nbPersonnes}
-                  onChange={(v) => {
-                    const val = Number(v) || 1;
-                    setNbPersonnes(Math.min(val, Math.max(1, activeVehicleData.availableSeats)));
-                  }}
+                  value={destination}
+                  onChange={(e) => setDestination(e.currentTarget.value)}
                   radius="md"
-                  description={`Places disponibles: ${activeVehicleData.availableSeats}`}
+                  leftSection={<IconMapPin size={16} />}
                 />
-                <div className="capacity-bar" style={{ marginTop: 6 }}>
-                  <div className="capacity-fill"
-                    style={{
-                      width: `${Math.min(100, ((activeVehicleData.occupiedSeats + nbPersonnes) / selectedVehicle.capacity) * 100)}%`,
-                      background: (activeVehicleData.occupiedSeats + nbPersonnes) > selectedVehicle.capacity
-                        ? '#D32F2F' : 'var(--mantine-color-brand-6)',
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6 }}>
+                <DateTimePicker
+                  label="Date et heure de départ souhaitées"
+                  placeholder="Choisir une date"
+                  required
+                  w="100%"
+                  value={dateSouhaitee}
+                  onChange={setDateSouhaitee}
+                  minDate={new Date()}
+                  radius="md"
+                />
+              </Grid.Col>
+              <Grid.Col span={12}>
+                <Textarea
+                  label="Motif"
+                  placeholder="Réunion client, livraison..."
+                  required
+                  w="100%"
+                  minRows={2}
+                  value={motif}
+                  onChange={(e) => setMotif(e.currentTarget.value)}
+                  radius="md"
+                />
+              </Grid.Col>
+              <Grid.Col span={12}>
+                <div>
+                  <NumberInput
+                    label="Nombre de personnes"
+                    min={1}
+                    max={Math.max(1, activeVehicleData.availableSeats)}
+                    required
+                    w="100%"
+                    value={nbPersonnes}
+                    onChange={(v) => {
+                      const val = Number(v) || 1;
+                      setNbPersonnes(Math.min(val, Math.max(1, activeVehicleData.availableSeats)));
                     }}
+                    radius="md"
+                    description={`Places disponibles: ${activeVehicleData.availableSeats}`}
                   />
+                  <div className="capacity-bar" style={{ marginTop: 6 }}>
+                    <div className="capacity-fill"
+                      style={{
+                        width: `${Math.min(100, ((activeVehicleData.occupiedSeats + nbPersonnes) / selectedVehicle.capacity) * 100)}%`,
+                        background: (activeVehicleData.occupiedSeats + nbPersonnes) > selectedVehicle.capacity
+                          ? '#D32F2F' : 'var(--mantine-color-brand-6)',
+                      }}
+                    />
+                  </div>
+                  <Group justify="space-between" mt={2}>
+                    <Text size="xs" c="dimmed">
+                      {activeVehicleData.occupiedSeats + nbPersonnes}/{selectedVehicle.capacity} places
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {activeVehicleData.availableSeats - nbPersonnes} restante{(activeVehicleData.availableSeats - nbPersonnes) > 1 ? 's' : ''}
+                    </Text>
+                  </Group>
                 </div>
-                <Group justify="space-between" mt={2}>
-                  <Text size="xs" c="dimmed">
-                    {activeVehicleData.occupiedSeats + nbPersonnes}/{selectedVehicle.capacity} places
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {activeVehicleData.availableSeats - nbPersonnes} restante{(activeVehicleData.availableSeats - nbPersonnes) > 1 ? 's' : ''}
-                  </Text>
-                </Group>
-              </div>
-            </SimpleGrid>
+              </Grid.Col>
+            </Grid>
           </form>
         )}
       </VehicleModal>

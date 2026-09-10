@@ -9,6 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { notificationService } from '../api/notificationService';
+import Logo from './Logo';
+import PushSettingsPopover from './PushSettingsPopover';
 
 function initials(user) {
   if (!user) return '';
@@ -81,12 +83,18 @@ function Header({ opened: navOpened, onToggle }) {
   };
 
   return (
-    <Group h="100%" px="md" justify="space-between" wrap="nowrap" className="app-header">
+    <Group h="100%" px={{ base: 'xs', sm: 'md' }} justify="space-between" wrap="nowrap" className="app-header">
       <Group gap="sm" wrap="nowrap">
-        <Burger opened={navOpened} onClick={onToggle} hiddenFrom="lg" size="sm" color={dark ? '#fff' : '#1a1a1a'} />
+        <Burger opened={navOpened} onClick={onToggle} hiddenFrom="md" size="sm" color={dark ? '#fff' : '#1a1a1a'} />
+        <Group gap={8} wrap="nowrap" className="app-brand-mobile" hiddenFrom="md" pl={2}>
+          <Logo height={24} />
+          <Text size="sm" fw={600} c={dark ? '#fff' : '#1a1a1a'} lh={1.1} className="app-brand-label">
+            Gestion logistique
+          </Text>
+        </Group>
       </Group>
 
-      <Group gap="md" wrap="nowrap">
+      <Group gap={{ base: 6, sm: 'md' }} wrap="nowrap">
         <Group gap={8} wrap="nowrap" className="hide-on-mobile">
           <Avatar size={30} radius="xl" color="brandYellow" variant="filled">
             {initials(user)}
@@ -174,6 +182,8 @@ function Header({ opened: navOpened, onToggle }) {
           </Popover.Dropdown>
         </Popover>
 
+        <PushSettingsPopover />
+
         <Tooltip label="Se déconnecter" position="bottom" withArrow>
           <ActionIcon variant="subtle" color="white" onClick={handleLogout} aria-label="Se déconnecter">
             <IconLogout size={19} />
@@ -186,6 +196,13 @@ function Header({ opened: navOpened, onToggle }) {
           background: ${dark
     ? 'linear-gradient(135deg, #1A1B1E 0%, #1A1B1E 50%, #164d18 100%)'
     : 'linear-gradient(135deg, #ffffff 0%, #ffffff 50%, #164d18 100%)'};
+        }
+
+        .app-brand-label {
+          max-width: 38vw;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .notif-badge {
@@ -228,15 +245,15 @@ function Header({ opened: navOpened, onToggle }) {
         }
 
         .notif-item[data-unread="true"] {
-          background-color: var(--mantine-color-brand-0);
+          background-color: light-dark(var(--mantine-color-brand-0), rgba(63, 163, 74, 0.18));
         }
 
         .notif-item:hover {
-          background-color: var(--mantine-color-gray-1);
+          background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-4));
         }
 
         .notif-item[data-unread="true"]:hover {
-          background-color: var(--mantine-color-brand-1);
+          background-color: light-dark(var(--mantine-color-brand-1), rgba(63, 163, 74, 0.28));
         }
 
         @media (prefers-reduced-motion: reduce) {

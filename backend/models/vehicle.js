@@ -14,6 +14,7 @@ module.exports = (sequelize, DataTypes) => {
 }
   }
   Vehicle.init({
+    name: DataTypes.STRING,
     type: DataTypes.STRING,
     capacity: DataTypes.INTEGER,
     status: DataTypes.STRING,

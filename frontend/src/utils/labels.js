@@ -17,12 +17,12 @@ export const requestStatusColor = {
 };
 
 export const sortieStatusLabel = {
-  planned: 'Planifiée',
+  planned: 'Sortie prévue',
   imminent: 'Sortie imminente',
   soon: 'Bientôt',
-  ongoing: 'En cours',
+  ongoing: 'Sortie en cours',
   pending_return: 'Retour à valider',
-  finished: 'Terminée',
+  finished: 'Sortie terminée',
   cancelled: 'Annulée',
 };
 
@@ -63,8 +63,20 @@ export const VEHICLE_TYPE_OPTIONS = [
   { value: 'minibus', label: 'Minibus' },
 ];
 
+// Nom d'affichage d'un véhicule : le nom si renseigné, sinon le type capitalisé.
+export const vehicleDisplayName = (vehicle) => {
+  if (!vehicle) return '—';
+  const name = (vehicle.name || '').trim();
+  if (name) return name;
+  const type = (vehicle.type || '').trim();
+  if (!type) return '—';
+  return type.charAt(0).toUpperCase() + type.slice(1);
+};
+
 export const sortieStatusAccent = {
   planned: 'var(--mantine-color-gray-5)',
+  imminent: 'var(--mantine-color-orange-6)',
+  soon: 'var(--mantine-color-brandYellow-6)',
   ongoing: 'var(--mantine-color-brand-6)',
   pending_return: 'var(--mantine-color-orange-6)',
   finished: 'var(--mantine-color-brandYellow-6)',

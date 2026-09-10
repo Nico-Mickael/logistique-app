@@ -27,10 +27,10 @@ import Logo from './Logo';
 const navConfig = {
   chief: [
     { label: 'Accueil', path: '/', icon: IconHome },
+    { label: 'Dashboard', path: '/rapports', icon: IconReportAnalytics },
     { label: 'Demandes', path: '/valider-demandes', icon: IconFileText },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
-    { label: 'Rapports', path: '/rapports', icon: IconReportAnalytics },
     { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
   ],
   employee: [
@@ -50,11 +50,11 @@ const navConfig = {
   ],
   superadmin: [
     { label: 'Accueil', path: '/', icon: IconHome },
+    { label: 'Dashboard', path: '/rapports', icon: IconReportAnalytics },
     { label: 'Utilisateurs', path: '/utilisateurs', icon: IconUsers },
     { label: 'Demandes', path: '/valider-demandes', icon: IconFileText },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
-    { label: 'Rapports', path: '/rapports', icon: IconReportAnalytics },
     { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
   ],
 };
@@ -83,7 +83,7 @@ function Layout({ children }) {
     <AppShell
       layout="alt"
       header={{ height: 56 }}
-      navbar={{ width: navbarWidth, breakpoint: 'lg', collapsed: { mobile: !opened } }}
+      navbar={{ width: navbarWidth, breakpoint: 'md', collapsed: { mobile: !opened } }}
       padding={{ base: 'sm', sm: 'md', lg: 'lg' }}
     >
       <AppShell.Header style={{ border: 'none' }}>
@@ -93,8 +93,8 @@ function Layout({ children }) {
       <AppShell.Navbar
         p="sm"
         style={{
-          background: dark ? '#1A1B1E' : '#fff',
-          borderRight: `1px solid ${dark ? '#2C2E33' : '#f0f0f0'}`,
+          background: 'var(--app-sidebar-bg)',
+          borderRight: '1px solid var(--app-sidebar-border)',
           transition: 'width 0.2s ease',
         }}
       >
@@ -163,7 +163,7 @@ function Layout({ children }) {
         </AppShell.Section>
       </AppShell.Navbar>
 
-      <AppShell.Main style={{ background: dark ? '#101113' : '#f5f7f5', minHeight: '100vh' }}>
+      <AppShell.Main style={{ background: 'var(--app-bg)', minHeight: '100vh' }}>
         {children}
       </AppShell.Main>
 
@@ -186,7 +186,7 @@ function Layout({ children }) {
           padding: 16px 0 12px;
         }
         .sidebar-logo-badge {
-          background: #fff;
+          background: light-dark(#fff, #2c2e33);
           border-radius: 8px;
           padding: 4px 10px;
           display: inline-flex;

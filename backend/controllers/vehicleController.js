@@ -15,10 +15,10 @@ exports.getAvailable = asyncHandler(async (req, res) => {
 });
 
 exports.create = asyncHandler(async (req, res) => {
-  const { type, capacity } = req.body;
-  const vehicle = await Vehicle.create({ type, capacity, status: 'available' });
+  const { type, capacity, name } = req.body;
+  const vehicle = await Vehicle.create({ type, capacity, status: 'available', name });
 
-  await logAudit({ userId: req.user.id, action: 'create', entity: 'Vehicle', entityId: vehicle.id, newValue: { type, capacity }, req });
+  await logAudit({ userId: req.user.id, action: 'create', entity: 'Vehicle', entityId: vehicle.id, newValue: { name, type, capacity }, req });
 
   res.status(201).json(vehicle);
 });
@@ -69,15 +69,16 @@ exports.getOccupancy = asyncHandler(async (req, res) => {
 });
 
 exports.update = asyncHandler(async (req, res) => {
-  const { type, capacity, status, maintenance_until } = req.body;
+  const { type, capacity, status, maintenance_until, name } = req.body;
   const vehicle = await Vehicle.findByPk(req.params.id);
 
   if (!vehicle) {
     return res.status(404).json({ message: 'Véhicule introuvable' });
   }
 
-  const oldData = { type: vehicle.type, capacity: vehicle.capacity, status: vehicle.status, maintenance_until: vehicle.maintenance_until };
+  const oldData = { name: vehicle.name, type: vehicle.type, capacity: vehicle.capacity, status: vehicle.status, maintenance_until: vehicle.maintenance_until };
 
+  if (name !== undefined) vehicle.name = name;
   if (type) vehicle.type = type;
   if (capacity) vehicle.capacity = capacity;
   const previousStatus = vehicle.status;
@@ -92,12 +93,12 @@ exports.update = asyncHandler(async (req, res) => {
 
   await vehicle.save();
 
-  await logAudit({ userId: req.user.id, action: 'update', entity: 'Vehicle', entityId: vehicle.id, oldValue: oldData, newValue: { type: vehicle.type, capacity: vehicle.capacity, status: vehicle.status, maintenance_until: vehicle.maintenance_until }, req });
+  await logAudit({ userId: req.user.id, action: 'update', entity: 'Vehicle', entityId: vehicle.id, oldValue: oldData, newValue: { name: vehicle.name, type: vehicle.type, capacity: vehicle.capacity, status: vehicle.status, maintenance_until: vehicle.maintenance_until }, req });
 
   // Alerte les chefs quand un véhicule devient indisponible (panne / maintenance)
   if (status && status !== previousStatus && ['broken', 'maintenance'].includes(status)) {
     await notifyChiefsDb({
-      message: `Véhicule #${vehicle.id} (${vehicle.type}) ${
+      message: `Véhicule ${vehicle.name || `#${vehicle.id}`} (${vehicle.type}) ${
         status === 'broken' ? 'en panne' : 'en maintenance'
       }`,
       type: 'vehicle_alert',
@@ -126,7 +127,7 @@ exports.remove = asyncHandler(async (req, res) => {
 
   await vehicle.destroy();
 
-  await logAudit({ userId: req.user.id, action: 'delete', entity: 'Vehicle', entityId: vehicle.id, oldValue: { type: vehicle.type, capacity: vehicle.capacity }, req });
+  await logAudit({ userId: req.user.id, action: 'delete', entity: 'Vehicle', entityId: vehicle.id, oldValue: { name: vehicle.name, type: vehicle.type, capacity: vehicle.capacity }, req });
 
   res.json({ message: 'Véhicule supprimé' });
 });

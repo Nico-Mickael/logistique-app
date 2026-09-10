@@ -2,6 +2,8 @@ const { Sortie, Vehicle, Request, SortieRequest, Employee } = require('../models
 const asyncHandler = require('../utils/asyncHandler');
 const { notifyChiefs } = require('../services/socketService');
 const vehicleService = require('../services/vehicleService');
+const { computeDisplayStatus } = require('../utils/displayStatus');
+const notificationService = require('../services/notificationService');
 
 // Vérifie côté serveur (en rechargeant l'utilisateur depuis la DB) que :
 //  - l'utilisateur connecté a bien le rôle 'chauffeur'
@@ -48,7 +50,10 @@ exports.mine = asyncHandler(async (req, res) => {
     order: [['departure_time', 'DESC']],
   });
 
-  res.json(sorties);
+  res.json(sorties.map((s) => ({
+    ...s.toJSON(),
+    displayStatus: computeDisplayStatus(s),
+  })));
 });
 
 // Démarrage : le chauffeur saisit le km de départ
@@ -77,6 +82,15 @@ exports.depart = asyncHandler(async (req, res) => {
     { status: 'ongoing' },
     { where: { sortie_id: sortie.id } }
   );
+
+  // Informe les passagers + le chauffeur du démarrage
+  const linkedIds = await notificationService.getLinkedEmployeeIds(sortie);
+  await notificationService.notifySortieState({
+    sortie,
+    type: notificationService.EVENT_TYPES.SORTIE_STARTED,
+    message: `La sortie vers ${sortie.destination} a démarré.`,
+    recipients: [...linkedIds, sortie.driver_employee_id].filter(Boolean),
+  });
 
   notifyChiefs('sortie_updated', sortie);
 
@@ -113,8 +127,17 @@ exports.arrivee = asyncHandler(async (req, res) => {
     { where: { sortie_id: sortie.id } }
   );
 
-  // Libère le véhicule
-  await vehicleService.setAvailable(sortie.vehicle_id);
+  // Libère le véhicule (s'il n'a plus de sorties/demandes actives)
+  await vehicleService.releaseIfIdle(sortie.vehicle_id);
+
+  // Informe les passagers + le chauffeur de la fin de sortie
+  const linkedIds = await notificationService.getLinkedEmployeeIds(sortie);
+  await notificationService.notifySortieState({
+    sortie,
+    type: notificationService.EVENT_TYPES.SORTIE_FINISHED,
+    message: `La sortie vers ${sortie.destination} est terminée.`,
+    recipients: [...linkedIds, sortie.driver_employee_id].filter(Boolean),
+  });
 
   notifyChiefs('sortie_updated', sortie);
 

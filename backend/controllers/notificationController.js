@@ -4,6 +4,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { CHIEF_ROLES } = require('../utils/constants');
 const { notifyUser } = require('../services/socketService');
 const { sendNotificationEmail } = require('../services/mailService');
+const { sendToUser, buildPayload: buildPushPayload } = require('../services/webPushService');
 
 exports.mine = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page, 10) || 1;
@@ -60,9 +61,41 @@ exports.markAllRead = asyncHandler(async (req, res) => {
 
 // Fonction utilitaire réutilisable depuis les autres contrôleurs.
 // Chaque notification interne est aussi envoyée par email (si SMTP configuré).
-exports.createNotification = async ({ user_id, message, type }) => {
-  const notif = await Notification.create({ user_id, message, type, is_read: false });
+// `entity_type`/`entity_id` permettent l'anti-doublon : si `dedupe` est vrai
+// (ou que les deux sont fournis), on n'envoie une notification du même
+// (user_id, type, entity_type, entity_id) qu'une seule fois.
+exports.createNotification = async ({ user_id, message, type, entity_type, entity_id, dedupe }) => {
+  const hasEntity = entity_type != null && entity_id != null;
+
+  if (dedupe || hasEntity) {
+    const existing = await Notification.findOne({
+      where: { user_id, type, entity_type, entity_id },
+    });
+    if (existing) return existing;
+  }
+
+  let notif;
+  try {
+    notif = await Notification.create({
+      user_id, message, type, is_read: false,
+      entity_type: entity_type || null,
+      entity_id: entity_id != null ? entity_id : null,
+    });
+  } catch (err) {
+    // Course possible entre deux requêtes concurrentes : la contrainte
+    // unique (user_id, type, entity_type, entity_id) a déjà garanti
+    // l'anti-doublon. On renvoie alors l'existant.
+    if (hasEntity && err.name === 'SequelizeUniqueConstraintError') {
+      return Notification.findOne({ where: { user_id, type, entity_type, entity_id } });
+    }
+    throw err;
+  }
   notifyUser(user_id, 'notification', notif);
+
+  // Push téléphone (fire & forget) : une unique notification DB → un push
+  // par appareil. Ne lève jamais pour ne pas casser le flux existant.
+  sendToUser(user_id, buildPushPayload(notif))
+    .catch((err) => console.error('[push] Erreur:', err.message));
 
   Employee.findByPk(user_id, { attributes: ['id', 'email'] })
     .then((employee) => {

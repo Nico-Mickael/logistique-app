@@ -10,10 +10,13 @@ const requestRoutes = require('./routes/requestRoutes');
 const vehicleRoutes = require('./routes/vehicleRoutes');
 const sortieRoutes = require('./routes/sortieRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const pushRoutes = require('./routes/pushRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 const exportRoutes = require('./routes/exportRoutes');
 const { setupSocket } = require('./services/socketService');
+const { start: startSortieScheduler } = require('./services/sortieScheduler');
+const { configure: configureWebPush } = require('./services/webPushService');
 
 if (!process.env.JWT_SECRET) {
   console.error('❌ JWT_SECRET non défini dans les variables d\'environnement');
@@ -21,6 +24,12 @@ if (!process.env.JWT_SECRET) {
 }
 
 const app = express();
+
+// Derrière le reverse proxy nginx (frontend/nginx.conf pose X-Forwarded-For),
+// req.ip reflète l'IP réelle du client. Sinon toutes les requêtes partagent
+// l'IP du proxy → les limiteurs traiteraient tous les utilisateurs comme un seul.
+app.set('trust proxy', 1);
+
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
@@ -33,6 +42,7 @@ app.use('/api/requests', requestRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/sorties', sortieRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/push', pushRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/export', exportRoutes);
@@ -57,8 +67,11 @@ if (process.env.SERVE_FRONTEND !== 'false' && fs.existsSync(path.join(frontendDi
 }
 
 app.use((err, req, res, next) => {
-  console.error('Erreur non gérée:', err);
-  res.status(500).json({ message: 'Erreur interne du serveur' });
+  const status = err.status || err.statusCode || 500;
+  if (status >= 500) {
+    console.error('Erreur non gérée:', err);
+  }
+  res.status(status).json({ message: status >= 500 ? 'Erreur interne du serveur' : (err.message || 'Erreur') });
 });
 
 const PORT = process.env.PORT || 5000;
@@ -70,6 +83,13 @@ const start = async () => {
   try {
     await db.sequelize.authenticate();
     console.log('✅ Connexion PostgreSQL réussie');
+    if (configureWebPush()) {
+      console.log('📲 Notifications push activées (Web Push / VAPID)');
+    } else {
+      console.log('📲 Notifications push désactivées — renseignez VAPID_PUBLIC_KEY et VAPID_PRIVATE_KEY (.env)');
+    }
+    // Notifications d'imminence : boucle périodique (anti-doublon via entité).
+    startSortieScheduler();
     server.listen(PORT, () => {
       console.log(`Backend démarré sur le port ${PORT}`);
     });
