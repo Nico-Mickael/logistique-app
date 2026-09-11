@@ -1,8 +1,16 @@
 const { Op } = require('sequelize');
 const { ASSIGNABLE_TO_SORTIE_STATUSES } = require('../utils/constants');
+const { normalizeDestination } = require('../utils/destination');
 
-// Critère de regroupement du cahier des charges : écart horaire ≤ 30 min
-const COMPAT_WINDOW_MS = 30 * 60 * 1000;
+// Critère de regroupement : écart horaire ≤ 3 heures
+const COMPAT_WINDOW_MS = 3 * 60 * 60 * 1000;
+
+// Deux dates appartiennent-elles au même jour calendaire ?
+function isSameCalendarDay(a, b) {
+  return a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+}
 
 // Dépendances injectables (modèles + socket) par défaut. Permet de tester
 // le service en isolation en injectant des mocks (voir test/sortieService.test.js).
@@ -34,8 +42,8 @@ function __resetDeps() {
   _deps = null;
 }
 
-// Trouve les demandes compatibles avec une sortie (même destination,
-// écart horaire ≤ 30 min, capacité respectée)
+// Trouve les demandes compatibles avec une sortie (même destination — synonymes
+// et casse ignorés —, écart horaire ≤ 3 h, capacité respectée)
 exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, departureTime) => {
   const { models } = getDeps();
   const { Request, SortieRequest, Employee } = models;
@@ -46,7 +54,6 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, 
 
   const candidates = await Request.findAll({
     where: {
-      destination: { [Op.iLike]: destination },
       status: { [Op.in]: ASSIGNABLE_TO_SORTIE_STATUSES },
       id: { [Op.notIn]: linkedRequestIds },
       ...(departure && !isNaN(departure.getTime())
@@ -70,9 +77,12 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, 
   const existingRequests = await Request.findAll({ where: { id: { [Op.in]: existingIds } } });
   let occupied = existingRequests.reduce((sum, r) => sum + (r.nb_personnes || 0), 0);
 
-  // Filtre selon la capacité restante du véhicule
+  // Filtre la destination en mémoire (synonymes : "Tana" = "Antananarivo", …)
+  // puis selon la capacité restante du véhicule
+  const targetDest = normalizeDestination(destination);
   const compatible = [];
   for (const req of candidates) {
+    if (normalizeDestination(req.destination) !== targetDest) continue;
     if (occupied + (req.nb_personnes || 0) <= vehicleCapacity) {
       compatible.push(req);
       occupied += req.nb_personnes || 0;
@@ -90,8 +100,9 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, 
  *   si elle était déjà sur une autre sortie planifiée, elle y est DÉPLACÉE
  *   (l'ancienne sortie vidée est supprimée, son véhicule libéré si inactif)
  * - une demande déjà partie (sortie en cours/terminée) ne peut pas être déplacée
- * - la compatibilité est revalidée : statut, destination, fenêtre ±30 min, capacité
+ * - la compatibilité est revalidée : statut, destination, fenêtre, capacité
  *
+ * @param {object} params - { sortieId, requestId }
  * @returns {Promise<{request, sortie, status: 'added'|'already_linked'}>}
  * @throws {Error} avec `.status` (400/404) si la liaison est impossible
  */
@@ -108,18 +119,18 @@ exports.attachRequestToSortie = async ({ sortieId, requestId }) => {
     throw apiError(400, `Cette demande (statut "${request.status}") ne peut pas être intégrée à une sortie`);
   }
 
-  // Compatibilité : même destination (insensible à la casse)
+  // Compatibilité : même destination (synonymes et casse ignorés)
   if (sortie.destination && request.destination &&
-      String(sortie.destination).toLowerCase() !== String(request.destination).toLowerCase()) {
+      normalizeDestination(sortie.destination) !== normalizeDestination(request.destination)) {
     throw apiError(400, 'La destination de la demande ne correspond pas à celle de la sortie');
   }
 
-  // Compatibilité : fenêtre horaire ±30 min
+  // Compatibilité : fenêtre horaire ±3 h autour du départ de la sortie
   const reqTime = new Date(request.date_souhaitee);
   const depTime = new Date(sortie.departure_time);
   if (!isNaN(reqTime.getTime()) && !isNaN(depTime.getTime()) &&
       Math.abs(reqTime.getTime() - depTime.getTime()) > COMPAT_WINDOW_MS) {
-    throw apiError(400, 'La demande ne se situe pas à proximité de la sortie (écart supérieur à 30 minutes)');
+    throw apiError(400, 'La demande ne se situe pas à proximité de la sortie (écart supérieur à 3 heures)');
   }
 
   // Déjà liée à CETTE sortie → pas de doublon
@@ -169,8 +180,14 @@ exports.attachRequestToSortie = async ({ sortieId, requestId }) => {
 
 /**
  * Crée automatiquement une sortie quand une demande est approuvée avec véhicule :
- * - réutilise une sortie existante au même créneau (écart ≤ 30 min) sur le même
- *   véhicule, même destination, si la capacité le permet (regroupement)
+ * - regroupe la demande dans la sortie planifiée du MÊME JOUR sur le même
+ *   véhicule, même destination (synonymes et casse ignorés : "Tana" =
+ *   "Antananarivo") et à moins de 3 h de l'heure souhaitée, la plus proche
+ *   s'il y en a plusieurs → une seule sortie, un seul chauffeur, une seule
+ *   saisie départ/arrivée pour les demandes validées proches
+ * - si l'écart horaire est trop grand (ou destination/véhicule différents),
+ *   aucune sortie n'est créée quand le véhicule est occupé : la demande
+ *   reste approuvée et le chef logistique la replanifie ou l'affecte
  * - sinon crée la sortie, lie la demande et occupe le véhicule
  */
 exports.autoCreateSortie = async (request) => {
@@ -184,19 +201,35 @@ exports.autoCreateSortie = async (request) => {
   const isMoto = vehicle ? vehicle.type === 'moto' : false;
 
   const requestTime = new Date(request.date_souhaitee);
-  const existingSortie = !isNaN(requestTime.getTime()) ? await Sortie.findOne({
+  const startOfDay = new Date(requestTime);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(requestTime);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  // Sorties planifiées du même jour, même véhicule (destination filtrée en
+  // mémoire pour gérer les synonymes)
+  const sameDaySorties = !isNaN(requestTime.getTime()) ? await Sortie.findAll({
     where: {
       vehicle_id: request.vehicle_id,
       status: 'planned',
-      destination: request.destination,
-      departure_time: {
-        [Op.between]: [
-          new Date(requestTime.getTime() - COMPAT_WINDOW_MS),
-          new Date(requestTime.getTime() + COMPAT_WINDOW_MS),
-        ],
-      },
+      departure_time: { [Op.between]: [startOfDay, endOfDay] },
     },
-  }) : null;
+  }) : [];
+
+  // Retient la sortie compatible la plus proche : même destination (synonymes
+  // inclus) ET écart d'heure ≤ 3 h. Au-delà, pas de regroupement : on tient
+  // compte de l'heure, la demande reste à traiter et peut être replanifiée.
+  const targetDest = normalizeDestination(request.destination);
+  let existingSortie = null;
+  let closestGap = Infinity;
+  for (const s of sameDaySorties) {
+    const depTime = new Date(s.departure_time);
+    const gap = Math.abs(depTime.getTime() - requestTime.getTime());
+    if (normalizeDestination(s.destination) === targetDest && gap <= COMPAT_WINDOW_MS && gap < closestGap) {
+      closestGap = gap;
+      existingSortie = s;
+    }
+  }
 
   if (existingSortie) {
     // Regroupement : la demande rejoint la sortie compatible existante sans être
@@ -244,3 +277,5 @@ exports.autoCreateSortie = async (request) => {
 module.exports.__setDeps = __setDeps;
 module.exports.__resetDeps = __resetDeps;
 module.exports.COMPAT_WINDOW_MS = COMPAT_WINDOW_MS;
+module.exports.isSameCalendarDay = isSameCalendarDay;
+module.exports.normalizeDestination = normalizeDestination;

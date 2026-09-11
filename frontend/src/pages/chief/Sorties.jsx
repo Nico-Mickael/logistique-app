@@ -1,16 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Badge, Center, Text, Group, Button, Modal,
-  TextInput, Select, Stack, NumberInput, SimpleGrid, Flex, SegmentedControl, Pagination, ScrollArea, Collapse,
+  TextInput, Select, Stack, NumberInput, SimpleGrid, Flex, SegmentedControl, Pagination, ScrollArea, Menu, ActionIcon,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
-import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconNote, IconEye, IconAlertTriangle, IconFilter } from '@tabler/icons-react';
+import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconNote, IconEye, IconDotsVertical } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import SortieDetailModal from '../../components/SortieDetailModal';
 import SortieCard, { vehicleOptionsFor, chauffeurOptions } from '../../components/SortieCard';
-import MotifCell from '../../components/MotifCell';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { vehicleService } from '../../api/vehicleService';
@@ -19,6 +18,7 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
+import FloatingPanel from '../../components/FloatingPanel';
 import { useNavigate } from 'react-router-dom';
 import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, vehicleDisplayName } from '../../utils/labels';
 import { downloadCSV } from '../../utils/csv';
@@ -45,7 +45,6 @@ function Sorties() {
   const [viewMode, setViewMode] = useState('table');
   const limit = 20;
   const isMobile = useMediaQuery('(max-width: 767px)');
-  const [filtersOpen, { toggle: toggleFilters }] = useDisclosure(true);
 
   const [editOpened, { open: openEditModal, close: closeEditModal }] = useDisclosure(false);
   const [editSortie, setEditSortie] = useState(null);
@@ -295,7 +294,6 @@ function Sorties() {
 
   const allColumns = [
     { accessor: 'destination', title: 'Destination', sortable: true },
-    { accessor: 'motif', title: 'Motif', sortable: true, render: (s) => <MotifCell motif={s.motif} maxWidth={180} /> },
     {
       accessor: 'driver_name', title: 'Conducteur', sortable: true,
       render: (s) => (
@@ -367,43 +365,53 @@ function Sorties() {
     {
       accessor: 'actions', title: '',
       render: (s) => (
-        <Group gap="xs" wrap="wrap" onClick={(e) => e.stopPropagation()}>
-          {s.status === 'planned' && (
-            <>
-              <Button size="xs" color="brand" leftSection={<IconPlayerPlay size={14} />} onClick={() => openDepartModal(s)} loading={actionLoading === 'depart'}>Démarrer</Button>
-              <Button size="xs" variant="outline" color="brand" leftSection={<IconUsers size={14} />} onClick={() => openSuggestionsModal(s.id)}>Demandes</Button>
-              <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => openDetail(s)}>Détails</Button>
-              <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => openEdit(s)}>Modifier</Button>
-              <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
-            </>
-          )}
-          {s.status === 'ongoing' && (
-            <Group gap="xs" wrap="wrap">
-              <Button size="xs" color="brand" leftSection={<IconFlag size={14} />} onClick={() => openArriveeModal(s)} loading={actionLoading === 'arrivee'}>Saisir arrivée</Button>
-              <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => openDetail(s)}>Détails</Button>
-            </Group>
-          )}
-          {s.status === 'pending_return' && (
-            <Group gap="xs" wrap="wrap">
-              <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={() => setValidateReturnTarget(s)} loading={actionLoading === 'validateReturn'}>Valider le retour</Button>
-              <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => openDetail(s)}>Détails</Button>
-            </Group>
-          )}
-          {s.status === 'finished' && (
-            <Group gap="xs" wrap="wrap">
-              <Text size="xs" c="dimmed">Terminée</Text>
-              <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => openDetail(s)}>Détails</Button>
-              <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
-            </Group>
-          )}
-        </Group>
+        <Menu position="bottom-end" withinPortal trigger="hover" openDelay={120} closeDelay={120}
+          shadow="md" width={210}>
+          <Menu.Target>
+            <ActionIcon variant="subtle" color="gray" radius="md" aria-label="Actions"
+              onClick={(e) => e.stopPropagation()}>
+              <IconDotsVertical size={18} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown onClick={(e) => e.stopPropagation()}>
+            {s.status === 'planned' && (
+              <>
+                <Menu.Item leftSection={<IconPlayerPlay size={16} />} onClick={() => openDepartModal(s)}>Démarrer</Menu.Item>
+                <Menu.Item leftSection={<IconUsers size={16} />} onClick={() => openSuggestionsModal(s.id)}>Demandes</Menu.Item>
+                <Menu.Item leftSection={<IconEye size={16} />} onClick={() => openDetail(s)}>Détails</Menu.Item>
+                <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => openEdit(s)}>Modifier</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => setDeleteTarget(s)}>Supprimer</Menu.Item>
+              </>
+            )}
+            {s.status === 'ongoing' && (
+              <>
+                <Menu.Item leftSection={<IconFlag size={16} />} onClick={() => openArriveeModal(s)}>Saisir arrivée</Menu.Item>
+                <Menu.Item leftSection={<IconEye size={16} />} onClick={() => openDetail(s)}>Détails</Menu.Item>
+              </>
+            )}
+            {s.status === 'pending_return' && (
+              <>
+                <Menu.Item leftSection={<IconFlag size={16} />} onClick={() => setValidateReturnTarget(s)}>Valider le retour</Menu.Item>
+                <Menu.Item leftSection={<IconEye size={16} />} onClick={() => openDetail(s)}>Détails</Menu.Item>
+              </>
+            )}
+            {s.status === 'finished' && (
+              <>
+                <Menu.Item leftSection={<IconEye size={16} />} onClick={() => openDetail(s)}>Détails</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => setDeleteTarget(s)}>Supprimer</Menu.Item>
+              </>
+            )}
+          </Menu.Dropdown>
+        </Menu>
       ),
     },
   ];
 
   // Colonnes secondaires masquées sur mobile : le tableau reste lisible
   // sans forcer le scroll horizontal (contenu détaillé dans les cartes / détails).
-  const hiddenOnMobile = ['motif', 'km', 'departure_time'];
+  const hiddenOnMobile = ['km', 'departure_time'];
   const columns = isMobile ? allColumns.filter((c) => !hiddenOnMobile.includes(c.accessor)) : allColumns;
 
   if (loading) return <PageLoader />;
@@ -432,50 +440,33 @@ function Sorties() {
       </PageHeader>
 
       <Paper p={{ base: 'xs', sm: 'md' }} radius="lg" withBorder mb="md" className="filters-panel">
-        <Group justify="space-between" wrap="nowrap" hiddenFrom="sm" mb={filtersOpen ? 'xs' : 0}>
-          <Button variant="subtle" color="gray" size="xs" leftSection={<IconFilter size={14} />} onClick={toggleFilters} w="100%">
-            {filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'}
-          </Button>
+        <Group gap="sm" wrap="wrap" align="flex-end">
+          <SegmentedControl value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }}
+            data={statusFilterOptions} size="xs" color="brand" w={{ base: '100%', sm: 'auto' }} fullWidth={isMobile} />
+          <Select placeholder="Véhicule"
+            data={vehicles.map((v) => ({ value: String(v.id), label: vehicleDisplayName(v) }))}
+            value={vehicleFilter} onChange={(v) => { setVehicleFilter(v || ''); setPage(1); }}
+            clearable size="xs" w={{ base: '100%', sm: 180 }} />
+          <TextInput placeholder="Rechercher une destination..."
+            leftSection={<IconSearch size={14} />}
+            value={searchQuery} onChange={(e) => { setSearchQuery(e.currentTarget.value); setPage(1); }}
+            size="xs" w={{ base: '100%', sm: 200 }} />
+          <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+          <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+          {hasFilters && (
+            <Button variant="subtle" color="gray" size="xs" leftSection={<IconX size={14} />} onClick={clearFilters}>
+              Effacer
+            </Button>
+          )}
         </Group>
-        <Collapse in={filtersOpen}>
-          <Group gap="sm" wrap="wrap" align="flex-end">
-            <SegmentedControl value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }}
-              data={statusFilterOptions} size="xs" color="brand" w={{ base: '100%', sm: 'auto' }} fullWidth={isMobile} />
-            <Select placeholder="Véhicule"
-              data={vehicles.map((v) => ({ value: String(v.id), label: vehicleDisplayName(v) }))}
-              value={vehicleFilter} onChange={(v) => { setVehicleFilter(v || ''); setPage(1); }}
-              clearable size="xs" w={{ base: '100%', sm: 180 }} />
-            <TextInput placeholder="Rechercher une destination..."
-              leftSection={<IconSearch size={14} />}
-              value={searchQuery} onChange={(e) => { setSearchQuery(e.currentTarget.value); setPage(1); }}
-              size="xs" w={{ base: '100%', sm: 200 }} />
-            <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
-            <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
-            {hasFilters && (
-              <Button variant="subtle" color="gray" size="xs" leftSection={<IconX size={14} />} onClick={clearFilters}>
-                Effacer
-              </Button>
-            )}
-          </Group>
-        </Collapse>
       </Paper>
 
       {overdue.length > 0 && (
-        <Paper p="md" radius="lg" withBorder mb="md" className="overdue-panel">
-          <Group justify="space-between" mb="sm" wrap="wrap">
-            <Group gap="xs">
-              <Text fw={600} size="sm" c="red">
-                <IconAlertTriangle size={18} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                Départs dépassés
-              </Text>
-              <Badge color="red" variant="light">{overdue.length}</Badge>
-            </Group>
-            <Text size="xs" c="dimmed">Sorties planifiées dont l'heure de départ est dépassée</Text>
-          </Group>
+        <FloatingPanel title="Départs dépassés" badgeCount={overdue.length} color="green">
           <Stack gap={6}>
             {overdue.map((s) => (
               <Group key={s.id} justify="space-between" wrap="wrap" gap="sm">
-                <Group gap="sm" wrap="wrap" style={{ flex: 1, minWidth: 240 }}>
+                <Group gap="sm" wrap="wrap" style={{ flex: 1, minWidth: 200 }}>
                   <Text size="sm" fw={600}>{s.destination}</Text>
                   <Text size="xs" c="dimmed">{s.driver_name || 'Sans chauffeur'}</Text>
                   <VehicleIcon type={s.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" />
@@ -484,13 +475,13 @@ function Sorties() {
                   <Text size="xs" c="dimmed">({s.Requests?.length || 0} passager{s.Requests?.length > 1 ? 's' : ''})</Text>
                 </Group>
                 <Group gap="xs">
-                  <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => openDetail(s)}>Détails</Button>
+                  <Button size="xs" variant="subtle" color="dark" leftSection={<IconEye size={14} />} onClick={() => openDetail(s)}>Détails</Button>
                   <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
                 </Group>
               </Group>
             ))}
           </Stack>
-        </Paper>
+        </FloatingPanel>
       )}
 
       {sorties.length === 0 ? (
@@ -688,10 +679,6 @@ function Sorties() {
           position: relative;
           overflow: hidden;
           animation: panel-in 0.35s ease-out;
-        }
-        .overdue-panel {
-          border-color: light-dark(var(--mantine-color-red-6), var(--mantine-color-red-9)) !important;
-          background: light-dark(var(--mantine-color-red-0), #2b1418) !important;
         }
         @media (prefers-reduced-motion: reduce) {
           .sortie-card { animation: none; }

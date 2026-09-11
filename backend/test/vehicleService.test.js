@@ -110,3 +110,27 @@ test('syncKm : ignore un véhicule inconnu ou des km vides', async () => {
   await vehicleService.syncKm(null, 5000);
   assert.strictEqual(db.vehicles[0].current_km, 1000);
 });
+
+test('isRequestable : véhicule busy avec sortie encore planifiée => toujours demandable', () => {
+  assert.strictEqual(vehicleService.isRequestable({ id: 1, status: 'busy' }, false, false), true,
+    'tant que la sortie n\'a pas démarré, les employés doivent pouvoir demander');
+});
+
+test('isRequestable : véhicule plein => plus de demande (même si la sortie est planifiée)', () => {
+  assert.strictEqual(vehicleService.isRequestable({ id: 1, status: 'busy' }, false, true), false,
+    'toutes les places occupées => plus aucune demande possible');
+  assert.strictEqual(vehicleService.isRequestable({ id: 2, status: 'available' }, false, true), false);
+});
+
+test('isRequestable : bloqué dès qu\'une sortie a démarré, en panne ou en maintenance', () => {
+  assert.strictEqual(vehicleService.isRequestable({ id: 1, status: 'busy' }, true, false), false,
+    'une sortie démarrée (ongoing/pending_return) limite les nouvelles demandes');
+  for (const status of ['maintenance', 'broken']) {
+    assert.strictEqual(vehicleService.isRequestable({ id: 2, status }, false, false), false,
+      `un véhicule en ${status} n'est jamais demandable`);
+  }
+});
+
+test('isRequestable : véhicule inconnu jamais demandable', () => {
+  assert.strictEqual(vehicleService.isRequestable(null, false), false);
+});

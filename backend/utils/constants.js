@@ -21,6 +21,10 @@ const ASSIGNABLE_TO_SORTIE_STATUSES = ['pending', 'approved'];
 
 // Véhicules
 const VEHICLE_STATUSES = ['available', 'busy', 'maintenance', 'broken'];
+// Sorties réellement démarrées : le véhicule est parti. Tant qu'une sortie est
+// simplement "planned", le véhicule reste demandable par les autres employés.
+const STARTED_SORTIE_STATUSES = ['ongoing', 'pending_return'];
+const UNUSABLE_VEHICLE_STATUSES = ['maintenance', 'broken'];
 
 // Divers
 const BCRYPT_ROUNDS = 10;
@@ -33,6 +37,8 @@ module.exports = {
   REQUEST_STATUSES,
   ASSIGNABLE_TO_SORTIE_STATUSES,
   SORTIE_STATUSES,
+  STARTED_SORTIE_STATUSES,
   VEHICLE_STATUSES,
+  UNUSABLE_VEHICLE_STATUSES,
   BCRYPT_ROUNDS,
 };

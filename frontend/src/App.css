@@ -366,11 +366,14 @@
 
 .mantine-Paper-root,
 .mantine-Card-root,
-.mantine-Modal-content,
-.recharts-wrapper,
-.recharts-surface {
+.mantine-Modal-content {
   max-width: 100%;
 }
+
+/* Très important : PAS de max-width:100% sur .recharts-wrapper/.recharts-surface.
+   Le wrapper est mesuré par ResponsiveContainer dans un div parent de largeur 0
+   (sonde de mesure) ; max-width:100% résout alors à 0 et force le graphique à
+   une largeur nulle (camembert / histogramme invisibles). */
 
 /* Graphiques centrés et lisibles sur petit écran */
 .recharts-pie-label-line,
@@ -437,10 +440,22 @@
   transform: translateY(-3px);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
 }
-.vehicle-card {
+.vehicle-card,
+.driver-card,
+.user-card,
+.trip-card,
+.sortie-card,
+.validate-request-card,
+.request-card {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.vehicle-card:hover {
+.vehicle-card:hover,
+.driver-card:hover,
+.user-card:hover,
+.trip-card:hover,
+.sortie-card:hover,
+.validate-request-card:hover,
+.request-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
 }

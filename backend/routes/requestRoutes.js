@@ -7,8 +7,10 @@ const { CHIEF_ROLES } = require('../utils/constants');
 
 router.post('/', auth, requestController.create);
 router.get('/mine', auth, requestController.mine);
+router.get('/to-process', auth, checkRole(CHIEF_ROLES), requestController.toProcess);
 router.get('/', auth, checkRole(CHIEF_ROLES), requestController.all);
 router.patch('/:id/status', auth, checkRole(CHIEF_ROLES), requestController.updateStatus);
+router.post('/:id/assign', auth, checkRole(CHIEF_ROLES), requestController.assignVehicle);
 router.patch('/:id/cancel', auth, requestController.cancel);
 router.patch('/:id/reschedule/respond', auth, requestController.respondReschedule);
 router.put('/:id', auth, requestController.update);

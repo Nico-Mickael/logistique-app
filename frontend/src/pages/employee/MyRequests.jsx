@@ -357,7 +357,11 @@ function MyRequests() {
         onClose={() => setRespondTarget(null)}
         onConfirm={handleRespond}
         title={`${respondAccepted ? 'Accepter' : 'Refuser'} la replanification ?`}
-        message={respondAccepted ? 'Vous confirmez la nouvelle date proposée.' : 'Votre demande sera annulée.'}
+        message={respondAccepted
+          ? (respondTarget?.reschedule_reason
+            ? `Vous confirmez la nouvelle date proposée. Motif: ${respondTarget.reschedule_reason}`
+            : 'Vous confirmez la nouvelle date proposée.')
+          : 'Votre demande sera annulée.'}
         confirmLabel={respondAccepted ? 'Accepter' : 'Refuser'}
         variant={respondAccepted ? 'question' : 'danger'}
         loading={responding}

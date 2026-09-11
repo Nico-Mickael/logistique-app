@@ -1,7 +1,7 @@
 const { Sortie, Vehicle, Request, SortieRequest, Employee } = require('../models');
 const { Op } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
-const { SORTIE_STATUSES } = require('../utils/constants');
+const { SORTIE_STATUSES, STARTED_SORTIE_STATUSES, UNUSABLE_VEHICLE_STATUSES } = require('../utils/constants');
 const sortieService = require('../services/sortieService');
 const vehicleService = require('../services/vehicleService');
 const { computeDisplayStatus } = require('../utils/displayStatus');
@@ -35,7 +35,21 @@ exports.create = asyncHandler(async (req, res) => {
   }
 
   const vehicle = await Vehicle.findByPk(vehicle_id);
-  if (!vehicle || vehicle.status !== 'available') {
+  if (!vehicle) {
+    return res.status(400).json({ message: 'Véhicule introuvable' });
+  }
+  if (UNUSABLE_VEHICLE_STATUSES.includes(vehicle.status)) {
+    return res.status(400).json({ message: 'Véhicule indisponible' });
+  }
+
+  // Tant que la sortie n'a pas démarré, le véhicule reste utilisable pour
+  // créer une autre sortie (ex. plus tard dans la journée) : on n'autorise
+  // simplement pas un véhicule dont une sortie a réellement démarré.
+  const startedSortie = await Sortie.findOne({
+    where: { vehicle_id, status: { [Op.in]: STARTED_SORTIE_STATUSES } },
+    attributes: ['id'],
+  });
+  if (startedSortie) {
     return res.status(400).json({ message: 'Véhicule indisponible' });
   }
 

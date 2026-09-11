@@ -165,7 +165,7 @@ exports.sortiesPassengers = asyncHandler(async (req, res) => {
 
 // GET /api/stats/fleet — santé de la flotte (pour le dashboard chef)
 exports.fleet = asyncHandler(async (req, res) => {
-  const [vehicles, sortiesFinished, fuelStats] = await Promise.all([
+  const [vehicles, fuelStats] = await Promise.all([
     Vehicle.findAll({ raw: true }),
     Sortie.findAll({
       where: { status: 'finished' },

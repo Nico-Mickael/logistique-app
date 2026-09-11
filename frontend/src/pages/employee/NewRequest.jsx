@@ -292,7 +292,7 @@ function NewRequest() {
       setLoading(true);
       try {
         const { data } = await vehicleService.getOccupancy();
-        setVehiclesData(data.filter((v) => v.status === 'available'));
+        setVehiclesData(data.filter((v) => v.requestable !== false));
       } catch {
         notifyError('Impossible de charger les véhicules');
       } finally {
@@ -359,7 +359,7 @@ function NewRequest() {
       setDestination(''); setMotif(''); setDateSouhaitee(null);
       setNbPersonnes(1); setSelectedVehicle(null);
       const { data } = await vehicleService.getOccupancy();
-      setVehiclesData(data.filter((v) => v.status === 'available'));
+      setVehiclesData(data.filter((v) => v.requestable !== false));
     } catch (err) {
       notifyError(err.response?.data?.message || "Erreur lors de l'envoi de la demande");
     } finally {

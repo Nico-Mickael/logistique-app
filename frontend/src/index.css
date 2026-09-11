@@ -85,3 +85,48 @@ body {
     padding: 8px 12px;
   }
 }
+
+/* ── Panneau flottant bas droite (départs dépassés / demandes à traiter) ── */
+.floating-panel {
+  position: fixed !important;
+  bottom: 16px;
+  right: 16px;
+  z-index: 200;
+  width: 350px;
+  max-width: calc(100vw - 32px);
+  animation: panel-in 0.25s ease-out;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.14);
+}
+
+.floating-panel--green {
+  border-left: 3px solid var(--mantine-color-brand-6) !important;
+  background: light-dark(#ffffff, #23262b) !important;
+}
+
+.floating-panel-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 201;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--mantine-color-body);
+  border: 1px solid var(--mantine-color-default-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.floating-panel-btn:hover {
+  background: light-dark(#f1f3f5, #2C2E33);
+  transform: scale(1.08);
+}
+
+.floating-panel-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+}

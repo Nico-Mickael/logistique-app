@@ -22,7 +22,8 @@ module.exports = (sequelize, DataTypes) => {
     motif: DataTypes.STRING,
     date_souhaitee: DataTypes.DATE,
     nb_personnes: DataTypes.INTEGER,
-    status: DataTypes.STRING
+    status: DataTypes.STRING,
+    reschedule_reason: DataTypes.STRING
   }, {
     sequelize,
     modelName: 'Request',

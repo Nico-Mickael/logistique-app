@@ -57,6 +57,14 @@ export default function RequestDetailModal({ opened, onClose, request: r, showEm
           <IconCalendarEvent size={16} color="var(--mantine-color-dimmed)" />
           <Text size="sm">{dayjs(r.date_souhaitee).format('DD/MM/YYYY HH:mm')}</Text>
         </Group>
+        {r.status === 'rescheduled' && r.reschedule_reason && (
+          <Group gap={6} align="flex-start">
+            <IconNote size={16} color="var(--mantine-color-dimmed)" style={{ marginTop: 2 }} />
+            <Text size="sm">
+              <Text span fw={600}>Motif de replanification: </Text>{r.reschedule_reason}
+            </Text>
+          </Group>
+        )}
         <Group gap={6}>
           <IconUsers size={16} color="var(--mantine-color-dimmed)" />
           <Text size="sm">{r.nb_personnes} personne(s)</Text>

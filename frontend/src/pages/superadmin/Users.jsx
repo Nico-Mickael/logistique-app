@@ -15,7 +15,6 @@ import ConfirmModal from '../../components/ConfirmModal';
 
 const roleLabels = {
   superadmin: 'Superadmin',
-  admin: 'Admin',
   logistics_chief: 'Chef logistique',
   chauffeur: 'Chauffeur',
   employee: 'Employé',
@@ -23,7 +22,6 @@ const roleLabels = {
 
 const roleColors = {
   superadmin: 'red',
-  admin: 'orange',
   logistics_chief: 'brand',
   chauffeur: 'teal',
   employee: 'gray',
@@ -254,17 +252,17 @@ export default function Users() {
       >
         <Stack gap="md" mt="sm">
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-            <TextInput label="Nom" w="100%" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.currentTarget.value })} required radius="md" />
-            <TextInput label="Prénom" w="100%" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.currentTarget.value })} required radius="md" />
-            <TextInput label="Email" w="100%" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} required radius="md" />
+            <TextInput label="Nom" w="100%" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.currentTarget.value })} required radius="md" autoComplete="off" />
+            <TextInput label="Prénom" w="100%" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.currentTarget.value })} required radius="md" autoComplete="off" />
+            <TextInput label="Email" w="100%" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.currentTarget.value })} required radius="md" autoComplete="off" />
             <TextInput label="Mot de passe" w="100%" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.currentTarget.value })}
-              placeholder={editUser ? 'Laisser vide pour conserver' : ''} required={!editUser} radius="md" />
-            <TextInput label="Département" w="100%" value={form.department} onChange={(e) => setForm({ ...form, department: e.currentTarget.value })} radius="md" />
+              placeholder={editUser ? 'Laisser vide pour conserver' : ''} required={!editUser} radius="md" autoComplete="new-password" />
+            <TextInput label="Département" w="100%" value={form.department} onChange={(e) => setForm({ ...form, department: e.currentTarget.value })} radius="md" autoComplete="off" />
             <Select label="Rôle" w="100%" data={[
               { value: 'employee', label: 'Employé' },
               { value: 'chauffeur', label: 'Chauffeur' },
               { value: 'logistics_chief', label: 'Chef logistique' },
-              { value: 'admin', label: 'Admin' },
+              { value: 'superadmin', label: 'Superadmin' },
             ]} value={form.role} onChange={(v) => setForm({ ...form, role: v || 'employee' })} required radius="md" />
           </SimpleGrid>
           <Group justify="end" mt="md">

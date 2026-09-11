@@ -1,10 +1,10 @@
-const { Request, Employee, Vehicle, Sortie, SortieRequest } = require('../models');
+const { Request, Employee, Vehicle, Sortie, SortieRequest, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
-const { ACTIVE_REQUEST_STATUSES, CHIEF_ROLES } = require('../utils/constants');
+const { ACTIVE_REQUEST_STATUSES, CHIEF_ROLES, STARTED_SORTIE_STATUSES } = require('../utils/constants');
 const { createNotification, notifyChiefsDb } = require('./notificationController');
 const { notifyChiefs } = require('../services/socketService');
-const { autoCreateSortie } = require('../services/sortieService');
+const { autoCreateSortie, isSameCalendarDay, normalizeDestination } = require('../services/sortieService');
 const vehicleService = require('../services/vehicleService');
 const { logAudit } = require('../services/auditService');
 
@@ -14,7 +14,15 @@ exports.create = asyncHandler(async (req, res) => {
 
   if (vehicle_id) {
     const vehicle = await Vehicle.findByPk(vehicle_id);
-    if (!vehicle || vehicle.status !== 'available') {
+    // Tant que la sortie n'a pas démarré, le véhicule reste demandable même si
+    // une sortie est déjà planifiée dessus (le véhicule est alors "busy").
+    const startedSortie = vehicle
+      ? await Sortie.findOne({
+          where: { vehicle_id: vehicle.id, status: { [Op.in]: STARTED_SORTIE_STATUSES } },
+          attributes: ['id'],
+        })
+      : null;
+    if (!vehicleService.isRequestable(vehicle, !!startedSortie)) {
       return res.status(400).json({ message: 'Véhicule indisponible' });
     }
 
@@ -109,9 +117,150 @@ exports.all = asyncHandler(async (req, res) => {
   });
 });
 
+// Chef logistique : demandes VALIDÉES sans sortie (le véhicule demandé était
+// déjà occupé et aucune destination compatible ne permettait le regroupement).
+// Pour chaque demande, on renseigne `conflict` = la sortie planifiée la plus
+// proche du jour sur le véhicule demandé → le chef voit quand le conflit est
+// une question d'heure et peut proposer une replanification.
+exports.toProcess = asyncHandler(async (req, res) => {
+  const requests = await Request.findAll({
+    where: {
+      status: 'approved',
+      id: { [Op.notIn]: sequelize.literal('(SELECT "request_id" FROM "SortieRequests")') },
+    },
+    include: [
+      { model: Employee, attributes: ['id', 'nom', 'prenom', 'department'] },
+      { model: Vehicle, attributes: ['id', 'type', 'capacity', 'name'] },
+    ],
+    order: [['date_souhaitee', 'ASC']],
+  });
+
+  const vehicleIds = [...new Set(requests.map((r) => r.vehicle_id).filter(Boolean))];
+  const planned = vehicleIds.length > 0
+    ? await Sortie.findAll({
+        where: { vehicle_id: { [Op.in]: vehicleIds }, status: 'planned' },
+        attributes: ['id', 'vehicle_id', 'destination', 'departure_time'],
+      })
+    : [];
+
+  const result = requests.map((r) => {
+    const json = r.toJSON();
+    const reqTime = new Date(r.date_souhaitee);
+    let conflict = null;
+    if (r.vehicle_id && !isNaN(reqTime.getTime())) {
+      let best = null;
+      let bestGap = Infinity;
+      for (const s of planned) {
+        if (s.vehicle_id !== r.vehicle_id) continue;
+        const dep = new Date(s.departure_time);
+        if (isNaN(dep.getTime()) || !isSameCalendarDay(dep, reqTime)) continue;
+        const gap = Math.abs(dep.getTime() - reqTime.getTime());
+        if (gap < bestGap) {
+          bestGap = gap;
+          best = s;
+        }
+      }
+      if (best) conflict = { departure_time: best.departure_time, destination: best.destination };
+    }
+    json.conflict = conflict;
+    return json;
+  });
+
+  res.json(result);
+});
+
+// Chef logistique : affecter un autre véhicule à une demande validée sans
+// sortie → crée une sortie (ou regroupe dans une sortie compatible du jour).
+exports.assignVehicle = asyncHandler(async (req, res) => {
+  const { vehicle_id } = req.body;
+  const request = await Request.findByPk(req.params.id);
+  if (!request) return res.status(404).json({ message: 'Demande introuvable' });
+  if (request.status !== 'approved') {
+    return res.status(400).json({ message: 'Seules les demandes validées peuvent être réaffectées' });
+  }
+  if (!vehicle_id) return res.status(400).json({ message: 'Véhicule requis' });
+
+  const vehicle = await Vehicle.findByPk(vehicle_id);
+  if (!vehicle) return res.status(404).json({ message: 'Véhicule introuvable' });
+
+  // Même garde que la création de demande : pas de sortie démarrée, pas de
+  // panne/maintenance, pas de places complètes pour la date.
+  const startedSortie = await Sortie.findOne({
+    where: { vehicle_id: vehicle.id, status: { [Op.in]: STARTED_SORTIE_STATUSES } },
+    attributes: ['id'],
+  });
+  if (!vehicleService.isRequestable(vehicle, !!startedSortie)) {
+    return res.status(400).json({ message: 'Véhicule indisponible' });
+  }
+
+  const requestedDate = new Date(request.date_souhaitee);
+  const startOfDay = new Date(requestedDate);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(requestedDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const occupiedRequests = await Request.findAll({
+    where: {
+      id: { [Op.ne]: request.id },
+      vehicle_id: vehicle.id,
+      status: ACTIVE_REQUEST_STATUSES,
+      date_souhaitee: { [Op.between]: [startOfDay, endOfDay] },
+    },
+    attributes: ['nb_personnes'],
+  });
+  const occupiedSeats = occupiedRequests.reduce((sum, r) => sum + (r.nb_personnes || 0), 0);
+  if (occupiedSeats + (request.nb_personnes || 0) > vehicle.capacity) {
+    return res.status(400).json({ message: 'Pas assez de places dans ce véhicule pour cette date' });
+  }
+
+  // Véhicule déjà occupé sans sortie compatible (même destination, synonymes
+  // inclus, même jour) : aucune sortie ne pourra être créée/rejointe → on
+  // prévient avant d'affecter.
+  const sameDayPlanned = await Sortie.findAll({
+    where: {
+      vehicle_id: vehicle.id,
+      status: 'planned',
+      departure_time: { [Op.between]: [startOfDay, endOfDay] },
+    },
+    attributes: ['id', 'destination'],
+  });
+  const targetDest = normalizeDestination(request.destination);
+  const groupable = sameDayPlanned.find((s) => normalizeDestination(s.destination) === targetDest);
+  if (vehicle.status !== 'available' && !groupable) {
+    return res.status(400).json({ message: 'Ce véhicule est déjà occupé à cette date (autre destination). Choisissez un véhicule disponible.' });
+  }
+
+  const oldVehicleId = request.vehicle_id;
+  request.vehicle_id = vehicle.id;
+  await request.save();
+
+  await logAudit({
+    userId: req.user.id, action: 'assign_vehicle', entity: 'Request', entityId: request.id,
+    oldValue: { vehicle_id: oldVehicleId }, newValue: { vehicle_id: vehicle.id }, req,
+  });
+
+  await autoCreateSortie(request);
+
+  const link = await SortieRequest.findOne({ where: { request_id: request.id } });
+  if (link) {
+    const sortie = await Sortie.findByPk(link.sortie_id, {
+      include: [{ model: Vehicle, attributes: ['id', 'type', 'capacity', 'name'] }],
+    });
+    const vehicleLabel = vehicle.name || (vehicle.type === 'moto' ? 'une moto' : `le véhicule #${vehicle.id}`);
+    await createNotification({
+      user_id: request.employee_id,
+      message: `Votre demande vers ${request.destination} est affectée à ${vehicleLabel} prévue le ${new Date(request.date_souhaitee).toLocaleString('fr-FR')}`,
+      type: 'approved',
+    });
+    return res.json({ request, sortie });
+  }
+
+  return res.json({ request, sortie: null, message: 'Véhicule affecté mais aucune sortie créée (regroupement impossible)' });
+});
+
 // Chef logistique : valider / refuser / replanifier
 exports.updateStatus = asyncHandler(async (req, res) => {
-  const { status, new_date } = req.body;
+  const { status, new_date, reschedule_reason } = req.body;
   const request = await Request.findByPk(req.params.id);
 
   if (!request) {
@@ -122,19 +271,36 @@ exports.updateStatus = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Statut invalide' });
   }
 
-  const allowedTransitions = { pending: ['approved', 'rejected', 'rescheduled'], rescheduled: ['approved', 'rejected'] };
+  const allowedTransitions = {
+    pending: ['approved', 'rejected', 'rescheduled'],
+    rescheduled: ['approved', 'rejected'],
+    // Une demande validée SANS sortie (résolue via "À traiter") peut être
+    // replanifiée : l'heure souhaitée ne collait pas avec la sortie planifiée.
+    approved: ['rescheduled'],
+  };
   if (!allowedTransitions[request.status]?.includes(status)) {
     return res.status(400).json({ message: `Impossible de passer de "${request.status}" à "${status}"` });
+  }
+
+  // Une demande déjà rattachée à une sortie ne peut PAS être replanifiée :
+  // il faudrait d'abord retirer la sortie (chauffeur, capacités, autres
+  // demandes regroupées).
+  if (status === 'rescheduled' && request.status === 'approved') {
+    const existingLink = await SortieRequest.findOne({ where: { request_id: request.id } });
+    if (existingLink) {
+      return res.status(400).json({ message: 'Cette demande est déjà rattachée à une sortie et ne peut pas être replanifiée' });
+    }
   }
 
   const oldStatus = request.status;
   request.status = status;
   if (status === 'rescheduled' && new_date) {
     request.date_souhaitee = new_date;
+    request.reschedule_reason = reschedule_reason || null;
   }
   await request.save();
 
-  await logAudit({ userId: req.user.id, action: `status_${status}`, entity: 'Request', entityId: request.id, oldValue: { status: oldStatus }, newValue: { status, date_souhaitee: request.date_souhaitee }, req });
+  await logAudit({ userId: req.user.id, action: `status_${status}`, entity: 'Request', entityId: request.id, oldValue: { status: oldStatus }, newValue: { status, date_souhaitee: request.date_souhaitee, reschedule_reason: request.reschedule_reason }, req });
 
   if (status === 'approved') {
     await autoCreateSortie(request);
@@ -145,7 +311,7 @@ exports.updateStatus = asyncHandler(async (req, res) => {
     message: `Votre demande vers ${request.destination} a été ${
       status === 'approved' ? 'validée' :
       status === 'rejected' ? 'refusée' : `replanifiée au ${new Date(request.date_souhaitee).toLocaleString('fr-FR')}`
-    }`,
+    }${status === 'rescheduled' && request.reschedule_reason ? ` — Motif: ${request.reschedule_reason}` : ''}`,
     type: status,
   });
 

@@ -85,6 +85,8 @@ const fakeModels = {
     },
   },
   Sortie: {
+    findAll: async ({ where } = {}) =>
+      db.sorties.filter((s) => matchFilter(s, where)).map((s) => saveable(s, 'sorties')),
     findOne: async ({ where } = {}) => saveable(db.sorties.find((s) => matchFilter(s, where)), 'sorties') || null,
     findByPk: async (id) => saveable(db.sorties.find((s) => s.id === id), 'sorties') || null,
     create: async (data) => {
@@ -120,23 +122,27 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // findCompatibleRequests
 // ---------------------------------------------------------------------------
-test('findCompatibleRequests : filtre par destination, statut et fenêtre horaire', async () => {
+test('findCompatibleRequests : filtre par destination (synonymes inclus), statut et fenêtre horaire', async () => {
   const base = new Date('2026-09-05T10:00:00').getTime();
   db.requests = [
     { id: 1, destination: 'Antananarivo', status: 'pending', date_souhaitee: new Date(base), nb_personnes: 2 },
-    // même destination mais hors fenêtre (différence > 30 min)
-    { id: 2, destination: 'Antananarivo', status: 'pending', date_souhaitee: new Date(base + 61 * 60 * 1000), nb_personnes: 2 },
+    // même destination mais hors fenêtre (différence > 3 h)
+    { id: 2, destination: 'Antananarivo', status: 'pending', date_souhaitee: new Date(base + 4 * 60 * 60 * 1000), nb_personnes: 2 },
     // destination différente
     { id: 3, destination: 'Mahajanga', status: 'pending', date_souhaitee: new Date(base), nb_personnes: 2 },
     // mauvais statut
     { id: 4, destination: 'Antananarivo', status: 'rejected', date_souhaitee: new Date(base), nb_personnes: 2 },
     // dans la fenêtre (autre casse)
     { id: 5, destination: 'antananarivo', status: 'approved', date_souhaitee: new Date(base + 10 * 60 * 1000), nb_personnes: 1 },
+    // synonyme de Antananarivo ("Tana" = "Tananarive")
+    { id: 6, destination: 'Tana', status: 'approved', date_souhaitee: new Date(base + 8 * 60 * 1000), nb_personnes: 1 },
+    // synonyme mais hors fenêtre
+    { id: 7, destination: 'Tananarive', status: 'approved', date_souhaitee: new Date(base - 4 * 60 * 60 * 1000), nb_personnes: 1 },
   ];
 
   const result = await sortieService.findCompatibleRequests(99, 'Antananarivo', 10, new Date(base));
   const ids = result.map((r) => r.id).sort((a, b) => a - b);
-  assert.deepStrictEqual(ids, [1, 5], 'ne garde que destination + fenêtre + statut compatibles');
+  assert.deepStrictEqual(ids, [1, 5, 6], 'destination + synonymes + fenêtre + statut compatibles uniquement');
 });
 
 test('findCompatibleRequests : respecte la capacité restante du véhicule', async () => {
@@ -255,6 +261,114 @@ test('autoCreateSortie : état véhicule "moto" renseigne le conducteur avec le 
   assert.strictEqual(db.sorties[0].driver_name, 'Rija Andri');
 });
 
+test('autoCreateSortie : écart horaire > 3 h → pas de regroupement (la demande reste à traiter)', async () => {
+  db.vehicles = [{ id: 1, capacity: 10, status: 'busy', type: 'voiture' }];
+  db.requests = [
+    { id: 1, nb_personnes: 2, destination: 'Toliara', status: 'approved' },
+    { id: 2, nb_personnes: 3, destination: 'Toliara', status: 'approved', date_souhaitee: new Date('2026-09-07T14:00:00') },
+  ];
+  db.sorties = [{
+    id: 100, vehicle_id: 1, status: 'planned', destination: 'Toliara',
+    departure_time: new Date('2026-09-07T09:00:00'),
+  }];
+  db.sortieRequests = [{ sortie_id: 100, request_id: 1 }];
+
+  await sortieService.autoCreateSortie({
+    id: 2, employee_id: 1, vehicle_id: 1, destination: 'Toliara',
+    date_souhaitee: new Date('2026-09-07T14:00:00'), nb_personnes: 3,
+  });
+
+  assert.strictEqual(db.sorties.length, 1, 'aucune nouvelle sortie créée (véhicule occupé)');
+  assert.strictEqual(db.sortieRequests.length, 1, 'écart 5 h > 3 h : la demande n\'est pas regroupée et reste à traiter');
+});
+
+test('autoCreateSortie : regroupe malgré un écart de casse sur la destination', async () => {
+  db.vehicles = [{ id: 1, capacity: 10, status: 'busy', type: 'voiture' }];
+  db.requests = [
+    { id: 1, nb_personnes: 2, destination: 'Toliara', status: 'approved' },
+    { id: 2, nb_personnes: 3, destination: 'Toliara', status: 'approved', date_souhaitee: new Date('2026-09-07T09:10:00') },
+  ];
+  db.sorties = [{
+    id: 100, vehicle_id: 1, status: 'planned', destination: 'Toliara',
+    departure_time: new Date('2026-09-07T09:00:00'),
+  }];
+  db.sortieRequests = [{ sortie_id: 100, request_id: 1 }];
+
+  await sortieService.autoCreateSortie({
+    id: 2, employee_id: 1, vehicle_id: 1, destination: 'toliara',
+    date_souhaitee: new Date('2026-09-07T09:10:00'), nb_personnes: 3,
+  });
+
+  assert.strictEqual(db.sorties.length, 1, 'la casse de la destination ne doit pas créer une 2e sortie');
+  assert.strictEqual(db.sortieRequests.length, 2);
+});
+
+test('autoCreateSortie : regroupe les synonymes de destination (Tana ↔ Antananarivo)', async () => {
+  db.vehicles = [{ id: 1, capacity: 10, status: 'busy', type: 'voiture' }];
+  db.requests = [
+    { id: 1, nb_personnes: 2, destination: 'Antananarivo', status: 'approved' },
+    { id: 2, nb_personnes: 3, destination: 'Tana', status: 'approved', date_souhaitee: new Date('2026-09-07T09:10:00') },
+  ];
+  db.sorties = [{
+    id: 100, vehicle_id: 1, status: 'planned', destination: 'Antananarivo',
+    departure_time: new Date('2026-09-07T09:00:00'),
+  }];
+  db.sortieRequests = [{ sortie_id: 100, request_id: 1 }];
+
+  await sortieService.autoCreateSortie({
+    id: 2, employee_id: 1, vehicle_id: 1, destination: 'Tana',
+    date_souhaitee: new Date('2026-09-07T09:10:00'), nb_personnes: 3,
+  });
+
+  assert.strictEqual(db.sorties.length, 1, '"Tana" et "Antananarivo" sont reconnues comme la même destination');
+  assert.strictEqual(db.sortieRequests.length, 2, 'la demande rédigée "Tana" rejoint la sortie "Antananarivo"');
+  assert.ok(db.sortieRequests.some((sr) => sr.sortie_id === 100 && sr.request_id === 2));
+});
+
+test('autoCreateSortie : ne regroupe PAS une demande d\'un autre jour (véhicule occupé → pas de sortie forcée)', async () => {
+  db.vehicles = [{ id: 1, capacity: 10, status: 'busy', type: 'voiture' }];
+  db.requests = [
+    { id: 1, nb_personnes: 2, destination: 'Toliara', status: 'approved' },
+    { id: 2, nb_personnes: 3, destination: 'Toliara', status: 'approved', date_souhaitee: new Date('2026-09-08T09:10:00') },
+  ];
+  db.sorties = [{
+    id: 100, vehicle_id: 1, status: 'planned', destination: 'Toliara',
+    departure_time: new Date('2026-09-07T09:00:00'),
+  }];
+  db.sortieRequests = [{ sortie_id: 100, request_id: 1 }];
+
+  await sortieService.autoCreateSortie({
+    id: 2, employee_id: 1, vehicle_id: 1, destination: 'Toliara',
+    date_souhaitee: new Date('2026-09-08T09:10:00'), nb_personnes: 3,
+  });
+
+  assert.strictEqual(db.sorties.length, 1, 'jour différent : pas de regroupement possible');
+  assert.strictEqual(db.sortieRequests.length, 1, 'aucun lien ajouté');
+});
+
+test('autoCreateSortie : choisit la sortie planifiée la plus proche du jour quand il y en a plusieurs', async () => {
+  db.vehicles = [{ id: 1, capacity: 10, status: 'busy', type: 'voiture' }];
+  db.requests = [
+    { id: 1, nb_personnes: 2, destination: 'Antsirabe', status: 'approved' },
+    { id: 2, nb_personnes: 2, destination: 'Antsirabe', status: 'approved' },
+    { id: 3, nb_personnes: 2, destination: 'Antsirabe', status: 'approved', date_souhaitee: new Date('2026-09-10T11:00:00') },
+  ];
+  db.sorties = [
+    { id: 100, vehicle_id: 1, status: 'planned', destination: 'Antsirabe', departure_time: new Date('2026-09-10T08:00:00') },
+    { id: 101, vehicle_id: 1, status: 'planned', destination: 'Antsirabe', departure_time: new Date('2026-09-10T10:30:00') },
+  ];
+  db.sortieRequests = [{ sortie_id: 100, request_id: 1 }, { sortie_id: 101, request_id: 2 }];
+
+  await sortieService.autoCreateSortie({
+    id: 3, employee_id: 1, vehicle_id: 1, destination: 'Antsirabe',
+    date_souhaitee: new Date('2026-09-10T11:00:00'), nb_personnes: 2,
+  });
+
+  assert.ok(db.sortieRequests.some((sr) => sr.sortie_id === 101 && sr.request_id === 3),
+    'la demande rejoint la sortie planifiée la plus proche');
+  assert.ok(!db.sortieRequests.some((sr) => sr.sortie_id === 100 && sr.request_id === 3));
+});
+
 // ---------------------------------------------------------------------------
 // attachRequestToSortie — invariants du regroupement (aucune demande perdue)
 // ---------------------------------------------------------------------------
@@ -345,6 +459,20 @@ test('attachRequestToSortie : refuse une destination différente de la sortie', 
     (err) => err.status === 400 && /destination/i.test(err.message)
   );
   assert.strictEqual(db.sortieRequests.length, 0);
+});
+
+test('attachRequestToSortie : accepte un synonyme de destination (sortie "Antananarivo" + demande "Tana")', async () => {
+  seedGroupable();
+  db.requests.push({
+    id: 6, employee_id: 12, destination: 'Tana', motif: 'Signature', date_souhaitee: new Date('2026-09-10T10:02:00'), nb_personnes: 1, status: 'approved', vehicle_id: 1,
+  });
+
+  const result = await sortieService.attachRequestToSortie({ sortieId: 100, requestId: 6 });
+
+  assert.strictEqual(result.status, 'added');
+  const links = db.sortieRequests.filter((sr) => sr.request_id === 6);
+  assert.strictEqual(links.length, 1, '"Tana" est rattachée à la sortie "Antananarivo"');
+  assert.strictEqual(links[0].sortie_id, 100);
 });
 
 test('attachRequestToSortie : refuse de déplacer une demande déjà liée à une sortie en cours/terminée', async () => {

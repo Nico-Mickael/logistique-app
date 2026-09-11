@@ -1,27 +1,29 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Badge, Center, Text, Group, Button, Modal,
-  TextInput, Stack, Flex, Select, Card, SimpleGrid, Pagination, SegmentedControl, Collapse,
+  TextInput, Stack, Flex, Card, SimpleGrid, Pagination, SegmentedControl, Select,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
-import { IconCheck, IconX, IconCalendar, IconInbox, IconSearch, IconDownload, IconEye, IconTrash, IconFilter } from '@tabler/icons-react';
+import { IconCheck, IconX, IconCalendar, IconInbox, IconSearch, IconDownload, IconEye, IconTrash, IconCar } from '@tabler/icons-react';
 import dayjs from '../../utils/date';
 import { requestService } from '../../api/requestService';
+import { vehicleService } from '../../api/vehicleService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
-import { requestStatusLabel as statusLabel, requestStatusColor as statusColor, accentColor } from '../../utils/labels';
+import { requestStatusLabel as statusLabel, requestStatusColor as statusColor, accentColor, vehicleDisplayName } from '../../utils/labels';
 import { downloadCSV } from '../../utils/csv';
 import MotifCell from '../../components/MotifCell';
 import RequestDetailModal from '../../components/RequestDetailModal';
+import FloatingPanel from '../../components/FloatingPanel';
 
 // Filtres disponibles, construits depuis la source unique des libellés.
 const STATUS_FILTER_ORDER = ['pending', 'approved', 'rescheduled', 'rejected'];
-const statusOptions = [
-  { value: '', label: 'Tous' },
+const statusFilterOptions = [
+  { value: 'all', label: 'Tous' },
   ...STATUS_FILTER_ORDER.map((value) => ({ value, label: statusLabel[value] })),
 ];
 
@@ -65,8 +67,9 @@ function ValidateRequests() {
   const [opened, { open, close }] = useDisclosure(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [newDate, setNewDate] = useState(null);
+  const [rescheduleReason, setRescheduleReason] = useState('');
 
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [destinationFilter, setDestinationFilter] = useState('');
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
@@ -82,12 +85,38 @@ function ValidateRequests() {
   const [viewMode, setViewMode] = useState('table');
   const limit = 20;
   const isMobile = useMediaQuery('(max-width: 767px)');
-  const [filtersOpen, { toggle: toggleFilters }] = useDisclosure(true);
+
+  // Demandes VALIDÉES sans sortie : véhicule demandé occupé, à réaffecter.
+  const [toProcess, setToProcess] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [assignTarget, setAssignTarget] = useState(null);
+  const [assignVehicleId, setAssignVehicleId] = useState('');
+  const [assigning, setAssigning] = useState(false);
+
+  const fetchToProcess = useCallback(async () => {
+    try {
+      const { data } = await requestService.toProcess();
+      setToProcess(data || []);
+    } catch {
+      // Non bloquant pour la page principale.
+    }
+  }, []);
+
+  useEffect(() => {
+    vehicleService.getOccupancy().then(({ data }) => setVehicles(data || [])).catch(() => {});
+    fetchToProcess();
+  }, [fetchToProcess]);
+
+  const assignableVehicles = vehicles.filter((v) => v.requestable !== false);
+  const assignVehicleOptions = assignableVehicles.map((v) => ({
+    value: String(v.id),
+    label: `${vehicleDisplayName(v)} (${v.availableSeats} pl. disp.)`,
+  }));
 
   // Filtres communs à la pagination et à l'export CSV.
   const buildFilterParams = (extra = {}) => {
     const params = { ...extra };
-    if (statusFilter) params.status = statusFilter;
+    if (statusFilter !== 'all') params.status = statusFilter;
     if (destinationFilter) params.destination = destinationFilter;
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
@@ -118,10 +147,10 @@ function ValidateRequests() {
   }, [fetchRequests]);
 
   const clearFilters = () => {
-    setStatusFilter(''); setDestinationFilter(''); setDateFrom(null); setDateTo(null);
+    setStatusFilter('all'); setDestinationFilter(''); setDateFrom(null); setDateTo(null);
     setPage(1);
   };
-  const hasFilters = statusFilter || destinationFilter || dateFrom || dateTo;
+  const hasFilters = statusFilter !== 'all' || destinationFilter || dateFrom || dateTo;
 
   const handleApprove = async (id) => {
     setApprovingId(id);
@@ -129,6 +158,7 @@ function ValidateRequests() {
       await requestService.updateStatus(id, 'approved');
       notifySuccess('Demande validée');
       fetchRequests(page);
+      fetchToProcess();
     } catch { notifyError('Erreur lors de la validation'); }
     finally { setApprovingId(null); }
   };
@@ -141,6 +171,7 @@ function ValidateRequests() {
       notifySuccess('Demande refusée');
       setRejectTarget(null);
       fetchRequests(page);
+      fetchToProcess();
     } catch { notifyError('Erreur lors du refus'); }
     finally { setRejecting(false); }
   };
@@ -153,6 +184,7 @@ function ValidateRequests() {
       notifySuccess('Demande supprimée');
       setDeleteTarget(null);
       fetchRequests(page);
+      fetchToProcess();
     } catch (err) {
       notifyError(err.response?.data?.message || 'Erreur lors de la suppression');
     } finally { setDeleting(false); }
@@ -161,17 +193,35 @@ function ValidateRequests() {
   const openRescheduleModal = (request) => {
     setSelectedRequest(request);
     setNewDate(null);
+    setRescheduleReason('');
     open();
+  };
+
+  const handleAssign = async () => {
+    if (!assignTarget || !assignVehicleId) { notifyError('Choisissez un véhicule'); return; }
+    setAssigning(true);
+    try {
+      const { data } = await requestService.assignVehicle(assignTarget.id, Number(assignVehicleId));
+      notifySuccess(data?.sortie ? 'Sortie créée : la demande est affectée' : 'Véhicule affecté à la demande');
+      setAssignTarget(null);
+      setAssignVehicleId('');
+      fetchRequests(page);
+      fetchToProcess();
+    } catch (err) {
+      notifyError(err.response?.data?.message || "Impossible d'affecter ce véhicule");
+    } finally { setAssigning(false); }
   };
 
   const handleReschedule = async () => {
     if (!newDate) { notifyError('Choisissez une nouvelle date'); return; }
+    if (!rescheduleReason.trim()) { notifyError('Un motif de replanification est requis'); return; }
     setRescheduling(true);
     try {
-      await requestService.updateStatus(selectedRequest.id, 'rescheduled', newDate);
+      await requestService.updateStatus(selectedRequest.id, 'rescheduled', newDate, rescheduleReason.trim());
       notifySuccess('Proposition de replanification envoyée');
       close();
       fetchRequests(page);
+      fetchToProcess();
     } catch { notifyError('Erreur lors de la replanification'); }
     finally { setRescheduling(false); }
   };
@@ -256,27 +306,55 @@ function ValidateRequests() {
       </PageHeader>
 
       <Paper p={{ base: 'xs', sm: 'md' }} radius="lg" withBorder mb="md" className="filters-panel">
-        <Group justify="space-between" wrap="nowrap" hiddenFrom="sm" mb={filtersOpen ? 'xs' : 0}>
-          <Button variant="subtle" color="gray" size="xs" leftSection={<IconFilter size={14} />} onClick={toggleFilters} w="100%">
-            {filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'}
-          </Button>
+        <Group gap="sm" wrap="wrap" align="flex-end">
+          <SegmentedControl value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }}
+            data={statusFilterOptions} size="xs" color="brand" w={{ base: '100%', sm: 'auto' }} fullWidth={isMobile} />
+          <TextInput placeholder="Destination..." leftSection={<IconSearch size={14} />}
+            value={destinationFilter} onChange={(e) => { setDestinationFilter(e.currentTarget.value); setPage(1); }} size="xs" w={{ base: '100%', sm: 180 }} />
+          <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+          <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
+          {hasFilters && (
+            <Button variant="subtle" color="gray" size="xs" leftSection={<IconX size={14} />} onClick={clearFilters}>
+              Effacer
+            </Button>
+          )}
         </Group>
-        <Collapse in={filtersOpen}>
-          <Group gap="sm" wrap="wrap" align="flex-end">
-            <Select placeholder="Statut" data={statusOptions} value={statusFilter}
-              onChange={(v) => { setStatusFilter(v || ''); setPage(1); }} clearable size="xs" w={{ base: '100%', sm: 140 }} />
-            <TextInput placeholder="Destination..." leftSection={<IconSearch size={14} />}
-              value={destinationFilter} onChange={(e) => { setDestinationFilter(e.currentTarget.value); setPage(1); }} size="xs" w={{ base: '100%', sm: 180 }} />
-            <DateTimePicker placeholder="Du" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
-            <DateTimePicker placeholder="Au" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} size="xs" w={{ base: '100%', sm: 140 }} clearable />
-            {hasFilters && (
-              <Button variant="subtle" color="gray" size="xs" leftSection={<IconX size={14} />} onClick={clearFilters}>
-                Effacer
-              </Button>
-            )}
-          </Group>
-        </Collapse>
       </Paper>
+
+      {toProcess.length > 0 && (
+        <FloatingPanel title="Demandes validées sans sortie" badgeCount={toProcess.length} color="green">
+          <Stack gap={8}>
+            {toProcess.map((r) => (
+              <Group key={r.id} justify="space-between" wrap="wrap" gap="sm" p="xs"
+                style={{ borderRadius: 8, background: 'var(--mantine-color-default-hover)' }}>
+                <Stack gap={0} style={{ minWidth: 0 }}>
+                  <Text size="sm" fw={500}>
+                    {`${r.Employee?.prenom || ''} ${r.Employee?.nom || ''}`}
+                    <Text span c="dimmed" size="sm"> — {r.destination}</Text>
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {dayjs(r.date_souhaitee).format('DD/MM/YYYY HH:mm')} · {r.nb_personnes} pers. · {r.Vehicle ? vehicleDisplayName(r.Vehicle) : 'sans véhicule'}
+                    {r.conflict?.departure_time
+                      ? ` · occupé à ${dayjs(r.conflict.departure_time).format('HH:mm')} (${r.conflict.destination})`
+                      : ''}
+                  </Text>
+                </Stack>
+                <Group gap="xs" wrap="wrap">
+                  <Button size="xs" color="brand" leftSection={<IconCar size={14} />}
+                    onClick={() => { setAssignTarget(r); setAssignVehicleId(''); }}>
+                    Affecter
+                  </Button>
+                  <Button size="xs" variant="outline" color="brandYellow" leftSection={<IconCalendar size={14} />}
+                    onClick={() => openRescheduleModal(r)}>
+                    Replanifier
+                  </Button>
+                  <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleteTarget(r)}>Supprimer</Button>
+                </Group>
+              </Group>
+            ))}
+          </Stack>
+        </FloatingPanel>
+      )}
 
       {requests.length === 0 ? (
         <Paper p="xl" radius="lg" withBorder>
@@ -348,8 +426,44 @@ function ValidateRequests() {
         <DateTimePicker label="Nouvelle date proposée" value={newDate} onChange={setNewDate}
           minDate={new Date()} mb="md"
         />
+        <TextInput label="Motif de replanification" placeholder="Pourquoi déplacer cette demande ?"
+          required value={rescheduleReason}
+          onChange={(e) => setRescheduleReason(e.currentTarget.value)} mb="md"
+        />
         <Button color="brand" fullWidth onClick={handleReschedule} loading={rescheduling}>
           Envoyer la proposition
+        </Button>
+      </Modal>
+
+      <Modal opened={!!assignTarget} onClose={() => setAssignTarget(null)} title="Affecter un véhicule (demande validée sans sortie)" size="md" centered
+        overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
+        transitionProps={{ transition: 'fade', duration: 200 }}
+      >
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mb="sm">
+          <TextInput label="Employé"
+            value={`${assignTarget?.Employee?.prenom || ''} ${assignTarget?.Employee?.nom || ''}`}
+            disabled
+          />
+          <TextInput label="Destination" value={assignTarget?.destination || ''} disabled />
+        </SimpleGrid>
+        <TextInput label="Date souhaitée"
+          value={assignTarget ? dayjs(assignTarget.date_souhaitee).format('DD/MM/YYYY HH:mm') : ''}
+          disabled mb="sm"
+        />
+        <Select
+          label="Véhicule disponible"
+          placeholder="Choisir un véhicule"
+          value={assignVehicleId}
+          onChange={(v) => setAssignVehicleId(v || '')}
+          data={assignVehicleOptions}
+          searchable
+          mb="md"
+        />
+        {assignableVehicles.length === 0 && (
+          <Text size="sm" c="orange" mb="md">Aucun véhicule disponible pour l'instant. Réessayez plus tard ou supprimez la demande.</Text>
+        )}
+        <Button color="brand" fullWidth onClick={handleAssign} loading={assigning} disabled={!assignVehicleId}>
+          Créer ou rejoindre la sortie
         </Button>
       </Modal>
 

@@ -1,8 +1,10 @@
 const { Vehicle, Request, Employee, Sortie } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
-const { VEHICLE_STATUSES, ACTIVE_REQUEST_STATUSES } = require('../utils/constants');
+const { Op } = require('sequelize');
+const { VEHICLE_STATUSES, ACTIVE_REQUEST_STATUSES, STARTED_SORTIE_STATUSES } = require('../utils/constants');
 const { notifyChiefsDb } = require('./notificationController');
 const { logAudit } = require('../services/auditService');
+const vehicleService = require('../services/vehicleService');
 
 exports.getAll = asyncHandler(async (req, res) => {
   const vehicles = await Vehicle.findAll();
@@ -45,6 +47,14 @@ exports.getOccupancy = asyncHandler(async (req, res) => {
     requestsByVehicle[r.vehicle_id].push(r);
   }
 
+  // Véhicules dont une sortie a réellement démarré (véhicule parti).
+  // Tant qu'une sortie est simplement "planned", le véhicule reste demandable.
+  const startedSorties = await Sortie.findAll({
+    where: { status: { [Op.in]: STARTED_SORTIE_STATUSES } },
+    attributes: ['vehicle_id'],
+  });
+  const startedVehicleIds = new Set(startedSorties.map((s) => s.vehicle_id));
+
   const result = vehicles.map((vehicle) => {
     const requests = requestsByVehicle[vehicle.id] || [];
     const occupiedSeats = requests.reduce((sum, r) => sum + (r.nb_personnes || 0), 0);
@@ -53,6 +63,7 @@ exports.getOccupancy = asyncHandler(async (req, res) => {
       ...vehicle.toJSON(),
       occupiedSeats,
       availableSeats: Math.max(0, vehicle.capacity - occupiedSeats),
+      requestable: vehicleService.isRequestable(vehicle, startedVehicleIds.has(vehicle.id), occupiedSeats >= vehicle.capacity),
       occupants: requests.map((r) => ({
         id: r.id,
         employee_id: r.employee_id,

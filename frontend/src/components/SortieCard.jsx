@@ -1,8 +1,8 @@
 import {
-  Card, Group, Text, Stack, Badge, Button, Select,
+  Card, Group, Text, Stack, Badge, Select, Menu, ActionIcon,
 } from '@mantine/core';
 import {
-  IconPlayerPlay, IconFlag, IconUsers, IconEye, IconEdit, IconTrash, IconExchange,
+  IconPlayerPlay, IconFlag, IconUsers, IconEye, IconEdit, IconTrash, IconExchange, IconDotsVertical,
 } from '@tabler/icons-react';
 import VehicleIcon from './VehicleIcon';
 import dayjs from '../utils/date';
@@ -52,11 +52,6 @@ function SortieCard({ sortie, chauffeurs, vehicles, onAssignDriver, onChangeVehi
           <VehicleIcon type={sortie.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" style={{ verticalAlign: 'middle', marginRight: 4 }} />
           <Text span size="sm">{sortie.Vehicle ? vehicleDisplayName(sortie.Vehicle) : '—'}</Text>
         </Text>
-        {sortie.motif && (
-          <Text size="sm">
-            <Text span c="dimmed" size="sm">Motif: </Text>{sortie.motif}
-          </Text>
-        )}
         {!isMoto && sortie.Requests?.some((r) => r.vehicle_id && r.vehicle_id !== sortie.vehicle_id) && (
           <Text size="xs" c="orange" fw={600}>
             <IconExchange size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
@@ -101,73 +96,66 @@ function SortieCard({ sortie, chauffeurs, vehicles, onAssignDriver, onChangeVehi
           </Stack>
         )}
       </Stack>
-      <Group gap="xs">
-        {sortie.status === 'planned' && (
-          <>
-            {!isMoto && (
-              <Group gap="xs" wrap="wrap">
-                <DriverSelect sortie={sortie} chauffeurs={chauffeurs} onAssignDriver={onAssignDriver} disabled={actionLoading === 'assignDriver'} />
-                <Select
-                  size="xs"
-                  placeholder="Changer de véhicule"
-                  data={vehicleOptionsFor(vehicles, sortie)}
-                  value={String(sortie.vehicle_id)}
-                  onChange={(v) => { if (v && String(v) !== String(sortie.vehicle_id)) onChangeVehicle(sortie, v); }}
-                  searchable radius="md" w={{ base: '100%', sm: 190 }}
-                  disabled={actionLoading === 'vehicle'}
-                  leftSection={<VehicleIcon type={sortie.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" />}
-                />
-              </Group>
-            )}
-            <Button size="xs" color="brand" leftSection={<IconPlayerPlay size={14} />} onClick={() => onDepart(sortie)} loading={actionLoading === 'depart'}>
-              Démarrer
-            </Button>
-            <Button size="xs" variant="outline" color="brand" leftSection={<IconUsers size={14} />} onClick={() => onSuggestions(sortie.id)}>
-              Demandes
-            </Button>
-            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
-              Détails
-            </Button>
-            <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => onEdit(sortie)}>
-              Modifier
-            </Button>
-            <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={onDelete}>
-              Supprimer
-            </Button>
-          </>
+      <Group justify="space-between" align="flex-end" gap="xs" wrap="wrap">
+        {sortie.status === 'planned' && !isMoto && (
+          <Group gap="xs" wrap="wrap">
+            <DriverSelect sortie={sortie} chauffeurs={chauffeurs} onAssignDriver={onAssignDriver} disabled={actionLoading === 'assignDriver'} />
+            <Select
+              size="xs"
+              placeholder="Changer de véhicule"
+              data={vehicleOptionsFor(vehicles, sortie)}
+              value={String(sortie.vehicle_id)}
+              onChange={(v) => { if (v && String(v) !== String(sortie.vehicle_id)) onChangeVehicle(sortie, v); }}
+              searchable radius="md" w={{ base: '100%', sm: 190 }}
+              disabled={actionLoading === 'vehicle'}
+              leftSection={<VehicleIcon type={sortie.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" />}
+            />
+          </Group>
         )}
         {sortie.status === 'ongoing' && (
-          <Group gap="xs">
-            <Button size="xs" color="brand" leftSection={<IconFlag size={14} />} onClick={() => onArrivee(sortie)} loading={actionLoading === 'arrivee'}>
-              Saisir arrivée
-            </Button>
-            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
-              Détails
-            </Button>
-            <Text size="xs" c="dimmed">En attente du retour de l'employé</Text>
-          </Group>
-        )}
-        {sortie.status === 'pending_return' && (
-          <Group gap="xs">
-            <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={onValidateReturn} loading={actionLoading === 'validateReturn'}>
-              Valider le retour
-            </Button>
-            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
-              Détails
-            </Button>
-          </Group>
+          <Text size="xs" c="dimmed">En attente du retour de l'employé</Text>
         )}
         {sortie.status === 'finished' && (
-          <Group gap="xs">
-            <Text size="xs" c="dimmed">Terminée le {dayjs(sortie.updatedAt).format('DD/MM/YYYY')}</Text>
-            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
-              Détails
-            </Button>
-            <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={onDelete}>
-              Supprimer
-            </Button>
-          </Group>
+          <Text size="xs" c="dimmed">Terminée le {dayjs(sortie.updatedAt).format('DD/MM/YYYY')}</Text>
         )}
+        <Menu position="bottom-end" withinPortal trigger="hover" openDelay={120} closeDelay={120} shadow="md" width={210}>
+          <Menu.Target>
+            <ActionIcon variant="subtle" color="gray" radius="md" aria-label="Actions">
+              <IconDotsVertical size={18} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            {sortie.status === 'planned' && (
+              <>
+                <Menu.Item leftSection={<IconPlayerPlay size={16} />} onClick={() => onDepart(sortie)}>Démarrer</Menu.Item>
+                <Menu.Item leftSection={<IconUsers size={16} />} onClick={() => onSuggestions(sortie.id)}>Demandes</Menu.Item>
+                <Menu.Item leftSection={<IconEye size={16} />} onClick={() => onDetail(sortie)}>Détails</Menu.Item>
+                <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => onEdit(sortie)}>Modifier</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={onDelete}>Supprimer</Menu.Item>
+              </>
+            )}
+            {sortie.status === 'ongoing' && (
+              <>
+                <Menu.Item leftSection={<IconFlag size={16} />} onClick={() => onArrivee(sortie)}>Saisir arrivée</Menu.Item>
+                <Menu.Item leftSection={<IconEye size={16} />} onClick={() => onDetail(sortie)}>Détails</Menu.Item>
+              </>
+            )}
+            {sortie.status === 'pending_return' && (
+              <>
+                <Menu.Item leftSection={<IconFlag size={16} />} onClick={onValidateReturn}>Valider le retour</Menu.Item>
+                <Menu.Item leftSection={<IconEye size={16} />} onClick={() => onDetail(sortie)}>Détails</Menu.Item>
+              </>
+            )}
+            {sortie.status === 'finished' && (
+              <>
+                <Menu.Item leftSection={<IconEye size={16} />} onClick={() => onDetail(sortie)}>Détails</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={onDelete}>Supprimer</Menu.Item>
+              </>
+            )}
+          </Menu.Dropdown>
+        </Menu>
       </Group>
     </Card>
   );

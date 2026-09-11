@@ -191,7 +191,6 @@ export default function Reports() {
             <StatCard label="Validées" value={overview.requests.approved || 0} icon={IconCheck} />
             <StatCard label="En attente" value={overview.requests.pending || 0} icon={IconClock} />
             <StatCard label="Refusées" value={overview.requests.rejected || 0} icon={IconX} />
-            <StatCard label="Km parcourus" value={overview.totalKm.toLocaleString('fr-FR')} icon={IconGauge} />
           </SimpleGrid>
 
           {fleet && (

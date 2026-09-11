@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { ACTIVE_REQUEST_STATUSES } = require('../utils/constants');
+const { ACTIVE_REQUEST_STATUSES, UNUSABLE_VEHICLE_STATUSES } = require('../utils/constants');
 
 // Dépendances injectables (modèles) par défaut. Permet de tester le service
 // en isolation en injectant des mocks (voir test/vehicleService.test.js).
@@ -49,6 +49,28 @@ exports.syncKm = async (vehicleId, arrivalKm) => {
 };
 
 const ACTIVE_STATUSES_SET = ACTIVE_REQUEST_STATUSES;
+
+/**
+ * Un véhicule peut-il encore recevoir une nouvelle demande ?
+ *
+ * Tant que ses sorties n'ont pas démarré (statut "planned") et qu'il lui reste
+ * au moins une place libre, le véhicule reste affiché aux employés et
+ * demandable : les demandes pourront être rattachées à la sortie planifiée.
+ * Il cesse d'être demandable dès qu'une sortie est réellement démarrée
+ * (ongoing / pending_return), que le véhicule est en maintenance / panne,
+ * OÙ si ses places sont toutes occupées.
+ *
+ * @param {object|null} vehicle
+ * @param {boolean} hasStartedSortie - une sortie du véhicule a-t-elle démarré ?
+ * @param {boolean} isFull - toutes les places du véhicule sont-elles occupées ?
+ * @returns {boolean}
+ */
+exports.isRequestable = (vehicle, hasStartedSortie = false, isFull = false) => {
+  if (!vehicle) return false;
+  if (UNUSABLE_VEHICLE_STATUSES.includes(vehicle.status)) return false;
+  if (hasStartedSortie) return false;
+  return !isFull;
+};
 
 /**
  * Libère un véhicule uniquement s'il n'a plus aucune sortie active

@@ -20,8 +20,13 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import { getSeatLayout, getSeatColor } from '../../utils/seatLayout';
 import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor, vehicleDisplayName } from '../../utils/labels';
 
-// Critère de regroupement du cahier des charges : écart horaire ≤ 30 min
-const COMPAT_WINDOW_MIN = 30;
+// Critère de regroupement du cahier des charges : écart horaire ≤ 3 h
+const COMPAT_WINDOW_MIN = 180;
+
+// Une demande dont toutes les sorties sont terminées est "honorée" : elle ne
+// retient plus de place côté véhicule et ne doit plus être re-proposée à
+// l'affectation (même logique que l'endpoint /vehicles/occupancy).
+const isFulfilled = (r) => (r.Sorties?.length || 0) > 0 && r.Sorties.every((s) => s.status === 'finished');
 
 function CarVisual({ vehicle, seatStates, onSeatClick, selectedSeat }) {
   const uid = useId();
@@ -144,6 +149,12 @@ function VehicleCard({ vehicle, seatStates, isSelected, onClick, requestsBySeat 
                 {statusLabel[vehicle.status]}
               </Badge>
             </Group>
+
+            {vehicle.status !== 'available' && vehicle.requestable !== false && (
+              <Text size="xs" c="orange" mb="sm">
+                Sortie planifiée, pas encore démarrée — véhicule encore utilisable
+              </Text>
+            )}
 
             {vehicle.status === 'available' && (
               <div className="car-preview">
@@ -313,7 +324,7 @@ function CreateSortie() {
       setChauffeurs(chRes.data || []);
       const all = reqRes.data.data || reqRes.data || [];
       const pending = all.filter(
-        (r) => r.status === 'pending' || r.status === 'approved'
+        (r) => (r.status === 'pending' || r.status === 'approved') && !isFulfilled(r)
       );
       setRequests(pending);
     } catch {
@@ -336,7 +347,7 @@ function CreateSortie() {
   }, []);
 
   const handleSelectVehicle = async (vehicle) => {
-    if (vehicle.status !== 'available') {
+    if (vehicle.requestable === false) {
       notifyError('Ce véhicule n\'est pas disponible');
       return;
     }
@@ -512,7 +523,7 @@ function CreateSortie() {
 
       <SimpleGrid cols={{ base: 1, md: 2, lg: 3 }} spacing="md" mb="xl">
         {vehicles
-          .filter((v) => v.status === 'available' || (createdSortie && v.id === selectedVehicle?.id))
+          .filter((v) => v.requestable !== false || (createdSortie && v.id === selectedVehicle?.id))
           .map((vehicle) => {
             const isSelected = selectedVehicle?.id === vehicle.id;
             const vehSeatStates = isSelected ? seatStates : makeSeatStates(vehicle);
