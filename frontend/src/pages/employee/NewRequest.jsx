@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   Paper, Title, Text, Group, Stack, Badge, TextInput, Textarea,
   NumberInput, Loader, Center, Avatar, SimpleGrid, Grid,
@@ -18,6 +18,7 @@ import { getSeatLayout, getSeatColor } from '../../utils/seatLayout';
 import { vehicleStatusLabel, vehicleStatusColor, vehicleDisplayName } from '../../utils/labels';
 
 function CarVisual({ vehicle, seatStates, compact, onClick }) {
+  const gradientId = useId();
   const layout = getSeatLayout(vehicle.type, vehicle.capacity);
   const svgW = layout.w;
   const svgH = layout.h;
@@ -33,13 +34,13 @@ function CarVisual({ vehicle, seatStates, compact, onClick }) {
         rx={14} fill="#d0d0d0" opacity="0.3"
       />
       <defs>
-        <linearGradient id="cb_nr" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#f0f0f0" />
           <stop offset="100%" stopColor="#e0e0e0" />
         </linearGradient>
       </defs>
       <rect x={bx} y={by} width={bodyW} height={bodyH}
-        rx={12} fill="url(#cb_nr)" stroke="#bbb" strokeWidth="1.5"
+        rx={12} fill={`url(#${gradientId})`} stroke="#bbb" strokeWidth="1.5"
       />
       <path d={`M ${bx + 10} ${by + 6} L ${bx + bodyW / 3} ${by + 6} Q ${bx + bodyW / 3 + 10} ${by + 2} ${bx + bodyW / 3 + 20} ${by + 6} L ${bx + bodyW - 10} ${by + 6}`}
         fill="none" stroke="#a0a0a0" strokeWidth="1.5" opacity="0.6"
@@ -284,6 +285,7 @@ function NewRequest() {
   const [dateSouhaitee, setDateSouhaitee] = useState(null);
   const [nbPersonnes, setNbPersonnes] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const formRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -380,82 +382,6 @@ function NewRequest() {
 
   return (
     <div className="page-content">
-      <style>{`
-        .vehicle-select-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .vehicle-select-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.1); }
-        .vehicle-select-card--selected { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.12); }
-        .vehicle-flip { perspective: 1200px; height: 100%; }
-        .vehicle-flip--selected .vehicle-flip-front .vehicle-card { border: 2px solid var(--mantine-color-brand-6); background: rgba(46,125,50,0.04); }
-        .vehicle-flip-inner {
-          position: relative;
-          width: 100%;
-          height: 100%;
-          text-align: center;
-          transition: transform 0.6s;
-          transform-style: preserve-3d;
-          cursor: pointer;
-        }
-        .vehicle-flip:hover .vehicle-flip-inner { transform: rotateY(180deg); }
-        .vehicle-flip-face {
-          width: 100%;
-          backface-visibility: hidden;
-          -webkit-backface-visibility: hidden;
-        }
-        .vehicle-flip-front { position: relative; z-index: 2; height: 100%; }
-        .vehicle-flip-back {
-          position: absolute;
-          top: 0;
-          left: 0;
-          height: 100%;
-          width: 100%;
-          transform: rotateY(180deg);
-          background: light-dark(#ffffff, #2E2E33);
-          border: 1px solid var(--mantine-color-default-border);
-          border-radius: 12px;
-          padding: 14px;
-          display: flex;
-          flex-direction: column;
-          justify-content: flex-start;
-          text-align: left;
-          overflow-y: auto;
-        }
-        .glass-panel { background: light-dark(rgba(255,255,255,0.7), rgba(48,50,55,0.7)); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid light-dark(rgba(255,255,255,0.3), rgba(255,255,255,0.08)); }
-        .capacity-bar { height: 6px; border-radius: 3px; background: light-dark(#e9ecef, #373A40); overflow: hidden; margin-top: 4px; }
-        .capacity-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-        .step-indicator { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
-        .step-circle {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 13px;
-          font-weight: 700;
-          transition: all 0.3s ease;
-          flex-shrink: 0;
-        }
-        .step-circle--done { background: var(--mantine-color-brand-6); color: #fff; }
-        .step-circle--active {
-          background: var(--mantine-color-brandYellow-5);
-          color: #1f1f1f;
-          box-shadow: 0 0 0 4px rgba(245,179,1,0.2);
-        }
-        .step-circle--pending {
-          background: light-dark(#e9ecef, #373A40);
-          color: light-dark(#868e96, #909296);
-        }
-        .step-line {
-          flex: 1;
-          height: 2px;
-          background: light-dark(#e9ecef, #373A40);
-          max-width: 80px;
-          min-width: 20px;
-        }
-        .step-line--done { background: var(--mantine-color-brand-6); }
-        .detail-car { height: 200px; display: flex; align-items: center; justify-content: center; padding: 8px; }
-      `}</style>
 
       <Title order={4} mb="lg">Nouvelle demande de sortie</Title>
 
@@ -527,12 +453,12 @@ function NewRequest() {
         opened={configModalOpen}
         onClose={() => setConfigModalOpen(false)}
         vehicle={selectedVehicle}
-        onConfirm={() => document.getElementById('newRequestForm')?.requestSubmit()}
+        onConfirm={() => formRef.current?.requestSubmit()}
         confirmLabel="Envoyer la demande"
         loading={submitting}
       >
         {selectedVehicle && activeVehicleData && (
-          <form id="newRequestForm" onSubmit={handleSubmit}>
+          <form ref={formRef} onSubmit={handleSubmit}>
             <Grid gutter="md">
               <Grid.Col span={{ base: 12, sm: 6 }}>
                 <TextInput

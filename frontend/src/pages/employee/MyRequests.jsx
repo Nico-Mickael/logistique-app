@@ -17,7 +17,7 @@ import PageLoader from '../../components/PageLoader';
 import EmptyState from '../../components/EmptyState';
 import MotifCell from '../../components/MotifCell';
 import RequestDetailModal from '../../components/RequestDetailModal';
-import { requestStatusLabel as statusLabel, requestStatusColor as statusColor, vehicleDisplayName } from '../../utils/labels';
+import { requestStatusLabel as statusLabel, requestStatusColor as statusColor, vehicleDisplayName, accentColor } from '../../utils/labels';
 
 function RequestCard({ request, onRespond, onCancel, onEdit, onDetail, onDelete }) {
   const canCancel = ['pending', 'approved'].includes(request.status);
@@ -25,11 +25,7 @@ function RequestCard({ request, onRespond, onCancel, onEdit, onDetail, onDelete 
   return (
     <Card withBorder radius="lg" p="lg" className="request-card" style={{ cursor: 'pointer' }} onClick={() => onDetail && onDetail(request)}>
       <div className="stat-card-accent" style={{
-        background: request.status === 'approved' ? 'var(--mantine-color-brand-6)' :
-                     request.status === 'rejected' ? 'var(--mantine-color-red-6)' :
-                     request.status === 'cancelled' ? 'var(--mantine-color-gray-5)' :
-                     request.status === 'rescheduled' ? 'var(--mantine-color-brandYellow-6)' :
-                     'var(--mantine-color-gray-5)'
+        background: accentColor(statusColor[request.status]),
       }} />
       <Group justify="space-between" mb="xs" wrap="wrap">
         <Text fw={600} size="md" style={{ minWidth: 0, wordBreak: 'break-word' }}>{request.destination}</Text>

@@ -250,11 +250,11 @@ exports.respondReschedule = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Cette demande n\'est pas en attente de réponse' });
   }
 
-  const oldStatus2 = request.status;
+  const oldStatus = request.status;
   request.status = accepted ? 'approved' : 'rejected';
   await request.save();
 
-  await logAudit({ userId: req.user.id, action: `reschedule_${accepted ? 'accepted' : 'refused'}`, entity: 'Request', entityId: request.id, oldValue: { status: oldStatus2 }, newValue: { status: request.status }, req });
+  await logAudit({ userId: req.user.id, action: `reschedule_${accepted ? 'accepted' : 'refused'}`, entity: 'Request', entityId: request.id, oldValue: { status: oldStatus }, newValue: { status: request.status }, req });
 
   if (accepted) {
     await autoCreateSortie(request);

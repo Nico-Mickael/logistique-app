@@ -16,7 +16,7 @@ function rateLimit({ windowMs = 15 * 60 * 1000, max = 100, message = 'Trop de re
 
     let entry = stores.get(key);
     if (!entry || now - entry.windowStart > windowMs) {
-      entry = { windowStart: now, count: 0 };
+      entry = { windowStart: now, count: 0, windowMs };
       stores.set(key, entry);
     }
 
@@ -39,8 +39,7 @@ function rateLimit({ windowMs = 15 * 60 * 1000, max = 100, message = 'Trop de re
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of stores) {
-    const windowMs = parseInt(key.split('_')[1], 10);
-    if (now - entry.windowStart > windowMs) {
+    if (now - entry.windowStart > entry.windowMs) {
       stores.delete(key);
     }
   }

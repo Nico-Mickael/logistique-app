@@ -106,6 +106,44 @@ test('auth : refuse une session révoquée', async () => {
   assert.strictEqual(nextCalled, false);
 });
 
+test('auth : ne réécrit last_active_at qu\'après la fenêtre de throttle (2 min)', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'] });
+  const originalFindOne = fakeModelsModule.Session.findOne;
+  try {
+    let saveCount = 0;
+    const session = {
+      id: 1,
+      revoked: false,
+      expires_at: new Date(Date.now() + 3600 * 1000),
+      last_active_at: new Date(),
+      async save() { saveCount++; },
+    };
+    fakeModelsModule.Session.findOne = async () => session;
+
+    const token = jwt.sign({ id: 3, role: 'employee', sid: 1 }, process.env.JWT_SECRET, { expiresIn: '10m' });
+    const callOnce = async () => {
+      const { req, res } = mockReqRes({ headers: { authorization: `Bearer ${token}` } });
+      let nextCalled = false;
+      await auth(req, res, () => { nextCalled = true; });
+      return nextCalled;
+    };
+
+    assert.strictEqual(await callOnce(), true);
+    assert.strictEqual(saveCount, 0, 'last_active récent => pas d\'écriture');
+
+    t.mock.timers.tick(2 * 60 * 1000 - 1);
+    assert.strictEqual(await callOnce(), true);
+    assert.strictEqual(saveCount, 0, 'avant 2 min écoulées => pas d\'écriture');
+
+    t.mock.timers.tick(2);
+    assert.strictEqual(await callOnce(), true);
+    assert.strictEqual(saveCount, 1, 'après 2 min écoulées => écriture unique de last_active_at');
+  } finally {
+    fakeModelsModule.Session.findOne = originalFindOne;
+    t.mock.timers.reset();
+  }
+});
+
 // ---------------------------------------------------------------------------
 // checkRole middleware
 // ---------------------------------------------------------------------------

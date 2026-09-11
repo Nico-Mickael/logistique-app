@@ -1,6 +1,9 @@
 const jwt = require('jsonwebtoken');
 const { Session } = require('../models');
 
+// Ne réécrit last_active_at que toutes les 2 min (évite un UPDATE par requête).
+const LAST_ACTIVE_THROTTLE_MS = 2 * 60 * 1000;
+
 module.exports = async function (req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -29,8 +32,12 @@ module.exports = async function (req, res, next) {
         return res.status(401).json({ message: 'Session expirée' });
       }
 
-      session.last_active_at = new Date();
-      await session.save();
+      const now = new Date();
+      if (session.last_active_at == null ||
+        now.getTime() - new Date(session.last_active_at).getTime() > LAST_ACTIVE_THROTTLE_MS) {
+        session.last_active_at = now;
+        await session.save();
+      }
     }
 
     req.user = decoded;

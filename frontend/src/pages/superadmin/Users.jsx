@@ -9,7 +9,8 @@ import PageLoader from '../../components/PageLoader';
 import EmptyState from '../../components/EmptyState';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { notifySuccess, notifyError } from '../../utils/toast';
-import api from '../../api/axios';
+import { employeeService } from '../../api/employeeService';
+import { accentColor } from '../../utils/labels';
 import ConfirmModal from '../../components/ConfirmModal';
 
 const roleLabels = {
@@ -33,10 +34,7 @@ function UserCard({ u, onEdit, onDelete }) {
     <Card withBorder radius="lg" p="lg" className="user-card">
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-        background: roleColors[u.role] === 'red' ? 'var(--mantine-color-red-6)' :
-                    roleColors[u.role] === 'orange' ? 'var(--mantine-color-orange-6)' :
-                    roleColors[u.role] === 'brand' ? 'var(--mantine-color-brand-6)' :
-                    'var(--mantine-color-gray-5)',
+        background: accentColor(roleColors[u.role]),
       }} />
       <Group justify="space-between" mb="xs" wrap="wrap">
         <Text fw={600} size="md" style={{ minWidth: 0, wordBreak: 'break-word' }}>{u.prenom} {u.nom}</Text>
@@ -74,9 +72,11 @@ export default function Users() {
 
   const fetchUsers = async () => {
     try {
-      const { data } = await api.get('/employees');
+      const { data } = await employeeService.list();
       setUsers(data);
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch {
+      notifyError('Impossible de charger les utilisateurs');
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchUsers(); }, []);
@@ -126,10 +126,10 @@ export default function Users() {
       if (editUser) {
         const payload = { ...form };
         if (!payload.password) delete payload.password;
-        await api.put(`/employees/${editUser.id}`, payload);
+        await employeeService.update(editUser.id, payload);
         notifySuccess('Utilisateur modifié');
       } else {
-        await api.post('/employees', form);
+        await employeeService.create(form);
         notifySuccess('Utilisateur créé');
       }
       close();
@@ -143,7 +143,7 @@ export default function Users() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await api.delete(`/employees/${deleteTarget.id}`);
+      await employeeService.remove(deleteTarget.id);
       notifySuccess('Utilisateur supprimé');
       setDeleteTarget(null);
       fetchUsers();

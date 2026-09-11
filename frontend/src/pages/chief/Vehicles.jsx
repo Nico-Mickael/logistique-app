@@ -15,15 +15,64 @@ import ConfirmModal from '../../components/ConfirmModal';
 import EmptyState from '../../components/EmptyState';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
-import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor, VEHICLE_TYPE_OPTIONS, vehicleDisplayName } from '../../utils/labels';
+import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor, VEHICLE_TYPE_OPTIONS, vehicleDisplayName, accentColor } from '../../utils/labels';
+
+// Actions communes à la carte et au tableau (source unique).
+function VehicleActions({ vehicle, onMaintenance, onAvailable, onEdit, onDelete, availableLoading }) {
+  return (
+    <Group gap="xs" wrap="wrap">
+      {vehicle.status !== 'busy' && (
+        <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />}
+          onClick={() => onEdit(vehicle)}>
+          Modifier
+        </Button>
+      )}
+      {vehicle.status !== 'busy' && (
+        <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
+          onClick={() => onDelete(vehicle)}>
+          Supprimer
+        </Button>
+      )}
+      {vehicle.status !== 'maintenance' && vehicle.status !== 'busy' && (
+        <Button size="xs" variant="outline" color="red" leftSection={<IconTool size={14} />}
+          onClick={() => onMaintenance(vehicle)}
+        >
+          Maintenance
+        </Button>
+      )}
+      {vehicle.status === 'maintenance' && (
+        <Button size="xs" color="brand" onClick={() => onAvailable(vehicle.id)} loading={availableLoading}>
+          Rendre disponible
+        </Button>
+      )}
+    </Group>
+  );
+}
+
+// Champs nom/type/capacité, partagés par les modals création et édition.
+function VehicleFields({ name, onNameChange, type, onTypeChange, capacity, onCapacityChange }) {
+  return (
+    <>
+      <TextInput label="Nom (optionnel)" placeholder="Ex: Peugeot Partner"
+        value={name} onChange={(e) => onNameChange(e.currentTarget.value)} radius="md" w="100%"
+      />
+      <Select label="Type" placeholder="Choisir un type"
+        data={VEHICLE_TYPE_OPTIONS}
+        value={type} onChange={onTypeChange} required radius="md" w="100%"
+      />
+      <NumberInput label="Capacité (personnes)" min={1} max={30} value={capacity}
+        onChange={onCapacityChange} required radius="md" w="100%"
+      />
+    </>
+  );
+}
 
 function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete, availableLoading }) {
+  const availableSeats = vehicle.availableSeats ?? vehicle.capacity;
   return (
     <Card withBorder radius="lg" p="lg" className="vehicle-card">
       <div className="stat-card-accent" style={{
-        background: vehicle.status === 'available' ? 'var(--mantine-color-brand-6)' :
-                     vehicle.status === 'maintenance' ? 'var(--mantine-color-red-6)' :
-                     'var(--mantine-color-brandYellow-6)'
+        background: accentColor(statusColor[vehicle.status]),
       }} />
       <Group justify="space-between" mb="xs" wrap="wrap">
         <Group gap="sm" wrap="wrap">
@@ -44,36 +93,18 @@ function VehicleCard({ vehicle, onMaintenance, onAvailable, onEdit, onDelete, av
         )}
         {vehicle.status === 'available' && (
           <Text size="sm">
-            <strong>{vehicle.availableSeats ?? vehicle.capacity}</strong> place{(vehicle.availableSeats ?? vehicle.capacity) !== 1 ? 's' : ''} libre(s) / {vehicle.capacity}
+            <strong>{availableSeats}</strong> place{availableSeats !== 1 ? 's' : ''} libre(s) / {vehicle.capacity}
           </Text>
         )}
       </Stack>
-      <Group gap="xs">
-        {vehicle.status !== 'busy' && (
-          <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />}
-            onClick={() => onEdit(vehicle)}>
-            Modifier
-          </Button>
-        )}
-        {vehicle.status !== 'busy' && (
-          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
-            onClick={() => onDelete(vehicle)}>
-            Supprimer
-          </Button>
-        )}
-        {vehicle.status !== 'maintenance' && vehicle.status !== 'busy' && (
-          <Button size="xs" variant="outline" color="red" leftSection={<IconTool size={14} />}
-            onClick={() => onMaintenance(vehicle)}
-          >
-            Maintenance
-          </Button>
-        )}
-        {vehicle.status === 'maintenance' && (
-          <Button size="xs" color="brand" onClick={() => onAvailable(vehicle.id)} loading={availableLoading}>
-            Rendre disponible
-          </Button>
-        )}
-      </Group>
+      <VehicleActions
+        vehicle={vehicle}
+        onMaintenance={onMaintenance}
+        onAvailable={onAvailable}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        availableLoading={availableLoading}
+      />
     </Card>
   );
 }
@@ -236,25 +267,16 @@ function Vehicles() {
                   {
                     accessor: 'actions', title: '',
                     render: (v) => (
-                      <Group gap="xs" wrap="wrap" onClick={(e) => e.stopPropagation()}>
-                        {v.status !== 'busy' && (
-                          <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />}
-                            onClick={() => openEditModal(v)}>Modifier</Button>
-                        )}
-                        {v.status !== 'busy' && (
-                          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />}
-                            onClick={() => setDeleteTarget(v)}>Supprimer</Button>
-                        )}
-                        {v.status !== 'maintenance' && v.status !== 'busy' && (
-                          <Button size="xs" variant="outline" color="red" leftSection={<IconTool size={14} />}
-                            onClick={() => openMaintenanceModal(v)}>Maintenance</Button>
-                        )}
-                        {v.status === 'maintenance' && (
-                          <Button size="xs" color="brand" onClick={() => handleMakeAvailable(v.id)} loading={availableId === v.id}>
-                            Rendre disponible
-                          </Button>
-                        )}
-                      </Group>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <VehicleActions
+                          vehicle={v}
+                          onMaintenance={openMaintenanceModal}
+                          onAvailable={handleMakeAvailable}
+                          onEdit={openEditModal}
+                          onDelete={setDeleteTarget}
+                          availableLoading={availableId === v.id}
+                        />
+                      </div>
                     ),
                   },
                 ]}
@@ -284,15 +306,10 @@ function Vehicles() {
         transitionProps={{ transition: 'pop', duration: 200 }}
       >
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
-          <TextInput label="Nom (optionnel)" placeholder="Ex: Peugeot Partner"
-            value={name} onChange={(e) => setName(e.currentTarget.value)} radius="md" w="100%"
-          />
-          <Select label="Type" placeholder="Choisir un type"
-            data={VEHICLE_TYPE_OPTIONS}
-            value={type} onChange={setType} required radius="md" w="100%"
-          />
-          <NumberInput label="Capacité (personnes)" min={1} max={30} value={capacity}
-            onChange={setCapacity} required radius="md" w="100%"
+          <VehicleFields
+            name={name} onNameChange={setName}
+            type={type} onTypeChange={setType}
+            capacity={capacity} onCapacityChange={setCapacity}
           />
         </SimpleGrid>
           <Group justify="end" mt="md">
@@ -322,15 +339,10 @@ function Vehicles() {
         transitionProps={{ transition: 'pop', duration: 200 }}
       >
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="sm">
-          <TextInput label="Nom (optionnel)" placeholder="Ex: Peugeot Partner"
-            value={editName} onChange={(e) => setEditName(e.currentTarget.value)} radius="md" w="100%"
-          />
-          <Select label="Type" placeholder="Choisir un type"
-            data={VEHICLE_TYPE_OPTIONS}
-            value={editType} onChange={setEditType} required radius="md" w="100%"
-          />
-          <NumberInput label="Capacité (personnes)" min={1} max={30} value={editCapacity}
-            onChange={setEditCapacity} required radius="md" w="100%"
+          <VehicleFields
+            name={editName} onNameChange={setEditName}
+            type={editType} onTypeChange={setEditType}
+            capacity={editCapacity} onCapacityChange={setEditCapacity}
           />
         </SimpleGrid>
           <Group justify="end" mt="md">

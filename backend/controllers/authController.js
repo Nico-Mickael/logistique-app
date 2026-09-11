@@ -243,12 +243,12 @@ exports.revokeSession = asyncHandler(async (req, res) => {
   }
 
   session.revoked = true;
-    session.revoked_at = new Date();
-    await session.save();
+  session.revoked_at = new Date();
+  await session.save();
 
-    await logAudit({ userId: req.user.id, action: 'revoke_session', entity: 'Session', entityId: session.id, req });
+  await logAudit({ userId: req.user.id, action: 'revoke_session', entity: 'Session', entityId: session.id, req });
 
-    res.json({ message: 'Session révoquée' });
+  res.json({ message: 'Session révoquée' });
 });
 
 // Suppression multiple de sessions TERMINÉES (révoquées). Sécurité :

@@ -88,3 +88,25 @@ test('releaseIfIdle : libère quand plus aucune demande active', async () => {
   assert.strictEqual(db.vehicles[0].status, 'available',
     'aucune demande active => le véhicule se libère');
 });
+
+test('syncKm : initialise current_km quand il est nul', async () => {
+  db.vehicles = [{ id: 1, status: 'busy', current_km: null }];
+  await vehicleService.syncKm(1, 2500);
+  assert.strictEqual(db.vehicles[0].current_km, 2500);
+});
+
+test('syncKm : ne régresse jamais le kilométrage (km inférieur ou égal)', async () => {
+  db.vehicles = [{ id: 1, status: 'busy', current_km: 4000 }];
+  await vehicleService.syncKm(1, 3000);
+  assert.strictEqual(db.vehicles[0].current_km, 4000, 'un km plus faible ne doit pas écraser');
+  await vehicleService.syncKm(1, 4000);
+  assert.strictEqual(db.vehicles[0].current_km, 4000, 'un km identique ne déclenche pas d\'écriture');
+});
+
+test('syncKm : ignore un véhicule inconnu ou des km vides', async () => {
+  db.vehicles = [{ id: 1, status: 'busy', current_km: 1000 }];
+  await vehicleService.syncKm(999, 5000);
+  await vehicleService.syncKm(1, null);
+  await vehicleService.syncKm(null, 5000);
+  assert.strictEqual(db.vehicles[0].current_km, 1000);
+});

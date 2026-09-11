@@ -13,28 +13,27 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
-import { requestStatusLabel as statusLabel, requestStatusColor as statusColor } from '../../utils/labels';
+import { requestStatusLabel as statusLabel, requestStatusColor as statusColor, accentColor } from '../../utils/labels';
 import { downloadCSV } from '../../utils/csv';
 import MotifCell from '../../components/MotifCell';
 import RequestDetailModal from '../../components/RequestDetailModal';
 
+// Filtres disponibles, construits depuis la source unique des libellés.
+const STATUS_FILTER_ORDER = ['pending', 'approved', 'rescheduled', 'rejected'];
 const statusOptions = [
   { value: '', label: 'Tous' },
-  { value: 'pending', label: 'En attente' },
-  { value: 'approved', label: 'Validée' },
-  { value: 'rejected', label: 'Refusée' },
-  { value: 'rescheduled', label: 'Replanifiée' },
+  ...STATUS_FILTER_ORDER.map((value) => ({ value, label: statusLabel[value] })),
 ];
+
+// Export CSV : borne haute pour récupérer toutes les lignes correspondant aux filtres.
+const CSV_EXPORT_LIMIT = 9999;
 
 function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail, onDelete, approving }) {
   return (
     <Card withBorder radius="lg" p="lg" className="validate-request-card">
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-        background: statusColor[r.status] === 'brand' ? 'var(--mantine-color-brand-6)' :
-                    statusColor[r.status] === 'red' ? 'var(--mantine-color-red-6)' :
-                    statusColor[r.status] === 'brandYellow' ? 'var(--mantine-color-brandYellow-6)' :
-                    'var(--mantine-color-gray-5)',
+        background: accentColor(statusColor[r.status]),
       }} />
       <Group justify="space-between" mb="xs" wrap="wrap">
         <Text fw={600} size="md" style={{ minWidth: 0, wordBreak: 'break-word' }}>{r.Employee?.prenom} {r.Employee?.nom}</Text>
@@ -85,13 +84,19 @@ function ValidateRequests() {
   const isMobile = useMediaQuery('(max-width: 767px)');
   const [filtersOpen, { toggle: toggleFilters }] = useDisclosure(true);
 
+  // Filtres communs à la pagination et à l'export CSV.
+  const buildFilterParams = (extra = {}) => {
+    const params = { ...extra };
+    if (statusFilter) params.status = statusFilter;
+    if (destinationFilter) params.destination = destinationFilter;
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    return params;
+  };
+
   const fetchRequests = useCallback(async (p = page) => {
     try {
-      const params = { page: p, limit };
-      if (statusFilter) params.status = statusFilter;
-      if (destinationFilter) params.destination = destinationFilter;
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
+      const params = { page: p, limit, ...buildFilterParams() };
       const { data } = await requestService.all(params);
       setRequests(data.data || []);
       setTotal(data.total || 0);
@@ -173,11 +178,7 @@ function ValidateRequests() {
 
   const exportCSV = async () => {
     try {
-      const params = { limit: 9999 };
-      if (statusFilter) params.status = statusFilter;
-      if (destinationFilter) params.destination = destinationFilter;
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
+      const params = buildFilterParams({ limit: CSV_EXPORT_LIMIT });
       const { data } = await requestService.all(params);
       const allRequests = data.data || [];
 
@@ -382,13 +383,8 @@ function ValidateRequests() {
           overflow: hidden;
           animation: panel-in 0.35s ease-out;
         }
-        .request-card {
-          position: relative;
-          overflow: hidden;
-          animation: panel-in 0.35s ease-out;
-        }
         @media (prefers-reduced-motion: reduce) {
-          .request-card { animation: none; }
+          .validate-request-card { animation: none; }
         }
       `}</style>
     </div>

@@ -84,21 +84,21 @@ export function PushProvider({ children }) {
   }, [refresh]);
 
   const enable = useCallback(async () => {
-    if (busy || !supported) return;
+    if (busy || !supported) return false;
     setBusy(true);
     setError(null);
     try {
       const permission = await requestPermission();
       if (permission !== 'granted') {
         setStatus(PUSH_STATUS.denied);
-        return;
+        return false;
       }
 
       const { data } = await pushService.config();
       setConfig(data);
       if (!data.enabled) {
         setStatus(PUSH_STATUS.disabled);
-        return;
+        return false;
       }
 
       let browserSub = await getBrowserSubscription();
@@ -109,9 +109,11 @@ export function PushProvider({ children }) {
       const res = await pushService.subscribe(browserSub.toJSON(), deviceLabel());
       setDeviceSub(res.data?.subscription || null);
       setStatus(PUSH_STATUS.subscribed);
+      return true;
     } catch (e) {
       setStatus(PUSH_STATUS.error);
       setError(e?.response?.data?.message || e.message || 'Échec de l\'abonnement aux notifications');
+      return false;
     } finally {
       setBusy(false);
     }

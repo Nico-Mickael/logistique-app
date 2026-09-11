@@ -16,9 +16,8 @@ export default function PushSettingsPopover() {
   const [testing, setTesting] = useState(false);
 
   const handleEnable = async () => {
-    await enable();
-    if (status !== PUSH_STATUS.subscribed) return;
-    notifySuccess('Notifications push activées sur ce téléphone');
+    const ok = await enable();
+    if (ok) notifySuccess('Notifications push activées sur ce téléphone');
   };
 
   const handleDisable = async () => {

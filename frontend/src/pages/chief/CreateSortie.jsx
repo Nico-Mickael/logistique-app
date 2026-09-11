@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useId, useState, useMemo, useCallback } from 'react';
 import {
   Paper, Title, Text, Group, Stack, Badge, Button, TextInput,
   Loader, Center, Avatar, SimpleGrid, Select,
@@ -24,6 +24,7 @@ import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor, v
 const COMPAT_WINDOW_MIN = 30;
 
 function CarVisual({ vehicle, seatStates, onSeatClick, selectedSeat }) {
+  const uid = useId();
   const layout = getSeatLayout(vehicle.type, vehicle.capacity);
   const svgW = layout.w;
   const svgH = layout.h;
@@ -35,24 +36,24 @@ function CarVisual({ vehicle, seatStates, onSeatClick, selectedSeat }) {
   return (
     <svg viewBox={`0 0 ${svgW} ${svgH}`} width="100%" height="100%" style={{ display: 'block' }}>
       <defs>
-        <linearGradient id="carBody" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`${uid}-body`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#f0f0f0" />
           <stop offset="100%" stopColor="#e0e0e0" />
         </linearGradient>
-        <filter id="carShadow">
+        <filter id={`${uid}-shadow`}>
           <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15" />
         </filter>
-        <filter id="seatShadow">
+        <filter id={`${uid}-seatShadow`}>
           <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodOpacity="0.2" />
         </filter>
       </defs>
 
       <rect x={bx - 6} y={by - 4} width={bodyW + 12} height={bodyH + 12}
-        rx={14} fill="#d0d0d0" filter="url(#carShadow)" opacity="0.5"
+        rx={14} fill="#d0d0d0" filter={`url(#${uid}-shadow)`} opacity="0.5"
       />
 
       <rect x={bx} y={by} width={bodyW} height={bodyH}
-        rx={12} fill="url(#carBody)" stroke="#bbb" strokeWidth="1.5"
+        rx={12} fill={`url(#${uid}-body)`} stroke="#bbb" strokeWidth="1.5"
       />
 
       <path d={`M ${bx + 10} ${by + 6} L ${bx + bodyW / 3} ${by + 6} Q ${bx + bodyW / 3 + 10} ${by + 2} ${bx + bodyW / 3 + 20} ${by + 6} L ${bx + bodyW - 10} ${by + 6}`}
@@ -75,7 +76,7 @@ function CarVisual({ vehicle, seatStates, onSeatClick, selectedSeat }) {
               width={seat.w} height={seat.h} rx={5}
               fill={colors.fill} stroke={colors.stroke}
               strokeWidth={isSelected ? 2.5 : 1}
-              filter={isSelected ? 'url(#seatShadow)' : undefined}
+              filter={isSelected ? `url(#${uid}-seatShadow)` : undefined}
               opacity={state === 'unavailable' ? 0.5 : 1}
               style={{ transition: 'all 0.3s ease', transformOrigin: 'center' }}
             />
@@ -84,7 +85,7 @@ function CarVisual({ vehicle, seatStates, onSeatClick, selectedSeat }) {
                 textAnchor="middle" fontSize="9" fill="white" fontWeight="600"
                 style={{ pointerEvents: 'none', userSelect: 'none' }}
               >
-                {seat.label === 'Conducteur' ? '👤' : '👤'}
+                👤
               </text>
             )}
             {state === 'available' && (
@@ -474,195 +475,6 @@ function CreateSortie() {
 
   return (
     <div className="page-content">
-      <style>{`
-        .vehicle-card {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .vehicle-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 12px 32px rgba(0,0,0,0.1);
-        }
-        .vehicle-card--selected {
-          transform: translateY(-3px);
-          box-shadow: 0 12px 32px rgba(0,0,0,0.12);
-        }
-        .vehicle-flip {
-          perspective: 1200px;
-          height: 100%;
-        }
-        .vehicle-flip--selected .vehicle-flip-front .vehicle-card {
-          border: 2px solid var(--mantine-color-brand-6);
-          background: rgba(46,125,50,0.04);
-        }
-        .vehicle-flip-inner {
-          position: relative;
-          width: 100%;
-          height: 100%;
-          text-align: center;
-          transition: transform 0.6s;
-          transform-style: preserve-3d;
-          cursor: pointer;
-        }
-        .vehicle-flip:hover .vehicle-flip-inner {
-          transform: rotateY(180deg);
-        }
-        .vehicle-flip-face {
-          width: 100%;
-          backface-visibility: hidden;
-          -webkit-backface-visibility: hidden;
-        }
-        .vehicle-flip-front {
-          position: relative;
-          z-index: 2;
-          height: 100%;
-        }
-        .vehicle-flip-back {
-          position: absolute;
-          top: 0;
-          left: 0;
-          height: 100%;
-          width: 100%;
-          transform: rotateY(180deg);
-          background: light-dark(#ffffff, #2E2E33);
-          border: 1px solid var(--mantine-color-default-border);
-          border-radius: 12px;
-          padding: 14px;
-          display: flex;
-          flex-direction: column;
-          justify-content: flex-start;
-          text-align: left;
-          overflow-y: auto;
-        }
-        .vehicle-icon-container {
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
-          background: rgba(46,125,50,0.08);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .car-preview {
-          height: 100px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 8px 0;
-        }
-        .request-glass-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-        }
-        .seat-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          display: inline-block;
-        }
-        .seat-info-card {
-          animation: card-pop 0.25s ease-out;
-        }
-        .glass-panel {
-          background: light-dark(rgba(255,255,255,0.7), rgba(48,50,55,0.7));
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border: 1px solid light-dark(rgba(255,255,255,0.3), rgba(255,255,255,0.08));
-        }
-        .step-indicator {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
-        }
-        .step-circle {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 13px;
-          font-weight: 700;
-          transition: all 0.3s ease;
-          flex-shrink: 0;
-        }
-        .step-circle--done {
-          background: var(--mantine-color-brand-6);
-          color: #fff;
-        }
-        .step-circle--active {
-          background: var(--mantine-color-brandYellow-5);
-          color: #1f1f1f;
-          box-shadow: 0 0 0 4px rgba(245,179,1,0.2);
-        }
-        .step-circle--pending {
-          background: light-dark(#e9ecef, #373A40);
-          color: light-dark(#868e96, #909296);
-        }
-        .step-line {
-          flex: 1;
-          height: 2px;
-          background: light-dark(#e9ecef, #373A40);
-          max-width: 80px;
-          min-width: 20px;
-        }
-        .step-line--done {
-          background: var(--mantine-color-brand-6);
-        }
-        .seat-animate-enter {
-          animation: seat-fill 0.4s ease-out;
-        }
-        @keyframes card-pop {
-          from { opacity: 0; transform: scale(0.95) translateY(8px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes seat-fill {
-          0% { transform: scale(1); }
-          30% { transform: scale(1.2); }
-          60% { transform: scale(0.95); }
-          100% { transform: scale(1); }
-        }
-        .vehicle-detail-car {
-          height: 220px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 16px;
-        }
-        .info-row {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 10px 0;
-          border-bottom: 1px solid var(--mantine-color-default-border);
-        }
-        .info-row:last-child {
-          border-bottom: none;
-        }
-        .info-icon {
-          width: 34px;
-          height: 34px;
-          border-radius: 8px;
-          background: rgba(46,125,50,0.06);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-        .capacity-bar {
-          height: 6px;
-          border-radius: 3px;
-          background: light-dark(#e9ecef, #373A40);
-          overflow: hidden;
-          margin-top: 4px;
-        }
-        .capacity-fill {
-          height: 100%;
-          border-radius: 3px;
-          transition: width 0.5s ease;
-        }
-      `}</style>
 
       <Group justify="space-between" align="flex-end" mb="lg" wrap="wrap" rowGap={4}>
         <div>

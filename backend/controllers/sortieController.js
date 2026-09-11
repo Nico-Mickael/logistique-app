@@ -10,15 +10,13 @@ const { notifyChiefs } = require('../services/socketService');
 const notificationService = require('../services/notificationService');
 const { logAudit } = require('../services/auditService');
 
-// Met à jour le kilométrage actuel d'un véhicule à partir du km d'arrivée.
-async function syncVehicleKm(vehicleId, arrivalKm) {
-  if (vehicleId == null || arrivalKm == null) return;
-  const vehicle = await Vehicle.findByPk(vehicleId);
-  if (vehicle && (vehicle.current_km == null || vehicle.current_km < arrivalKm)) {
-    vehicle.current_km = arrivalKm;
-    await vehicle.save();
-  }
-}
+// Chargement détaillé d'une sortie (véhicule, conducteur, rescheduleur, demandes liées).
+const SORTIE_INCLUDES = [
+  Vehicle,
+  { model: Employee, as: 'driver' },
+  { model: Employee, as: 'rescheduler', attributes: ['id', 'nom', 'prenom'] },
+  { model: Request, through: { attributes: ['departure_km', 'return_km', 'distance_km', 'status', 'returned_at'] }, include: [Employee] },
+];
 
 // Notifie (une seule fois chacun) les employés liés à une sortie + le chauffeur.
 const notifySortieEmployees = async (sortie, message, type) => {
@@ -196,7 +194,7 @@ exports.mine = asyncHandler(async (req, res) => {
 
   const sorties = await Sortie.findAll({
     where: { id: sortieIds },
-    include: [Vehicle, { model: Employee, as: 'driver' }, { model: Employee, as: 'rescheduler', attributes: ['id', 'nom', 'prenom'] }, { model: Request, through: { attributes: ['departure_km', 'return_km', 'distance_km', 'status', 'returned_at'] }, include: [Employee] }],
+    include: SORTIE_INCLUDES,
     order: [['departure_time', 'DESC']],
   });
 
@@ -223,7 +221,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
   const { count, rows } = await Sortie.findAndCountAll({
     where,
-    include: [Vehicle, { model: Employee, as: 'driver' }, { model: Employee, as: 'rescheduler', attributes: ['id', 'nom', 'prenom'] }, { model: Request, through: { attributes: ['departure_km', 'return_km', 'distance_km', 'status', 'returned_at'] }, include: [Employee] }],
+    include: SORTIE_INCLUDES,
     order: [['departure_time', 'DESC']],
     offset,
     limit: parseInt(limit, 10),
@@ -298,7 +296,7 @@ exports.arrivee = asyncHandler(async (req, res) => {
 
   // Libère le véhicule (s'il n'a plus de sorties/demandes actives) + met à jour son kilométrage actuel
   await vehicleService.releaseIfIdle(sortie.vehicle_id);
-  await syncVehicleKm(sortie.vehicle_id, arrival_km);
+  await vehicleService.syncKm(sortie.vehicle_id, arrival_km);
 
   await notifySortieEmployees(sortie, `La sortie vers ${sortie.destination} est terminée`, 'sortie_finished');
 
@@ -534,7 +532,7 @@ exports.validateReturn = asyncHandler(async (req, res) => {
     raw: true,
   });
   const maxReturnKm = links.reduce((max, l) => Math.max(max, l.return_km || 0), 0);
-  await syncVehicleKm(sortie.vehicle_id, maxReturnKm > 0 ? maxReturnKm : null);
+  await vehicleService.syncKm(sortie.vehicle_id, maxReturnKm > 0 ? maxReturnKm : null);
 
   await logAudit({ userId: req.user.id, action: 'validate_return', entity: 'Sortie', entityId: sortie.id, req });
 

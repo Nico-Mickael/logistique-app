@@ -95,3 +95,23 @@ test('expose les en-têtes X-RateLimit', async () => {
   assert.strictEqual(res.headers['X-RateLimit-Remaining'], 4);
   assert.ok(res.headers['X-RateLimit-Reset']);
 });
+
+test('réinitialise le compteur après l\'expiration de la fenêtre', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'] });
+  try {
+    const mw = rateLimit({ windowMs: 1000, max: 2 });
+    assert.deepStrictEqual(await run(mw, makeReq('5.5.5.5'), makeRes()), { next: true });
+    assert.deepStrictEqual(await run(mw, makeReq('5.5.5.5'), makeRes()), { next: true });
+
+    const blocked = makeRes();
+    const refused = await run(mw, makeReq('5.5.5.5'), blocked);
+    assert.strictEqual(refused.status, 429);
+
+    t.mock.timers.tick(1001);
+
+    assert.deepStrictEqual(await run(mw, makeReq('5.5.5.5'), makeRes()), { next: true },
+      'une fois la fenêtre écoulée, le compteur repart de zéro');
+  } finally {
+    t.mock.timers.reset();
+  }
+});

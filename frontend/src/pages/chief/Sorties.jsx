@@ -1,14 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Badge, Center, Text, Group, Button, Modal,
-  TextInput, Select, Stack, NumberInput, Card, SimpleGrid, Flex, SegmentedControl, Pagination, ScrollArea, Collapse,
+  TextInput, Select, Stack, NumberInput, SimpleGrid, Flex, SegmentedControl, Pagination, ScrollArea, Collapse,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker } from '@mantine/dates';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
-import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconExchange, IconNote, IconEye, IconAlertTriangle, IconFilter } from '@tabler/icons-react';
+import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconNote, IconEye, IconAlertTriangle, IconFilter } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import SortieDetailModal from '../../components/SortieDetailModal';
+import SortieCard, { vehicleOptionsFor, chauffeurOptions } from '../../components/SortieCard';
 import MotifCell from '../../components/MotifCell';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
@@ -19,7 +20,7 @@ import ConfirmModal from '../../components/ConfirmModal';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
 import { useNavigate } from 'react-router-dom';
-import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent, vehicleDisplayName } from '../../utils/labels';
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, vehicleDisplayName } from '../../utils/labels';
 import { downloadCSV } from '../../utils/csv';
 
 const statusFilterOptions = [
@@ -30,161 +31,9 @@ const statusFilterOptions = [
   { label: 'Terminées', value: 'finished' },
 ];
 
-// Options véhicules proposées lors d'un changement : seuls les véhicules
-// disponibles + le véhicule actuel (règle du backend : nouveau véhicule indisponible)
-const vehicleOptionsFor = (vehicles, sortie) => vehicles
-  .filter((v) => v.status === 'available' || v.id === sortie.vehicle_id)
-  .map((v) => ({ value: String(v.id), label: `${vehicleDisplayName(v)} (${v.capacity} pers.)` }));
-
-function SortieCard({ sortie, chauffeurs, vehicles, onAssignDriver, onChangeVehicle, onDetail, onEdit, onDepart, onSuggestions, onDelete, onValidateReturn, onArrivee, actionLoading }) {
-  const isMoto = sortie.Vehicle?.type === 'moto';
-  const ds = sortie.displayStatus;
-  return (
-    <Card withBorder radius="lg" p="lg" className="sortie-card">
-      <div className="stat-card-accent" style={{ background: sortieStatusAccent[ds?.key || sortie.status] }} />
-      <Group justify="space-between" mb="xs" wrap="wrap">
-        <Text fw={600} size="md" style={{ minWidth: 0, wordBreak: 'break-word' }}>{sortie.destination}</Text>
-        <Badge color={ds?.color || statusColor[sortie.status]} variant="light">
-          {ds?.label || statusLabel[sortie.status]}
-        </Badge>
-      </Group>
-      <Stack gap={4} mb="md">
-        <Text size="sm"><Text span c="dimmed" size="sm">Conducteur: </Text>{sortie.driver_name}</Text>
-        <Text size="sm">
-          <Text span c="dimmed" size="sm">Véhicule: </Text>
-          <VehicleIcon type={sortie.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" style={{ verticalAlign: 'middle', marginRight: 4 }} />
-          <Text span size="sm">{sortie.Vehicle ? vehicleDisplayName(sortie.Vehicle) : '—'}</Text>
-        </Text>
-        {sortie.motif && (
-          <Text size="sm">
-            <Text span c="dimmed" size="sm">Motif: </Text>{sortie.motif}
-          </Text>
-        )}
-        {!isMoto && sortie.Requests?.some((r) => r.vehicle_id && r.vehicle_id !== sortie.vehicle_id) && (
-          <Text size="xs" c="orange" fw={600}>
-            <IconExchange size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-            Véhicule demandé différent du véhicule affecté
-          </Text>
-        )}
-        <Text size="sm"><Text span c="dimmed" size="sm">Départ: </Text>
-          {dayjs(sortie.departure_time).format('DD/MM/YYYY HH:mm')}
-        </Text>
-        {sortie.status === 'finished' && !isMoto && (
-          <Text size="sm" fw={600}>
-            <Text span c="dimmed" size="sm">Distance: </Text>{sortie.distance_km} km
-          </Text>
-        )}
-        {!isMoto && sortie.departure_km && (
-          <Text size="sm"><Text span c="dimmed" size="sm">Km départ: </Text>{sortie.departure_km}</Text>
-        )}
-        {!isMoto && sortie.return_km && (
-          <Text size="sm"><Text span c="dimmed" size="sm">Km retour: </Text>{sortie.return_km}</Text>
-        )}
-        {!isMoto && sortie.returned_at && (
-          <Text size="sm"><Text span c="dimmed" size="sm">Retour le: </Text>{dayjs(sortie.returned_at).format('DD/MM/YYYY HH:mm')}</Text>
-        )}
-        {!isMoto && sortie.arrival_km && (
-          <Text size="sm"><Text span c="dimmed" size="sm">Km arrivée: </Text>{sortie.arrival_km}</Text>
-        )}
-        {isMoto && sortie.Requests?.length > 0 && (
-          <Stack gap={2}>
-            <Text size="xs" c="dimmed" fw={600}>Kilomètres individuels:</Text>
-            {sortie.Requests.map((req) => {
-              const sr = req.SortieRequest;
-              const done = sr?.status === 'finished';
-              return (
-                <Text key={req.id} size="xs">
-                  <Text span c="dimmed">{req.Employee?.prenom} {req.Employee?.nom}: </Text>
-                  {done && sr?.departure_km != null && sr?.return_km != null
-                    ? `${sr.departure_km} → ${sr.return_km} km (${sr.distance_km} km)`
-                    : sr?.status === 'ongoing' ? 'en cours' : '—'}
-                </Text>
-              );
-            })}
-          </Stack>
-        )}
-      </Stack>
-      <Group gap="xs">
-        {sortie.status === 'planned' && (
-          <>
-            {!isMoto && (
-              <Group gap="xs" wrap="wrap">
-                <Select
-                  size="xs"
-                  placeholder={sortie.driver_name ? `Chauffeur: ${sortie.driver_name}` : 'Affecter un chauffeur'}
-                  data={chauffeurs.map((c) => ({ value: String(c.id), label: `${c.prenom} ${c.nom}`.trim() }))}
-                  value={sortie.driver_employee_id ? String(sortie.driver_employee_id) : null}
-                  onChange={(v) => onAssignDriver(sortie, v)}
-                  clearable searchable radius="md"
-                  w={{ base: '100%', sm: 170 }}
-                  disabled={actionLoading === 'assignDriver'}
-                  styles={{ input: sortie.driver_employee_id ? {} : { borderColor: 'var(--mantine-color-brand-6)' } }}
-                />
-                <Select
-                  size="xs"
-                  placeholder="Changer de véhicule"
-                  data={vehicleOptionsFor(vehicles, sortie)}
-                  value={String(sortie.vehicle_id)}
-                  onChange={(v) => { if (v && String(v) !== String(sortie.vehicle_id)) onChangeVehicle(sortie, v); }}
-                  searchable radius="md" w={{ base: '100%', sm: 190 }}
-                  disabled={actionLoading === 'vehicle'}
-                  leftSection={<VehicleIcon type={sortie.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" />}
-                />
-              </Group>
-            )}
-            <Button size="xs" color="brand" leftSection={<IconPlayerPlay size={14} />} onClick={() => onDepart(sortie)} loading={actionLoading === 'depart'}>
-              Démarrer
-            </Button>
-            <Button size="xs" variant="outline" color="brand" leftSection={<IconUsers size={14} />} onClick={() => onSuggestions(sortie.id)}>
-              Demandes
-            </Button>
-            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
-              Détails
-            </Button>
-            <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => onEdit(sortie)}>
-              Modifier
-            </Button>
-            <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={onDelete}>
-              Supprimer
-            </Button>
-          </>
-        )}
-        {sortie.status === 'ongoing' && (
-          <Group gap="xs">
-            <Button size="xs" color="brand" leftSection={<IconFlag size={14} />} onClick={() => onArrivee(sortie)} loading={actionLoading === 'arrivee'}>
-              Saisir arrivée
-            </Button>
-            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
-              Détails
-            </Button>
-            <Text size="xs" c="dimmed">En attente du retour de l'employé</Text>
-          </Group>
-        )}
-        {sortie.status === 'pending_return' && (
-          <Group gap="xs">
-            <Button size="xs" color="orange" leftSection={<IconFlag size={14} />} onClick={onValidateReturn} loading={actionLoading === 'validateReturn'}>
-              Valider le retour
-            </Button>
-            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
-              Détails
-            </Button>
-          </Group>
-        )}
-        {sortie.status === 'finished' && (
-          <Group gap="xs">
-            <Text size="xs" c="dimmed">Terminée le {dayjs(sortie.updatedAt).format('DD/MM/YYYY')}</Text>
-            <Button size="xs" variant="subtle" color="blue" leftSection={<IconEye size={14} />} onClick={() => onDetail(sortie)}>
-              Détails
-            </Button>
-            <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={onDelete}>
-              Supprimer
-            </Button>
-          </Group>
-        )}
-      </Group>
-    </Card>
-  );
-}
+// Export CSV + détection des départs dépassés : borne haute pour récupérer
+// toutes les lignes correspondant aux filtres.
+const CSV_EXPORT_LIMIT = 9999;
 
 function Sorties() {
   const navigate = useNavigate();
@@ -235,14 +84,20 @@ function Sorties() {
   const [detailOpened, { open: openDetailModal, close: closeDetailModal }] = useDisclosure(false);
   const openDetail = (s) => { setDetailSortie(s); openDetailModal(); };
 
+  // Filtres communs à la pagination, à l'export CSV et aux départs dépassés.
+  const buildFilterParams = (extra = {}) => {
+    const params = { ...extra };
+    if (statusFilter !== 'all') params.status = statusFilter;
+    if (vehicleFilter) params.vehicle_id = vehicleFilter;
+    if (searchQuery) params.destination = searchQuery;
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    return params;
+  };
+
   const fetchSorties = useCallback(async (p = page) => {
     try {
-      const params = { page: p, limit };
-      if (statusFilter !== 'all') params.status = statusFilter;
-      if (vehicleFilter) params.vehicle_id = vehicleFilter;
-      if (searchQuery) params.destination = searchQuery;
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
+      const params = { page: p, limit, ...buildFilterParams() };
       const { data } = await sortieService.getAll(params);
       setSorties(data.data || []);
       setTotal(data.total || 0);
@@ -261,7 +116,7 @@ function Sorties() {
   const [overdue, setOverdue] = useState([]);
   const fetchOverdue = useCallback(async () => {
     try {
-      const { data } = await sortieService.getAll({ status: 'planned', limit: 9999 });
+      const { data } = await sortieService.getAll({ status: 'planned', limit: CSV_EXPORT_LIMIT });
       const now = new Date();
       setOverdue((data.data || []).filter((s) => new Date(s.departure_time) < now));
     } catch {
@@ -423,12 +278,7 @@ function Sorties() {
 
   const exportCSV = async () => {
     try {
-      const params = { limit: 9999 };
-      if (statusFilter !== 'all') params.status = statusFilter;
-      if (vehicleFilter) params.vehicle_id = vehicleFilter;
-      if (searchQuery) params.destination = searchQuery;
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
+      const params = buildFilterParams({ limit: CSV_EXPORT_LIMIT });
       const { data } = await sortieService.getAll(params);
       const allSorties = data.data || [];
 
@@ -453,7 +303,7 @@ function Sorties() {
           <Select
             size="xs"
             placeholder={s.driver_name ? s.driver_name : 'Affecter un chauffeur'}
-            data={chauffeurs.map((c) => ({ value: String(c.id), label: `${c.prenom} ${c.nom}`.trim() }))}
+            data={chauffeurOptions(chauffeurs)}
             value={s.driver_employee_id ? String(s.driver_employee_id) : null}
             onChange={(v) => handleAssignDriver(s, v)}
             clearable searchable radius="md" w={{ base: 130, sm: 170 }}
@@ -703,7 +553,7 @@ function Sorties() {
             value={editVehicleId} onChange={setEditVehicleId} radius="md"
           />
           <Select label="Chauffeur (compte)" placeholder="Choisir un chauffeur" w="100%"
-            data={chauffeurs.map((c) => ({ value: String(c.id), label: `${c.prenom} ${c.nom}`.trim() }))}
+            data={chauffeurOptions(chauffeurs)}
             value={editDriverEmployeeId || null}
             onChange={(v) => {
               setEditDriverEmployeeId(v || '');

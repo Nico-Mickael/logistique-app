@@ -81,3 +81,17 @@ export const sortieStatusAccent = {
   pending_return: 'var(--mantine-color-orange-6)',
   finished: 'var(--mantine-color-brandYellow-6)',
 };
+
+// Couleur CSS du bandeau d'accent des cartes, à partir d'une couleur Mantine
+// (source unique : évite que chaque page réimplémente la même correspondance).
+export const accentColor = (colorName, fallback = 'var(--mantine-color-gray-5)') => {
+  const map = {
+    brand: 'var(--mantine-color-brand-6)',
+    brandYellow: 'var(--mantine-color-brandYellow-6)',
+    red: 'var(--mantine-color-red-6)',
+    orange: 'var(--mantine-color-orange-6)',
+    teal: 'var(--mantine-color-teal-6)',
+    gray: 'var(--mantine-color-gray-5)',
+  };
+  return map[colorName] || fallback;
+};

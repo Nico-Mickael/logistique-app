@@ -34,6 +34,20 @@ exports.setAvailable = async (vehicleId) => {
   }
 };
 
+/**
+ * Met à jour le kilométrage actuel d'un véhicule à partir d'un km d'arrivée.
+ * Ne régresse jamais : n'écrase une valeur que si elle est supérieure.
+ */
+exports.syncKm = async (vehicleId, arrivalKm) => {
+  if (vehicleId == null || arrivalKm == null) return;
+  const { Vehicle } = getDeps().models;
+  const vehicle = await Vehicle.findByPk(vehicleId);
+  if (vehicle && (vehicle.current_km == null || vehicle.current_km < arrivalKm)) {
+    vehicle.current_km = arrivalKm;
+    await vehicle.save();
+  }
+};
+
 const ACTIVE_STATUSES_SET = ACTIVE_REQUEST_STATUSES;
 
 /**

@@ -34,7 +34,7 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRoutes);
@@ -46,6 +46,11 @@ app.use('/api/push', pushRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/export', exportRoutes);
+
+// 404 JSON pour toute route /api/* non déclarée (au lieu du 404 HTML par défaut).
+app.use('/api', (req, res) => {
+  res.status(404).json({ message: 'Route API introuvable' });
+});
 
 // --- Hébergement du frontend (build statique) en mode "serveur unique" ---
 // Un seul processus sert à la fois l'API et l'application React (SPA).
@@ -67,11 +72,12 @@ if (process.env.SERVE_FRONTEND !== 'false' && fs.existsSync(path.join(frontendDi
 }
 
 app.use((err, req, res, next) => {
-  const status = err.status || err.statusCode || 500;
+  const e = err || {};
+  const status = e.status || e.statusCode || 500;
   if (status >= 500) {
     console.error('Erreur non gérée:', err);
   }
-  res.status(status).json({ message: status >= 500 ? 'Erreur interne du serveur' : (err.message || 'Erreur') });
+  res.status(status).json({ message: status >= 500 ? 'Erreur interne du serveur' : (e.message || 'Erreur') });
 });
 
 const PORT = process.env.PORT || 5000;
