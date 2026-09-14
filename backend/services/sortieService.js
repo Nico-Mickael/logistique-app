@@ -46,7 +46,11 @@ function __resetDeps() {
 // et casse ignorés —, écart horaire ≤ 3 h, capacité respectée)
 exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, departureTime) => {
   const { models } = getDeps();
-  const { Request, SortieRequest, Employee } = models;
+  const { Request, SortieRequest, Employee, Sortie } = models;
+
+  // Multi-sites : les suggestions d'une sortie ne concernent QUE son site.
+  const sortieMeta = await Sortie.findByPk(sortieId, { attributes: ['id', 'site_id'] });
+  const siteId = sortieMeta?.site_id ?? null;
 
   const linkedRequestIds = (await SortieRequest.findAll({ attributes: ['request_id'] })).map((sr) => sr.request_id);
 
@@ -82,6 +86,7 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, 
   const targetDest = normalizeDestination(destination);
   const compatible = [];
   for (const req of candidates) {
+    if (siteId != null && req.site_id != null && req.site_id !== siteId) continue;
     if (normalizeDestination(req.destination) !== targetDest) continue;
     if (occupied + (req.nb_personnes || 0) <= vehicleCapacity) {
       compatible.push(req);
@@ -117,6 +122,12 @@ exports.attachRequestToSortie = async ({ sortieId, requestId }) => {
   if (!request) throw apiError(404, 'Demande introuvable');
   if (!ASSIGNABLE_TO_SORTIE_STATUSES.includes(request.status)) {
     throw apiError(400, `Cette demande (statut "${request.status}") ne peut pas être intégrée à une sortie`);
+  }
+
+  // Multi-sites : interdit de regrouper une demande d'un AUTRE site dans
+  // cette sortie (l'isolation est garantie au niveau du service).
+  if (sortie.site_id != null && request.site_id != null && sortie.site_id !== request.site_id) {
+    throw apiError(403, 'Cette demande appartient à un autre site et ne peut pas être ajoutée à cette sortie');
   }
 
   // Compatibilité : même destination (synonymes et casse ignorés)
@@ -163,7 +174,7 @@ exports.attachRequestToSortie = async ({ sortieId, requestId }) => {
       if (remaining === 0 && otherSortie.status === 'planned') {
         const wasVehicleId = otherSortie.vehicle_id;
         await otherSortie.destroy();
-        notifyChiefs('sortie_updated', { id: otherSortie.id, deleted: true });
+        notifyChiefs('sortie_updated', { id: otherSortie.id, deleted: true }, otherSortie.site_id);
         if (wasVehicleId) await releaseIfIdle(wasVehicleId);
       }
     }
@@ -211,6 +222,7 @@ exports.autoCreateSortie = async (request) => {
   const sameDaySorties = !isNaN(requestTime.getTime()) ? await Sortie.findAll({
     where: {
       vehicle_id: request.vehicle_id,
+      ...(request.site_id != null ? { site_id: request.site_id } : {}),
       status: 'planned',
       departure_time: { [Op.between]: [startOfDay, endOfDay] },
     },
@@ -262,6 +274,7 @@ exports.autoCreateSortie = async (request) => {
     motif: request.motif || null,
     departure_time: request.date_souhaitee,
     status: 'planned',
+    site_id: request.site_id ?? null,
   });
   await SortieRequest.create({ sortie_id: sortie.id, request_id: request.id, status: 'pending' });
 

@@ -20,17 +20,20 @@ import CreateSortie from './pages/chief/CreateSortie';
 import Vehicles from './pages/chief/Vehicles';
 import Planning from './pages/chief/Planning';
 import Reports from './pages/chief/Reports';
+import HistoryReport from './pages/chief/HistoryReport';
+import PassengerReport from './pages/chief/PassengerReport';
 import MyTrips from './pages/employee/MyTrips';
 import MyReports from './pages/employee/MyReports';
 import DriverSorties from './pages/chauffeur/DriverSorties';
 import Users from './pages/superadmin/Users';
+import Sites from './pages/superadmin/Sites';
 import Sessions from './pages/Sessions';
 import ErrorPage from './pages/ErrorPage';
 
 function AppToasts() {
   const { colorScheme } = useMantineColorScheme();
   return (
-    <ToastContainer position="top-right" autoClose={3500} theme={colorScheme === 'dark' ? 'dark' : 'light'} />
+    <ToastContainer position="bottom-right" autoClose={3500} theme={colorScheme === 'dark' ? 'dark' : 'light'} />
   );
 }
 
@@ -165,11 +168,41 @@ function App() {
                 }
               />
               <Route
+                path="/rapports/historique"
+                element={
+                  <PrivateRoute allowedRoles={['logistics_chief', 'admin', 'superadmin']}>
+                    <Layout>
+                      <HistoryReport />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/rapports/passager"
+                element={
+                  <PrivateRoute allowedRoles={['logistics_chief', 'admin', 'superadmin']}>
+                    <Layout>
+                      <PassengerReport />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/utilisateurs"
                 element={
                   <PrivateRoute allowedRoles={['superadmin']}>
                     <Layout>
                       <Users />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/sites"
+                element={
+                  <PrivateRoute allowedRoles={['superadmin']}>
+                    <Layout>
+                      <Sites />
                     </Layout>
                   </PrivateRoute>
                 }

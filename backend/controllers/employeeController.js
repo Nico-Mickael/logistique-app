@@ -3,10 +3,14 @@ const { Employee, Request, Notification, SortieRequest } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const { ASSIGNABLE_ROLES, ALL_ROLES, BCRYPT_ROUNDS } = require('../utils/constants');
 const { logAudit } = require('../services/auditService');
+const { getResolvedSiteId, requireSiteAccess, enforceCreationSite } = require('../middlewares/siteContext');
 
 exports.list = asyncHandler(async (req, res) => {
+  const siteId = getResolvedSiteId(req);
   const employees = await Employee.findAll({
-    attributes: ['id', 'nom', 'prenom', 'email', 'department', 'role', 'createdAt', 'updatedAt'],
+    where: siteId != null ? { site_id: siteId } : {},
+    attributes: ['id', 'nom', 'prenom', 'email', 'department', 'role', 'site_id', 'createdAt', 'updatedAt'],
+    include: [{ association: 'Site', attributes: ['id', 'name', 'code'] }],
     order: [['createdAt', 'DESC']],
   });
   res.json(employees);
@@ -14,8 +18,9 @@ exports.list = asyncHandler(async (req, res) => {
 
 // Liste des comptes ayant le rôle 'chauffeur' (pour l'affectation à une sortie)
 exports.listChauffeurs = asyncHandler(async (req, res) => {
+  const siteId = getResolvedSiteId(req);
   const chauffeurs = await Employee.findAll({
-    where: { role: 'chauffeur' },
+    where: { role: 'chauffeur', ...(siteId != null ? { site_id: siteId } : {}) },
     attributes: ['id', 'nom', 'prenom', 'email', 'department'],
     order: [['nom', 'ASC']],
   });
@@ -46,6 +51,7 @@ exports.create = asyncHandler(async (req, res) => {
     password: hashedPassword,
     department,
     role: finalRole,
+    site_id: enforceCreationSite(req),
   });
 
   await logAudit({ userId: req.user.id, action: 'create', entity: 'Employee', entityId: employee.id, newValue: { nom, prenom, email, department, role: finalRole }, req });
@@ -65,6 +71,7 @@ exports.update = asyncHandler(async (req, res) => {
   const employee = await Employee.findByPk(req.params.id);
 
   if (!employee) return res.status(404).json({ message: 'Utilisateur introuvable' });
+  requireSiteAccess(req, employee.site_id);
 
   const oldData = { nom: employee.nom, prenom: employee.prenom, email: employee.email, department: employee.department, role: employee.role };
 
@@ -103,6 +110,7 @@ exports.update = asyncHandler(async (req, res) => {
 exports.remove = asyncHandler(async (req, res) => {
   const employee = await Employee.findByPk(req.params.id);
   if (!employee) return res.status(404).json({ message: 'Utilisateur introuvable' });
+  requireSiteAccess(req, employee.site_id);
 
   const requests = await Request.findAll({ where: { employee_id: req.params.id }, attributes: ['id'] });
   const requestIds = requests.map((r) => r.id);

@@ -2,10 +2,11 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { Employee, Session } = require('../models');
+const { Employee, Session, Site } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const { ALL_ROLES, BCRYPT_ROUNDS } = require('../utils/constants');
 const { logAudit } = require('../services/auditService');
+const { enforceCreationSite } = require('../middlewares/siteContext');
 
 const ACCESS_TOKEN_EXPIRY = '30m';
 const REFRESH_TOKEN_DAYS = 7;
@@ -32,7 +33,7 @@ function hashToken(token) {
 
 function signAccessToken(employee, sessionId) {
   return jwt.sign(
-    { id: employee.id, role: employee.role, sid: sessionId },
+    { id: employee.id, role: employee.role, site_id: employee.site_id ?? null, sid: sessionId },
     process.env.JWT_SECRET,
     { expiresIn: ACCESS_TOKEN_EXPIRY }
   );
@@ -87,6 +88,7 @@ exports.register = asyncHandler(async (req, res) => {
     password: hashedPassword,
     department,
     role: finalRole,
+    site_id: enforceCreationSite(req),
   });
 
   await logAudit({ userId: req.user.id, action: 'register', entity: 'Employee', entityId: employee.id, newValue: { nom, prenom, email, role: finalRole }, req });
@@ -127,6 +129,7 @@ exports.login = asyncHandler(async (req, res) => {
       prenom: employee.prenom,
       email: employee.email,
       role: employee.role,
+      site_id: employee.site_id ?? null,
     },
   });
 });
@@ -141,7 +144,7 @@ exports.refresh = asyncHandler(async (req, res) => {
   const hash = hashToken(refreshToken);
   const session = await Session.findOne({
     where: { refresh_token_hash: hash, revoked: false },
-    include: [{ model: Employee, as: 'user', attributes: ['id', 'nom', 'prenom', 'email', 'role'] }],
+    include: [{ model: Employee, as: 'user', attributes: ['id', 'nom', 'prenom', 'email', 'role', 'site_id'] }],
   });
 
   if (!session) {
@@ -200,7 +203,8 @@ exports.logoutAll = asyncHandler(async (req, res) => {
 
 exports.me = asyncHandler(async (req, res) => {
   const employee = await Employee.findByPk(req.user.id, {
-    attributes: ['id', 'nom', 'prenom', 'email', 'department', 'role'],
+    attributes: ['id', 'nom', 'prenom', 'email', 'department', 'role', 'site_id'],
+    include: [{ model: Site, attributes: ['id', 'name', 'code'], required: false }],
   });
   if (!employee) {
     return res.status(404).json({ message: 'Utilisateur introuvable' });

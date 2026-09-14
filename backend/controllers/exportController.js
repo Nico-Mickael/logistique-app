@@ -1,8 +1,9 @@
 const XLSX = require('xlsx');
-const { Vehicle, Sortie } = require('../models');
+const { Vehicle, Sortie, Employee } = require('../models');
 const { Op } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
 const passengerReportService = require('../services/passengerReportService');
+const { scopeWhere, getResolvedSiteId } = require('../middlewares/siteContext');
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
 const fmtTime = (d) => (d ? new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—');
@@ -39,6 +40,7 @@ function buildWorkbook(sheetName, headers, rows, res, req, filename) {
 // Rapport par véhicule : km, carburant, maintenance, statut, coût/km
 exports.fleetReport = asyncHandler(async (req, res) => {
   const vehicles = await Vehicle.findAll({
+    where: scopeWhere(req),
     attributes: ['id', 'name', 'type', 'capacity', 'status', 'maintenance_until', 'fuel_type', 'current_km'],
     order: [['type', 'ASC']],
   });
@@ -78,6 +80,7 @@ exports.sortiesReport = asyncHandler(async (req, res) => {
   if (req.query.status) where.status = req.query.status;
   if (req.query.date_from) where.departure_time = { ...where.departure_time, [Op.gte]: new Date(req.query.date_from) };
   if (req.query.date_to) where.departure_time = { ...where.departure_time, [Op.lte]: new Date(req.query.date_to) };
+  Object.assign(where, scopeWhere(req));
 
   const sorties = await Sortie.findAll({
     where,
@@ -112,7 +115,7 @@ exports.sortiesReport = asyncHandler(async (req, res) => {
 // Rapport des sorties avec liste des passagers (même source de vérité que
 // /api/stats/sorties-passengers : sorties effectuées + demandes validées).
 exports.sortiesPassengersReport = asyncHandler(async (req, res) => {
-  const result = await passengerReportService.findReport(req.query);
+  const result = await passengerReportService.findReport(req.query, { site_id: getResolvedSiteId(req) });
   if (result.error) {
     return res.status(result.status || 400).json({ message: result.error });
   }

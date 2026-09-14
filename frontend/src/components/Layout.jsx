@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  AppShell, NavLink, Stack, Text, Divider, Group, ScrollArea, Tooltip,
+  AppShell, NavLink, Stack, Divider, Group, ScrollArea, Tooltip,
   UnstyledButton, ActionIcon, useMantineColorScheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
@@ -10,7 +10,6 @@ import {
   IconRoute,
   IconCar,
   IconPlus,
-  IconCaravan,
   IconUsers,
   IconReportAnalytics,
   IconChevronsLeft,
@@ -18,6 +17,7 @@ import {
   IconMoon,
   IconSun,
   IconDeviceDesktop,
+  IconBuilding,
 } from '@tabler/icons-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -27,7 +27,7 @@ import Logo from './Logo';
 const navConfig = {
   chief: [
     { label: 'Accueil', path: '/', icon: IconHome },
-    { label: 'Dashboard', path: '/rapports', icon: IconReportAnalytics },
+    { label: 'Tableau de bord', path: '/rapports', icon: IconReportAnalytics, exact: true },
     { label: 'Demandes', path: '/valider-demandes', icon: IconFileText },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
@@ -50,10 +50,11 @@ const navConfig = {
   ],
   superadmin: [
     { label: 'Accueil', path: '/', icon: IconHome },
-    { label: 'Dashboard', path: '/rapports', icon: IconReportAnalytics },
-    { label: 'Utilisateurs', path: '/utilisateurs', icon: IconUsers },
+    { label: 'Tableau de bord', path: '/rapports', icon: IconReportAnalytics, exact: true },
     { label: 'Demandes', path: '/valider-demandes', icon: IconFileText },
     { label: 'Sorties', path: '/sorties', icon: IconRoute },
+    { label: 'Utilisateurs', path: '/utilisateurs', icon: IconUsers },
+    { label: 'Sites', path: '/sites', icon: IconBuilding },
     { label: 'Véhicules', path: '/vehicules', icon: IconCar },
     { label: 'Sessions', path: '/sessions', icon: IconDeviceDesktop },
   ],
@@ -109,7 +110,9 @@ function Layout({ children }) {
             {navItems.map((item) => {
               const isActive = item.path === '/'
                 ? location.pathname === '/'
-                : location.pathname.startsWith(item.path);
+                : item.exact
+                  ? location.pathname === item.path
+                  : location.pathname.startsWith(item.path);
 
               const navLink = (
                 <NavLink
@@ -142,13 +145,7 @@ function Layout({ children }) {
 
         <AppShell.Section>
           <Divider mb="xs" color={dark ? 'dark.4' : 'gray.2'} />
-          <Group justify={collapsed ? 'center' : 'space-between'} px="sm" py="xs" wrap="nowrap">
-            {!collapsed && (
-              <Group gap="xs" wrap="nowrap">
-                <IconCaravan size={14} color="var(--mantine-color-dimmed)" />
-                <Text size="xs" c="dimmed">ADES Logistique</Text>
-              </Group>
-            )}
+          <Group justify="center" px="sm" py="xs" wrap="nowrap">
             <Tooltip label={dark ? 'Mode clair' : 'Mode sombre'} position="right" withArrow>
               <ActionIcon
                 variant="subtle"

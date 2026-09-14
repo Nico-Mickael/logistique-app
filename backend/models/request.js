@@ -12,6 +12,7 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
   Request.belongsTo(models.Employee, { foreignKey: 'employee_id' });
   Request.belongsTo(models.Vehicle, { foreignKey: 'vehicle_id' });
+  Request.belongsTo(models.Site, { foreignKey: 'site_id' });
   Request.belongsToMany(models.Sortie, { through: models.SortieRequest, foreignKey: 'request_id' });
 }
   }
@@ -23,7 +24,8 @@ module.exports = (sequelize, DataTypes) => {
     date_souhaitee: DataTypes.DATE,
     nb_personnes: DataTypes.INTEGER,
     status: DataTypes.STRING,
-    reschedule_reason: DataTypes.STRING
+    reschedule_reason: DataTypes.STRING,
+    site_id: DataTypes.INTEGER
   }, {
     sequelize,
     modelName: 'Request',

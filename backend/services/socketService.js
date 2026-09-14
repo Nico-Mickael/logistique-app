@@ -31,8 +31,12 @@ function setupSocket(server) {
 
       socket.join(`user:${decoded.id}`);
 
-      if (CHIEF_ROLES.includes(decoded.role)) {
+      // Multi-sites : le Superadmin rejoint la salle globale des chefs,
+      // les chefs locaux (admin / logistics_chief) leur salle de site.
+      if (decoded.role === 'superadmin') {
         socket.join('chiefs');
+      } else if (CHIEF_ROLES.includes(decoded.role) && decoded.site_id) {
+        socket.join(`chiefs:site:${decoded.site_id}`);
       }
 
       socket.on('disconnect', () => {
@@ -55,8 +59,14 @@ function notifyUser(userId, event, data) {
   io.to(`user:${userId}`).emit(event, data);
 }
 
-function notifyChiefs(event, data) {
+function notifyChiefs(event, data, siteId) {
   if (!io) return;
+  // Les chefs locaux du site concerné…
+  const targetSiteId = siteId ?? data?.site_id ?? null;
+  if (targetSiteId) {
+    io.to(`chiefs:site:${targetSiteId}`).emit(event, data);
+  }
+  // …et toujours les Superadmins (vision globale).
   io.to('chiefs').emit(event, data);
 }
 

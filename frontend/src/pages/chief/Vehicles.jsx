@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
-  Paper, Badge, Text, Group, Button, Modal,
+  Paper, Badge, Text, Group, Button, Modal, Center, Pagination,
   TextInput, Select, NumberInput, Card, SimpleGrid, Stack, SegmentedControl,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
-import { IconPlus, IconTool, IconCar, IconEdit, IconTrash } from '@tabler/icons-react';
+import { IconPlus, IconTool, IconCar, IconEdit, IconTrash, IconSearch } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import { DateInput } from '@mantine/dates';
 import dayjs from '../../utils/date';
@@ -113,6 +113,9 @@ function Vehicles() {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('table');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const isMobile = useMediaQuery('(max-width: 767px)');
 
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
@@ -148,6 +151,23 @@ function Vehicles() {
   };
 
   useEffect(() => { fetchVehicles(); }, []);
+
+  const filteredVehicles = vehicles.filter((v) => {
+    const q = search.toLowerCase();
+    return (
+      (v.name || '').toLowerCase().includes(q) ||
+      (v.type || '').toLowerCase().includes(q) ||
+      String(v.capacity).includes(q) ||
+      (statusLabel[v.status] || '').toLowerCase().includes(q)
+    );
+  });
+
+  const paginatedVehicles = filteredVehicles.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredVehicles.length / pageSize));
+    if (page > maxPage) setPage(maxPage);
+  }, [filteredVehicles, page]);
 
   const handleCreate = async () => {
     if (!type || !capacity) { notifyError('Merci de remplir tous les champs'); return; }
@@ -228,8 +248,8 @@ function Vehicles() {
 
   return (
     <div className="page-content">
-      <PageHeader title="Véhicules" subtitle={`${vehicles.length} véhicule${vehicles.length !== 1 ? 's' : ''} dans la flotte`}>
-        <Group gap="xs">
+      <PageHeader title="Véhicules" subtitle={`${filteredVehicles.length} véhicule${filteredVehicles.length !== 1 ? 's' : ''} dans la flotte`}>
+        <Group gap="xs" wrap="wrap">
           <SegmentedControl
             value={viewMode}
             onChange={setViewMode}
@@ -240,6 +260,16 @@ function Vehicles() {
             size="xs"
             color="brand"
           />
+          {vehicles.length > 0 && (
+            <TextInput
+              placeholder="Rechercher..."
+              leftSection={<IconSearch size={16} />}
+              value={search}
+              onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
+              radius="md"
+              w={{ base: '100%', sm: 280 }}
+            />
+          )}
           <Button color="brand" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Ajouter un véhicule
           </Button>
@@ -248,6 +278,8 @@ function Vehicles() {
 
       {vehicles.length === 0 ? (
         <EmptyState icon={IconCar} message="Aucun véhicule enregistré" />
+      ) : filteredVehicles.length === 0 ? (
+        <EmptyState icon={IconSearch} message={`Aucun résultat pour "${search}"`} />
       ) : (
         <>
           {viewMode === 'table' ? (
@@ -280,23 +312,31 @@ function Vehicles() {
                     ),
                   },
                 ]}
-                records={vehicles}
+                records={filteredVehicles}
                 idAccessor="id"
-                recordsPerPage={10}
+                page={page}
+                onPageChange={setPage}
+                totalRecords={filteredVehicles.length}
+                recordsPerPage={pageSize}
                 paginationSize="sm"
                 paginationActiveBackgroundColor="var(--mantine-color-brand-6)"
               />
             </Paper>
           ) : (
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-              {vehicles.map((v) => (
-                <VehicleCard key={v.id} vehicle={v}
-                  onMaintenance={openMaintenanceModal} onAvailable={handleMakeAvailable}
-                  onEdit={openEditModal} onDelete={setDeleteTarget}
-                  availableLoading={availableId === v.id}
-                />
-              ))}
-            </SimpleGrid>
+            <>
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+                {paginatedVehicles.map((v) => (
+                  <VehicleCard key={v.id} vehicle={v}
+                    onMaintenance={openMaintenanceModal} onAvailable={handleMakeAvailable}
+                    onEdit={openEditModal} onDelete={setDeleteTarget}
+                    availableLoading={availableId === v.id}
+                  />
+                ))}
+              </SimpleGrid>
+              <Center mt="md">
+                <Pagination total={Math.ceil(filteredVehicles.length / pageSize)} value={page} onChange={setPage} color="brand" />
+              </Center>
+            </>
           )}
         </>
       )}

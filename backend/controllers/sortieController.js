@@ -9,6 +9,7 @@ const { createNotification, notifyChiefsDb } = require('./notificationController
 const { notifyChiefs } = require('../services/socketService');
 const notificationService = require('../services/notificationService');
 const { logAudit } = require('../services/auditService');
+const { scopeWhere, requireSiteAccess } = require('../middlewares/siteContext');
 
 // Chargement détaillé d'une sortie (véhicule, conducteur, rescheduleur, demandes liées).
 const SORTIE_INCLUDES = [
@@ -38,6 +39,10 @@ exports.create = asyncHandler(async (req, res) => {
   if (!vehicle) {
     return res.status(400).json({ message: 'Véhicule introuvable' });
   }
+  // Multi-sites : on ne peut créer une sortie qu'avec un véhicule du site autorisé.
+  if (vehicle.site_id !== req.user.site_id) {
+    return res.status(400).json({ message: 'Véhicule introuvable' });
+  }
   if (UNUSABLE_VEHICLE_STATUSES.includes(vehicle.status)) {
     return res.status(400).json({ message: 'Véhicule indisponible' });
   }
@@ -55,8 +60,9 @@ exports.create = asyncHandler(async (req, res) => {
 
   if (driver_employee_id) {
     const driver = await Employee.findByPk(driver_employee_id);
-    if (!driver || driver.role !== 'chauffeur') {
-      return res.status(400).json({ message: 'Le chauffeur affecté doit être un compte avec le rôle chauffeur' });
+    // Le chauffeur doit être un compte 'chauffeur' du MÊME site que la sortie.
+    if (!driver || driver.role !== 'chauffeur' || driver.site_id !== req.user.site_id) {
+      return res.status(400).json({ message: 'Le chauffeur affecté doit être un compte avec le rôle chauffeur du site' });
     }
   }
 
@@ -65,6 +71,7 @@ exports.create = asyncHandler(async (req, res) => {
     driver_employee_id: driver_employee_id || null,
     departure_km: departure_km || null,
     status: 'planned',
+    site_id: req.user.site_id,
   });
 
   vehicle.status = 'busy';
@@ -88,7 +95,7 @@ exports.create = asyncHandler(async (req, res) => {
 exports.lastForVehicle = asyncHandler(async (req, res) => {
   const { vehicleId } = req.params;
   const sortie = await Sortie.findOne({
-    where: { vehicle_id: vehicleId },
+    where: { vehicle_id: vehicleId, deleted_at: null, ...scopeWhere(req) },
     order: [['createdAt', 'DESC']],
   });
   res.json(sortie);
@@ -98,6 +105,7 @@ exports.lastForVehicle = asyncHandler(async (req, res) => {
 exports.suggestions = asyncHandler(async (req, res) => {
   const sortie = await Sortie.findByPk(req.params.id, { include: Vehicle });
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+  requireSiteAccess(req, sortie.site_id);
 
   const compatible = await sortieService.findCompatibleRequests(
     sortie.id,
@@ -115,6 +123,12 @@ exports.addRequest = asyncHandler(async (req, res) => {
   if (!request_id) {
     return res.status(400).json({ message: 'request_id est requis' });
   }
+
+  // Multi-sites : le chef ne peut ajouter que des demandes de son site à une
+  // sortie de son site (le service revalide la cohérence site en interne).
+  const sortieForScope = await Sortie.findByPk(req.params.id);
+  if (!sortieForScope) return res.status(404).json({ message: 'Sortie introuvable' });
+  requireSiteAccess(req, sortieForScope.site_id);
 
   // Le service central garantit : compatibilité (destination, fenêtre horaire,
   // capacité), unicité d'un lien par groupe, et impossibilité de perdre une
@@ -141,6 +155,7 @@ exports.addRequest = asyncHandler(async (req, res) => {
     message: `Demande de ${request.employee_id} intégrée à la sortie vers ${sortie.destination}`,
     type: 'sortie_updated',
     excludeUserId: req.user.id,
+    site_id: sortie.site_id ?? null,
   });
   notifyChiefs('sortie_updated', sortie);
 
@@ -156,6 +171,7 @@ exports.updateStatus = asyncHandler(async (req, res) => {
 
   const sortie = await Sortie.findByPk(req.params.id);
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+  requireSiteAccess(req, sortie.site_id);
 
   const allowedTransitions = {
     planned: ['ongoing'],
@@ -231,6 +247,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   if (destination) where.destination = { [Op.iLike]: `%${destination}%` };
   if (date_from) where.departure_time = { ...where.departure_time, [Op.gte]: new Date(date_from) };
   if (date_to) where.departure_time = { ...where.departure_time, [Op.lte]: new Date(date_to) };
+  Object.assign(where, scopeWhere(req), { deleted_at: null });
 
   const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
   const { count, rows } = await Sortie.findAndCountAll({
@@ -257,6 +274,7 @@ exports.depart = asyncHandler(async (req, res) => {
   const { departure_km } = req.body;
   const sortie = await Sortie.findByPk(req.params.id);
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+  requireSiteAccess(req, sortie.site_id);
   if (sortie.status !== 'planned') {
     return res.status(400).json({ message: 'Seules les sorties planifiées peuvent démarrer' });
   }
@@ -282,9 +300,10 @@ exports.depart = asyncHandler(async (req, res) => {
 
 // Enregistrer l'arrivée (km arrivée) et terminer la sortie
 exports.arrivee = asyncHandler(async (req, res) => {
-  const { arrival_km } = req.body;
+  const { arrival_km, returned_at } = req.body;
   const sortie = await Sortie.findByPk(req.params.id);
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+  requireSiteAccess(req, sortie.site_id);
   if (sortie.status !== 'ongoing') {
     return res.status(400).json({ message: 'Seules les sorties en cours peuvent enregistrer l\'arrivée' });
   }
@@ -297,6 +316,7 @@ exports.arrivee = asyncHandler(async (req, res) => {
 
   sortie.arrival_km = arrival_km;
   sortie.distance_km = arrival_km - sortie.departure_km;
+  sortie.returned_at = returned_at ? new Date(returned_at) : new Date();
   sortie.status = 'finished';
   await sortie.save();
 
@@ -323,6 +343,7 @@ exports.arrivee = asyncHandler(async (req, res) => {
 exports.update = asyncHandler(async (req, res) => {
   const sortie = await Sortie.findByPk(req.params.id);
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+  requireSiteAccess(req, sortie.site_id);
   if (sortie.status !== 'planned') {
     return res.status(400).json({ message: 'Seules les sorties planifiées peuvent être modifiées' });
   }
@@ -343,8 +364,8 @@ exports.update = asyncHandler(async (req, res) => {
 
     if (newDriverId !== null) {
       const driver = await Employee.findByPk(newDriverId);
-      if (!driver || driver.role !== 'chauffeur') {
-        return res.status(400).json({ message: 'Le chauffeur affecté doit être un compte avec le rôle chauffeur' });
+      if (!driver || driver.role !== 'chauffeur' || driver.site_id !== sortie.site_id) {
+        return res.status(400).json({ message: 'Le chauffeur affecté doit être un compte avec le rôle chauffeur du site' });
       }
       sortie.driver_employee_id = driver.id;
     } else {
@@ -362,7 +383,7 @@ exports.update = asyncHandler(async (req, res) => {
   if (vehicle_id && vehicle_id !== sortie.vehicle_id) {
     const oldVehicle = await Vehicle.findByPk(sortie.vehicle_id);
     const newVehicle = await Vehicle.findByPk(vehicle_id);
-    if (!newVehicle || newVehicle.status !== 'available') {
+    if (!newVehicle || newVehicle.status !== 'available' || newVehicle.site_id !== sortie.site_id) {
       return res.status(400).json({ message: 'Nouveau véhicule indisponible' });
     }
     if (oldVehicle) { oldVehicle.status = 'available'; await oldVehicle.save(); }
@@ -416,6 +437,7 @@ exports.update = asyncHandler(async (req, res) => {
       message: `Sortie vers ${sortie.destination} modifiée (${changedBits.join('; ')}).`,
       type: 'sortie_updated',
       excludeUserId: req.user.id,
+      site_id: sortie.site_id ?? null,
     });
   }
 
@@ -426,14 +448,13 @@ exports.update = asyncHandler(async (req, res) => {
 exports.remove = asyncHandler(async (req, res) => {
   const sortie = await Sortie.findByPk(req.params.id);
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+  requireSiteAccess(req, sortie.site_id);
   if (sortie.status !== 'planned' && sortie.status !== 'finished') {
     return res.status(400).json({ message: 'Seules les sorties planifiées ou terminées peuvent être supprimées' });
   }
 
   await vehicleService.setAvailable(sortie.vehicle_id);
 
-  // Annulation : notifie les passagers liés + le chauffeur + les chefs
-  // (DB + push). Récupéré AVANT de détruire les liens.
   const linkedIds = await notificationService.getLinkedEmployeeIds(sortie);
   if (sortie.driver_employee_id) linkedIds.push(sortie.driver_employee_id);
   const cancelMessage = `La sortie vers ${sortie.destination} prévue le ${new Date(sortie.departure_time).toLocaleString('fr-FR')} a été annulée.`;
@@ -446,14 +467,21 @@ exports.remove = asyncHandler(async (req, res) => {
     message: `Sortie vers ${sortie.destination} supprimée`,
     type: 'sortie_cancelled',
     excludeUserId: req.user.id,
+    site_id: sortie.site_id ?? null,
   });
 
-  await SortieRequest.destroy({ where: { sortie_id: sortie.id } });
-  await sortie.destroy();
+  if (sortie.status === 'finished') {
+    // Conserver les liens SortieRequest pour l'historique kilométrique / passagers
+    sortie.deleted_at = new Date();
+    await sortie.save();
+  } else {
+    await SortieRequest.destroy({ where: { sortie_id: sortie.id } });
+    await sortie.destroy();
+  }
 
   await logAudit({ userId: req.user.id, action: 'delete', entity: 'Sortie', entityId: sortie.id, oldValue: { destination: sortie.destination, status: sortie.status }, req });
 
-  notifyChiefs('sortie_updated', { id: sortie.id, deleted: true });
+  notifyChiefs('sortie_updated', { id: sortie.id, deleted: true }, sortie.site_id);
   res.json({ message: 'Sortie supprimée' });
 });
 
@@ -462,6 +490,7 @@ exports.employeeReturn = asyncHandler(async (req, res) => {
   const { departure_km, return_km, returned_at } = req.body;
   const sortie = await Sortie.findByPk(req.params.id);
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+  requireSiteAccess(req, sortie.site_id);
 
   if (sortie.status !== 'ongoing') {
     return res.status(400).json({ message: 'Seules les sorties en cours peuvent être retournées' });
@@ -512,6 +541,7 @@ exports.employeeReturn = asyncHandler(async (req, res) => {
       message: `Toutes les motos de la sortie vers ${sortie.destination} sont revenues. En attente de validation.`,
       type: 'return_marked',
       excludeUserId: req.user.id,
+      site_id: sortie.site_id ?? null,
     });
   }
 
@@ -523,6 +553,7 @@ exports.employeeReturn = asyncHandler(async (req, res) => {
 exports.validateReturn = asyncHandler(async (req, res) => {
   const sortie = await Sortie.findByPk(req.params.id);
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+  requireSiteAccess(req, sortie.site_id);
 
   if (sortie.status !== 'pending_return') {
     return res.status(400).json({ message: 'Seules les sorties en attente de retour peuvent être validées' });
@@ -564,7 +595,7 @@ exports.validateReturn = asyncHandler(async (req, res) => {
 // Employé : voir les sorties planifiées disponibles pour rejoindre
 exports.planned = asyncHandler(async (req, res) => {
   const sorties = await Sortie.findAll({
-    where: { status: 'planned' },
+    where: { status: 'planned', ...scopeWhere(req) },
     include: [
       { model: Vehicle, attributes: ['id', 'type', 'capacity', 'name'] },
       { model: Employee, as: 'driver', attributes: ['nom', 'prenom'] },
@@ -603,6 +634,7 @@ exports.planned = asyncHandler(async (req, res) => {
 exports.join = asyncHandler(async (req, res) => {
   const sortie = await Sortie.findByPk(req.params.id, { include: [Vehicle] });
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+  requireSiteAccess(req, sortie.site_id);
   if (sortie.status !== 'planned') {
     return res.status(400).json({ message: 'Cette sortie n\'est plus disponible' });
   }
@@ -641,6 +673,7 @@ exports.join = asyncHandler(async (req, res) => {
     date_souhaitee: sortie.departure_time,
     nb_personnes: nbPersonnes,
     status: 'approved',
+    site_id: req.user.site_id,
   });
 
   await SortieRequest.create({ sortie_id: sortie.id, request_id: request.id, status: 'pending' });

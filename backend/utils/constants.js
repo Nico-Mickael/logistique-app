@@ -3,12 +3,14 @@
  * Sources de vérité uniques pour routes, contrôleurs et services.
  */
 
-// Rôles "chef" (accès aux modules logistique : demandes, sorties, véhicules, stats)
-const CHIEF_ROLES = ['admin','superadmin'];
+// Rôles "chef" (accès aux modules logistique : demandes, sorties, véhicules, stats).
+// `logistics_chief` est l'ancien nom du rôle Admin (conservé pour compatibilité
+// avec les comptes existants) — il est scoped au site comme `admin`.
+const CHIEF_ROLES = ['admin', 'superadmin', 'logistics_chief'];
 const ALL_ROLES = ['employee', 'chauffeur', ...CHIEF_ROLES];
 // Rôles attribuables à la création d'un compte
 // (pas de superadmin via import/register classique ; 'admin' est un chef de niveau intermédiaire)
-const ASSIGNABLE_ROLES = ['employee', 'chauffeur', 'admin', 'superadmin'];
+const ASSIGNABLE_ROLES = ['employee', 'chauffeur', 'admin', 'logistics_chief', 'superadmin'];
 
 // Demandes de transport
 const ACTIVE_REQUEST_STATUSES = ['pending', 'approved', 'rescheduled'];

@@ -11,6 +11,7 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
   Vehicle.hasMany(models.Sortie, { foreignKey: 'vehicle_id' });
+  Vehicle.belongsTo(models.Site, { foreignKey: 'site_id' });
 }
   }
   Vehicle.init({
@@ -20,7 +21,8 @@ module.exports = (sequelize, DataTypes) => {
     status: DataTypes.STRING,
     maintenance_until: DataTypes.DATE,
     fuel_type: DataTypes.STRING,
-    current_km: DataTypes.INTEGER
+    current_km: DataTypes.INTEGER,
+    site_id: DataTypes.INTEGER
   }, {
     sequelize,
     modelName: 'Vehicle',

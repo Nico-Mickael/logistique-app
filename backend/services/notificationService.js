@@ -93,12 +93,17 @@ async function notifyRecipients({ sortie, type, recipients, message, excludeUser
 
 /**
  * Récupère l'ensemble des employés (tous rôles confondus) hormis le créateur.
+ * Multi-sites : si `siteId` est fourni, uniquement les employés de CE site
+ * (une sortie ne concerne jamais les utilisateurs d'un autre site).
  */
-async function getAllEmployeeIds(excludeUserId) {
+async function getAllEmployeeIds(excludeUserId, siteId) {
   const { models } = getDeps();
   const { Employee } = models;
+  const where = {};
+  if (excludeUserId) where.id = { [Op.ne]: excludeUserId };
+  if (siteId != null) where.site_id = siteId;
   const rows = await Employee.findAll({
-    where: excludeUserId ? { id: { [Op.ne]: excludeUserId } } : undefined,
+    where,
     attributes: ['id'],
   });
   return rows.map((e) => e.id);
@@ -111,7 +116,7 @@ async function getAllEmployeeIds(excludeUserId) {
  * notification d'affectation (notifyDriverAssigned) pour éviter le doublon.
  */
 exports.notifySortieCreated = async ({ sortie, vehicle, driver, creatorId }) => {
-  const allIds = await getAllEmployeeIds(creatorId);
+  const allIds = await getAllEmployeeIds(creatorId, sortie.site_id ?? null);
   const driverId = Number(sortie.driver_employee_id);
   const recipients = allIds.filter((id) => id !== driverId);
 
@@ -127,6 +132,7 @@ exports.notifySortieCreated = async ({ sortie, vehicle, driver, creatorId }) => 
     message: `Nouvelle sortie planifiée vers ${sortie.destination}${sortie.motif ? ` — ${sortie.motif}` : ''}`,
     type: EVENT_TYPES.SORTIE_CREATED,
     excludeUserId: creatorId,
+    site_id: sortie.site_id ?? null,
   });
 };
 

@@ -42,7 +42,7 @@ exports.mine = asyncHandler(async (req, res) => {
   const dbUser = await assertDriver(req, null);
 
   const sorties = await Sortie.findAll({
-    where: { driver_employee_id: dbUser.id },
+    where: { driver_employee_id: dbUser.id, deleted_at: null },
     include: [
       Vehicle,
       { model: Request, through: { attributes: ['departure_km', 'return_km', 'distance_km', 'status', 'returned_at'] }, include: [Employee] },
@@ -99,7 +99,7 @@ exports.depart = asyncHandler(async (req, res) => {
 
 // Arrivée : le chauffeur saisit le km d'arrivée, dist calculée, sortie terminée
 exports.arrivee = asyncHandler(async (req, res) => {
-  const { arrival_km } = req.body;
+  const { arrival_km, returned_at } = req.body;
   const { dbUser, sortie } = await assertDriver(req, req.params.id);
 
   if (sortie.status !== 'ongoing') {
@@ -118,6 +118,7 @@ exports.arrivee = asyncHandler(async (req, res) => {
 
   sortie.arrival_km = km;
   sortie.distance_km = km - sortie.departure_km;
+  sortie.returned_at = returned_at ? new Date(returned_at) : new Date();
   sortie.status = 'finished';
   await sortie.save();
 

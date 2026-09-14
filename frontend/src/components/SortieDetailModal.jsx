@@ -60,17 +60,21 @@ export default function SortieDetailModal({ opened, onClose, sortie }) {
 
       <Divider my="xs" />
 
-      {!isMoto && (
-        <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs" mb="sm">
-          <Text size="xs" c="dimmed">Km départ</Text>
-          <Text size="sm">{sortie.departure_km ?? '—'}</Text>
-          <Text size="xs" c="dimmed">Km arrivée</Text>
-          <Text size="sm">{sortie.arrival_km ?? '—'}</Text>
-          <Text size="xs" c="dimmed">Km retour</Text>
-          <Text size="sm">{sortie.return_km ?? '—'}</Text>
-          <Text size="xs" c="dimmed">Distance</Text>
-          <Text size="sm">{sortie.distance_km != null ? `${sortie.distance_km} km` : '—'}</Text>
-        </SimpleGrid>
+      {(sortie.departure_km != null || sortie.arrival_km != null || sortie.return_km != null || sortie.distance_km != null) && (
+        <Group gap="xl" align="start" mb="sm" wrap="wrap">
+          <Stack gap={2}>
+            <Text size="xs" c="dimmed">Km départ</Text>
+            <Text size="sm" fw={600}>{sortie.departure_km ?? '—'}</Text>
+          </Stack>
+          <Stack gap={2}>
+            <Text size="xs" c="dimmed">Km arrivée</Text>
+            <Text size="sm" fw={600}>{sortie.arrival_km ?? '—'}</Text>
+          </Stack>
+          <Stack gap={2}>
+            <Text size="xs" c="dimmed">Distance</Text>
+            <Text size="sm" fw={600}>{sortie.distance_km != null ? `${sortie.distance_km} km` : '—'}</Text>
+          </Stack>
+        </Group>
       )}
 
       {sortie.previous_departure_time && (

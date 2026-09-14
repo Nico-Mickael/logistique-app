@@ -12,6 +12,7 @@ const sortieRoutes = require('./routes/sortieRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const pushRoutes = require('./routes/pushRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
+const siteRoutes = require('./routes/siteRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 const exportRoutes = require('./routes/exportRoutes');
 const { setupSocket } = require('./services/socketService');
@@ -44,6 +45,7 @@ app.use('/api/sorties', sortieRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/sites', siteRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/export', exportRoutes);
 

@@ -7,6 +7,7 @@ const { notifyChiefs } = require('../services/socketService');
 const { autoCreateSortie, isSameCalendarDay, normalizeDestination } = require('../services/sortieService');
 const vehicleService = require('../services/vehicleService');
 const { logAudit } = require('../services/auditService');
+const { scopeWhere, getResolvedSiteId, requireSiteAccess } = require('../middlewares/siteContext');
 
 // Employé : créer une demande
 exports.create = asyncHandler(async (req, res) => {
@@ -14,6 +15,11 @@ exports.create = asyncHandler(async (req, res) => {
 
   if (vehicle_id) {
     const vehicle = await Vehicle.findByPk(vehicle_id);
+    // Multi-sites : un véhicule d'un autre site ne doit jamais être visible
+    // ni demandable (même réponse qu'un véhicule inexistant).
+    if (!vehicle || (vehicle.site_id != null && vehicle.site_id !== req.user.site_id)) {
+      return res.status(400).json({ message: 'Véhicule indisponible' });
+    }
     // Tant que la sortie n'a pas démarré, le véhicule reste demandable même si
     // une sortie est déjà planifiée dessus (le véhicule est alors "busy").
     const startedSortie = vehicle
@@ -54,6 +60,9 @@ exports.create = asyncHandler(async (req, res) => {
     date_souhaitee,
     nb_personnes,
     status: 'pending',
+    // Le site vient TOUJOURS de l'utilisateur authentifié : un éventuel
+    // `siteId` envoyé par le client est ignoré (isolation côté serveur).
+    site_id: req.user.site_id,
   });
 
   const creator = await Employee.findByPk(req.user.id, { attributes: ['id', 'nom', 'prenom'] });
@@ -61,6 +70,7 @@ exports.create = asyncHandler(async (req, res) => {
     message: `Nouvelle demande de ${creator ? `${creator.prenom} ${creator.nom}` : 'un employé'} vers ${request.destination}`,
     type: 'new_request',
     excludeUserId: req.user.id,
+    site_id: req.user.site_id,
   });
 
   await logAudit({ userId: req.user.id, action: 'create', entity: 'Request', entityId: request.id, newValue: { destination, motif, date_souhaitee, nb_personnes, vehicle_id }, req });
@@ -95,6 +105,7 @@ exports.all = asyncHandler(async (req, res) => {
   if (destination) where.destination = { [Op.iLike]: `%${destination}%` };
   if (date_from) where.date_souhaitee = { ...where.date_souhaitee, [Op.gte]: new Date(date_from) };
   if (date_to) where.date_souhaitee = { ...where.date_souhaitee, [Op.lte]: new Date(date_to) };
+  Object.assign(where, scopeWhere(req));
 
   const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
   const { count, rows } = await Request.findAndCountAll({
@@ -127,6 +138,7 @@ exports.toProcess = asyncHandler(async (req, res) => {
     where: {
       status: 'approved',
       id: { [Op.notIn]: sequelize.literal('(SELECT "request_id" FROM "SortieRequests")') },
+      ...scopeWhere(req),
     },
     include: [
       { model: Employee, attributes: ['id', 'nom', 'prenom', 'department'] },
@@ -175,13 +187,17 @@ exports.assignVehicle = asyncHandler(async (req, res) => {
   const { vehicle_id } = req.body;
   const request = await Request.findByPk(req.params.id);
   if (!request) return res.status(404).json({ message: 'Demande introuvable' });
+  requireSiteAccess(req, request.site_id);
   if (request.status !== 'approved') {
     return res.status(400).json({ message: 'Seules les demandes validées peuvent être réaffectées' });
   }
   if (!vehicle_id) return res.status(400).json({ message: 'Véhicule requis' });
 
   const vehicle = await Vehicle.findByPk(vehicle_id);
-  if (!vehicle) return res.status(404).json({ message: 'Véhicule introuvable' });
+  // Un véhicule d'un autre site ne peut jamais être affecté à cette demande.
+  if (!vehicle || vehicle.site_id !== request.site_id) {
+    return res.status(404).json({ message: 'Véhicule introuvable' });
+  }
 
   // Même garde que la création de demande : pas de sortie démarrée, pas de
   // panne/maintenance, pas de places complètes pour la date.
@@ -266,6 +282,7 @@ exports.updateStatus = asyncHandler(async (req, res) => {
   if (!request) {
     return res.status(404).json({ message: 'Demande introuvable' });
   }
+  requireSiteAccess(req, request.site_id);
 
   if (!['approved', 'rejected', 'rescheduled'].includes(status)) {
     return res.status(400).json({ message: 'Statut invalide' });
@@ -323,6 +340,7 @@ exports.cancel = asyncHandler(async (req, res) => {
   const request = await Request.findByPk(req.params.id);
 
   if (!request) return res.status(404).json({ message: 'Demande introuvable' });
+  requireSiteAccess(req, request.site_id);
   if (request.employee_id !== req.user.id) {
     return res.status(403).json({ message: 'Action non autorisée' });
   }
@@ -354,7 +372,7 @@ exports.cancel = asyncHandler(async (req, res) => {
         const sortie = await Sortie.findByPk(sortieId);
         if (sortie && sortie.status === 'planned') {
           await sortie.destroy();
-          notifyChiefs('sortie_updated', { id: sortie.id, deleted: true });
+          notifyChiefs('sortie_updated', { id: sortie.id, deleted: true }, sortie.site_id);
         }
       }
     }
@@ -371,6 +389,7 @@ exports.cancel = asyncHandler(async (req, res) => {
     message: `Demande vers ${request.destination} annulée par un employé`,
     type: 'cancelled',
     excludeUserId: req.user.id,
+    site_id: request.site_id,
   });
 
   res.json(request);
@@ -380,6 +399,7 @@ exports.cancel = asyncHandler(async (req, res) => {
 exports.update = asyncHandler(async (req, res) => {
   const request = await Request.findByPk(req.params.id);
   if (!request) return res.status(404).json({ message: 'Demande introuvable' });
+  requireSiteAccess(req, request.site_id);
   if (request.employee_id !== req.user.id) {
     return res.status(403).json({ message: 'Action non autorisée' });
   }
@@ -409,6 +429,7 @@ exports.respondReschedule = asyncHandler(async (req, res) => {
   const request = await Request.findByPk(req.params.id);
 
   if (!request) return res.status(404).json({ message: 'Demande introuvable' });
+  requireSiteAccess(req, request.site_id);
   if (request.employee_id !== req.user.id) {
     return res.status(403).json({ message: 'Action non autorisée' });
   }
@@ -443,6 +464,7 @@ exports.respondReschedule = asyncHandler(async (req, res) => {
 exports.remove = asyncHandler(async (req, res) => {
   const request = await Request.findByPk(req.params.id);
   if (!request) return res.status(404).json({ message: 'Demande introuvable' });
+  requireSiteAccess(req, request.site_id);
 
   const isOwner = request.employee_id === req.user.id;
   const isChief = CHIEF_ROLES.includes(req.user.role);
@@ -465,7 +487,7 @@ exports.remove = asyncHandler(async (req, res) => {
           const wasVehicleId = sortie.vehicle_id;
           await sortie.destroy();
           await vehicleService.releaseIfIdle(wasVehicleId);
-          notifyChiefs('sortie_updated', { id: sortie.id, deleted: true });
+          notifyChiefs('sortie_updated', { id: sortie.id, deleted: true }, sortie.site_id);
         }
       }
     }
@@ -481,6 +503,7 @@ exports.remove = asyncHandler(async (req, res) => {
       message: `Demande vers ${request.destination} supprimée par un employé`,
       type: 'deleted',
       excludeUserId: req.user.id,
+      site_id: request.site_id,
     });
   } else if (isChief && !isOwner) {
     await createNotification({

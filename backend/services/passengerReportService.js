@@ -129,12 +129,18 @@ function toReportRow(sortie) {
  * Requête unique du rapport : sorties effectuées + passagers validés.
  * @returns {Promise<{error?, status?, data?}>}
  */
-exports.findReport = async (query) => {
+exports.findReport = async (query, options = {}) => {
   const { models } = getDeps();
   const { Sortie, Vehicle, Employee, Request } = models;
 
   const { error, status, where, vehicleWhere } = exports.buildFilters(query);
   if (error) return { error, status: status || 400 };
+
+  // Multi-sites : filtre d'isolation (undefined = superadmin sans filtre → tout).
+  const site_id = options.site_id;
+  if (site_id != null) {
+    where.site_id = site_id;
+  }
 
   const vehicleInclude = { model: Vehicle, attributes: ['id', 'type', 'capacity', 'name'] };
   if (vehicleWhere) {

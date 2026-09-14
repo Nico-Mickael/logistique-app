@@ -106,11 +106,16 @@ exports.createNotification = async ({ user_id, message, type, entity_type, entit
   return notif;
 };
 
-// Notifie tous les comptes "chef" (logistics_chief, admin, superadmin)
+// Notifie tous les comptes "chef" (superadmin, admin, logistics_chief)
 // avec une notification persistée en base (visible dans la cloche).
-exports.notifyChiefsDb = async ({ message, type, excludeUserId }) => {
+// Multi-sites : si `site_id` est fourni, seuls les chefs de CE site sont
+// notifiés (isolation par site). Sans `site_id` (événement global), tous.
+exports.notifyChiefsDb = async ({ message, type, excludeUserId, site_id }) => {
   const chiefs = await Employee.findAll({
-    where: { role: { [Op.in]: CHIEF_ROLES } },
+    where: {
+      role: { [Op.in]: CHIEF_ROLES },
+      ...(site_id != null ? { site_id } : {}),
+    },
     attributes: ['id'],
   });
 

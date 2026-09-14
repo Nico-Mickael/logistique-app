@@ -4,12 +4,13 @@ import {
   TextInput, Select, Stack, NumberInput, SimpleGrid, Flex, SegmentedControl, Pagination, ScrollArea, Menu, ActionIcon,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
-import { DateTimePicker } from '@mantine/dates';
+import { DateTimePicker, TimeInput } from '@mantine/dates';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconNote, IconEye, IconDotsVertical } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import SortieDetailModal from '../../components/SortieDetailModal';
-import SortieCard, { vehicleOptionsFor, chauffeurOptions } from '../../components/SortieCard';
+import SortieCard from '../../components/SortieCard';
+import { vehicleOptionsFor, chauffeurOptions } from '../../utils/sortieOptions';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { vehicleService } from '../../api/vehicleService';
@@ -63,6 +64,7 @@ function Sorties() {
 
   const [arriveeOpened, { open: openArrivee, close: closeArrivee }] = useDisclosure(false);
   const [arrivalKm, setArrivalKm] = useState(0);
+  const [arrivalTime, setArrivalTime] = useState('');
   const [saving, setSaving] = useState(false);
 
   const [suggestions, setSuggestions] = useState([]);
@@ -240,15 +242,20 @@ function Sorties() {
     finally { setActionLoading(null); }
   };
 
-  const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); openArrivee(); };
+const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArrivalTime(''); openArrivee(); };
   const handleArrivee = async () => {
     const km = Number(arrivalKm);
     if (!km || km <= 0) { notifyError('Saisissez un kilométrage valide'); return; }
     if (selectedSortie && km < Number(selectedSortie.departure_km)) { notifyError("Le km d'arrivée ne peut pas être inférieur au km de départ"); return; }
+    if (!arrivalTime) { notifyError('Sélectionnez l\'heure de retour'); return; }
     setActionLoading('arrivee');
-    try { await sortieService.arrivee(selectedSortie.id, km); notifySuccess('Arrivée enregistrée'); closeArrivee(); fetchSorties(page); }
+    try {
+      const dateBase = dayjs(selectedSortie.departure_time).format('YYYY-MM-DD');
+      const returnedAt = new Date(`${dateBase}T${arrivalTime}`);
+      await sortieService.arrivee(selectedSortie.id, { arrival_km: km, returned_at: returnedAt });
+      notifySuccess('Arrivée enregistrée'); closeArrivee(); fetchSorties(page);
+    }
     catch { notifyError("Erreur lors de l'enregistrement de l'arrivée"); }
-    finally { setActionLoading(null); }
   };
 
   const handleValidateReturn = async () => {
@@ -354,6 +361,9 @@ function Sorties() {
           const anyDone = done.some((r) => r.SortieRequest?.departure_km != null && r.SortieRequest?.return_km != null);
           if (anyDone) {
             return <Text size="sm">{done.map((r) => `${r.SortieRequest.departure_km}→${r.SortieRequest.return_km}`).join(', ')}</Text>;
+          }
+          if (s.status === 'finished' && (s.departure_km != null || s.arrival_km != null || s.distance_km != null)) {
+            return <Text size="sm">{s.departure_km ?? ''} → {s.arrival_km ?? ''} ({s.distance_km ?? ''} km)</Text>;
           }
           return s.status === 'ongoing' ? <Text size="xs" c="dimmed">individuels en cours</Text> : '—';
         }
@@ -603,6 +613,9 @@ function Sorties() {
           <TextInput label="Destination" value={selectedSortie?.destination || ''} disabled radius="md" />
           <NumberInput label="Kilométrage à l'arrivée" placeholder="Ex: 13000" min={0}
             value={arrivalKm} onChange={setArrivalKm} required radius="md"
+          />
+          <TimeInput label="Heure de retour" withSeconds={false}
+            value={arrivalTime} onChange={(e) => setArrivalTime(e.currentTarget.value)} required radius="md"
           />
           <Group justify="end" mt="md">
             <Button variant="default" onClick={closeArrivee} radius="md">Annuler</Button>

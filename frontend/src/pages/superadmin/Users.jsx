@@ -10,12 +10,14 @@ import EmptyState from '../../components/EmptyState';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import { employeeService } from '../../api/employeeService';
+import { siteService } from '../../api/siteService';
+import { getSiteOverride } from '../../api/axios';
 import { accentColor } from '../../utils/labels';
 import ConfirmModal from '../../components/ConfirmModal';
 
 const roleLabels = {
   superadmin: 'Superadmin',
-  logistics_chief: 'Chef logistique',
+  logistics_chief: 'Admin',
   chauffeur: 'Chauffeur',
   employee: 'Employé',
 };
@@ -41,6 +43,7 @@ function UserCard({ u, onEdit, onDelete }) {
       <Stack gap={4} mb="md">
         <Text size="sm"><Text span c="dimmed">Email: </Text>{u.email}</Text>
         {u.department && <Text size="sm"><Text span c="dimmed">Département: </Text>{u.department}</Text>}
+        <Text size="sm"><Text span c="dimmed">Site: </Text>{u.Site?.name || '—'}</Text>
       </Stack>
       <Group gap="xs">
         <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => onEdit(u)}>Modifier</Button>
@@ -54,6 +57,7 @@ function UserCard({ u, onEdit, onDelete }) {
 
 export default function Users() {
   const [users, setUsers] = useState([]);
+  const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [opened, { open, close }] = useDisclosure(false);
   const [editUser, setEditUser] = useState(null);
@@ -64,9 +68,16 @@ export default function Users() {
   const pageSize = 10;
   const isMobile = useMediaQuery('(max-width: 767px)');
 
-  const [form, setForm] = useState({ nom: '', prenom: '', email: '', password: '', department: '', role: 'employee' });
+  const [form, setForm] = useState({ nom: '', prenom: '', email: '', password: '', department: '', role: 'employee', siteId: '' });
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    siteService
+      .list()
+      .then(({ data }) => setSites(Array.isArray(data) ? data : []))
+      .catch(() => setSites([]));
+  }, []);
 
   const fetchUsers = async () => {
     try {
@@ -100,7 +111,8 @@ export default function Users() {
 
   const openCreate = () => {
     setEditUser(null);
-    setForm({ nom: '', prenom: '', email: '', password: '', department: '', role: 'employee' });
+    const override = getSiteOverride();
+    setForm({ nom: '', prenom: '', email: '', password: '', department: '', role: 'employee', siteId: override != null ? String(override) : '' });
     open();
   };
 
@@ -127,7 +139,13 @@ export default function Users() {
         await employeeService.update(editUser.id, payload);
         notifySuccess('Utilisateur modifié');
       } else {
-        await employeeService.create(form);
+        await employeeService.create({
+          ...form,
+          nom: form.nom.trim(),
+          prenom: form.prenom.trim(),
+          email: form.email.trim(),
+          siteId: form.siteId ? Number(form.siteId) : undefined,
+        });
         notifySuccess('Utilisateur créé');
       }
       close();
@@ -160,6 +178,14 @@ export default function Users() {
     {
       accessor: 'role', title: 'Rôle', sortable: true,
       render: (u) => <Badge color={roleColors[u.role] || 'gray'} variant="light">{roleLabels[u.role] || u.role}</Badge>,
+    },
+    {
+      accessor: 'Site.name', title: 'Site', sortable: false,
+      render: (u) => (u.Site?.name ? (
+        <Badge color="teal" variant="light">{u.Site.name}</Badge>
+      ) : (
+        <Text size="sm" c="dimmed">—</Text>
+      )),
     },
     {
       accessor: 'actions', title: '',
@@ -258,10 +284,16 @@ export default function Users() {
             <TextInput label="Mot de passe" w="100%" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.currentTarget.value })}
               placeholder={editUser ? 'Laisser vide pour conserver' : ''} required={!editUser} radius="md" autoComplete="new-password" />
             <TextInput label="Département" w="100%" value={form.department} onChange={(e) => setForm({ ...form, department: e.currentTarget.value })} radius="md" autoComplete="off" />
+            {!editUser && (
+              <Select label="Site" w="100%" data={[
+                ...sites.map((s) => ({ value: String(s.id), label: s.name })),
+              ]} value={form.siteId} onChange={(v) => setForm({ ...form, siteId: v || '' })} radius="md"
+                placeholder="Site par défaut" searchable clearable />
+            )}
             <Select label="Rôle" w="100%" data={[
               { value: 'employee', label: 'Employé' },
               { value: 'chauffeur', label: 'Chauffeur' },
-              { value: 'logistics_chief', label: 'Chef logistique' },
+              { value: 'logistics_chief', label: 'Admin' },
               { value: 'superadmin', label: 'Superadmin' },
             ]} value={form.role} onChange={(v) => setForm({ ...form, role: v || 'employee' })} required radius="md" />
           </SimpleGrid>

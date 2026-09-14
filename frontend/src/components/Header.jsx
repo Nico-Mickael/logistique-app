@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Group, Text, ActionIcon, Popover, Stack, UnstyledButton, Badge,
   Button, Loader, Center, ScrollArea, Burger, Avatar, Tooltip, Divider,
-  useMantineColorScheme,
+  Select, useMantineColorScheme,
 } from '@mantine/core';
-import { IconBell, IconLogout, IconX } from '@tabler/icons-react';
+import { IconBell, IconLogout, IconX, IconBuilding } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { notificationService } from '../api/notificationService';
+import { siteService } from '../api/siteService';
+import { getSiteOverride, setSiteOverride } from '../api/axios';
 import Logo from './Logo';
-import PushSettingsPopover from './PushSettingsPopover';
 
 function initials(user) {
   if (!user) return '';
@@ -23,9 +24,40 @@ function Header({ opened: navOpened, onToggle }) {
   const { colorScheme } = useMantineColorScheme();
   const dark = colorScheme === 'dark';
   const navigate = useNavigate();
+  const isSuperadmin = user?.role === 'superadmin';
+  const [sites, setSites] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loadingNotif, setLoadingNotif] = useState(false);
   const [notifOpened, setNotifOpened] = useState(false);
+
+  const currentSiteName = useMemo(() => {
+    if (isSuperadmin) {
+      const override = getSiteOverride();
+      if (override == null) return 'Tous les sites';
+      return sites.find((s) => s.id === override)?.name || null;
+    }
+    return sites.find((s) => s.id === user?.site_id)?.name || null;
+  }, [sites, isSuperadmin, user?.site_id]);
+
+  useEffect(() => {
+    siteService
+      .list()
+      .then(({ data }) => setSites(Array.isArray(data) ? data : []))
+      .catch(() => setSites([]));
+  }, []);
+
+  const handleSiteChange = (value) => {
+    setSiteOverride(value && value !== '' ? Number(value) : null);
+    window.location.reload();
+  };
+
+  const siteOptions = useMemo(
+    () => [
+      { value: '', label: 'Tous les sites' },
+      ...sites.map((s) => ({ value: String(s.id), label: s.name })),
+    ],
+    [sites]
+  );
 
   const fetchNotifications = async () => {
     try {
@@ -86,6 +118,39 @@ function Header({ opened: navOpened, onToggle }) {
     <Group h="100%" px={{ base: 'xs', sm: 'md' }} justify="space-between" wrap="nowrap" className="app-header">
       <Group gap="sm" wrap="nowrap">
         <Burger opened={navOpened} onClick={onToggle} hiddenFrom="md" size="sm" color={dark ? '#fff' : '#1a1a1a'} />
+        {isSuperadmin ? (
+          <div className="hide-on-mobile">
+            <Select
+              size="xs"
+              radius="xl"
+              w={150}
+              data={siteOptions}
+              value={getSiteOverride() == null ? '' : String(getSiteOverride())}
+              onChange={handleSiteChange}
+              aria-label="Filtrer par site"
+              styles={{
+                input: {
+                  background: 'var(--mantine-color-brand-6)',
+                  color: '#fff',
+                  borderColor: 'var(--mantine-color-brand-7)',
+                  fontWeight: 600,
+                  paddingLeft: 10,
+                  paddingRight: 10,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                },
+                dropdown: { color: 'var(--mantine-color-text)' },
+              }}
+            />
+          </div>
+        ) : (
+          <div className="hide-on-mobile">
+            {currentSiteName && (
+              <Badge variant="light" color="brand" size="lg" leftSection={<IconBuilding size={13} />} style={{ textTransform: 'none' }}>
+                {currentSiteName}
+              </Badge>
+            )}
+          </div>
+        )}
         <Group gap={8} wrap="nowrap" className="app-brand-mobile" hiddenFrom="md" pl={2}>
           <Logo height={24} />
           <Text size="sm" fw={600} c={dark ? '#fff' : '#1a1a1a'} lh={1.1} className="app-brand-label">
@@ -181,8 +246,6 @@ function Header({ opened: navOpened, onToggle }) {
             )}
           </Popover.Dropdown>
         </Popover>
-
-        <PushSettingsPopover />
 
         <Tooltip label="Se déconnecter" position="bottom" withArrow>
           <ActionIcon variant="subtle" color="white" onClick={handleLogout} aria-label="Se déconnecter">

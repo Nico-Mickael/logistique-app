@@ -5,20 +5,21 @@ const { VEHICLE_STATUSES, ACTIVE_REQUEST_STATUSES, STARTED_SORTIE_STATUSES } = r
 const { notifyChiefsDb } = require('./notificationController');
 const { logAudit } = require('../services/auditService');
 const vehicleService = require('../services/vehicleService');
+const { scopeWhere, requireSiteAccess, enforceCreationSite } = require('../middlewares/siteContext');
 
 exports.getAll = asyncHandler(async (req, res) => {
-  const vehicles = await Vehicle.findAll();
+  const vehicles = await Vehicle.findAll({ where: scopeWhere(req) });
   res.json(vehicles);
 });
 
 exports.getAvailable = asyncHandler(async (req, res) => {
-  const vehicles = await Vehicle.findAll({ where: { status: 'available' } });
+  const vehicles = await Vehicle.findAll({ where: { status: 'available', ...scopeWhere(req) } });
   res.json(vehicles);
 });
 
 exports.create = asyncHandler(async (req, res) => {
   const { type, capacity, name } = req.body;
-  const vehicle = await Vehicle.create({ type, capacity, status: 'available', name });
+  const vehicle = await Vehicle.create({ type, capacity, status: 'available', name, site_id: enforceCreationSite(req) });
 
   await logAudit({ userId: req.user.id, action: 'create', entity: 'Vehicle', entityId: vehicle.id, newValue: { name, type, capacity }, req });
 
@@ -26,10 +27,10 @@ exports.create = asyncHandler(async (req, res) => {
 });
 
 exports.getOccupancy = asyncHandler(async (req, res) => {
-  const vehicles = await Vehicle.findAll();
+  const vehicles = await Vehicle.findAll({ where: scopeWhere(req) });
 
   const allRequests = await Request.findAll({
-    where: { status: ACTIVE_REQUEST_STATUSES },
+    where: { status: ACTIVE_REQUEST_STATUSES, ...scopeWhere(req) },
     include: [
       { model: Employee, attributes: ['nom', 'prenom', 'department'] },
       { model: Sortie, attributes: ['id', 'status'], through: { attributes: [] } },
@@ -50,7 +51,7 @@ exports.getOccupancy = asyncHandler(async (req, res) => {
   // Véhicules dont une sortie a réellement démarré (véhicule parti).
   // Tant qu'une sortie est simplement "planned", le véhicule reste demandable.
   const startedSorties = await Sortie.findAll({
-    where: { status: { [Op.in]: STARTED_SORTIE_STATUSES } },
+    where: { status: { [Op.in]: STARTED_SORTIE_STATUSES }, ...scopeWhere(req) },
     attributes: ['vehicle_id'],
   });
   const startedVehicleIds = new Set(startedSorties.map((s) => s.vehicle_id));
@@ -86,6 +87,7 @@ exports.update = asyncHandler(async (req, res) => {
   if (!vehicle) {
     return res.status(404).json({ message: 'Véhicule introuvable' });
   }
+  requireSiteAccess(req, vehicle.site_id);
 
   const oldData = { name: vehicle.name, type: vehicle.type, capacity: vehicle.capacity, status: vehicle.status, maintenance_until: vehicle.maintenance_until };
 
@@ -114,6 +116,7 @@ exports.update = asyncHandler(async (req, res) => {
       }`,
       type: 'vehicle_alert',
       excludeUserId: req.user.id,
+      site_id: vehicle.site_id ?? null,
     });
   }
 
@@ -126,6 +129,7 @@ exports.remove = asyncHandler(async (req, res) => {
   if (!vehicle) {
     return res.status(404).json({ message: 'Véhicule introuvable' });
   }
+  requireSiteAccess(req, vehicle.site_id);
 
   if (vehicle.status === 'busy') {
     return res.status(400).json({ message: 'Impossible de supprimer un véhicule en cours de sortie' });

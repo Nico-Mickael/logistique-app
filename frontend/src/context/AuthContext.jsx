@@ -1,5 +1,6 @@
 import { createContext, useContext, useState } from 'react';
 import { authService } from '../api/authService';
+import { setSiteOverride } from '../api/axios';
 
 const AuthContext = createContext(null);
 
@@ -21,6 +22,8 @@ export function AuthProvider({ children }) {
     localStorage.setItem('accessToken', data.accessToken);
     localStorage.setItem('refreshToken', data.refreshToken);
     localStorage.setItem('user', JSON.stringify(data.user));
+    // Un utilisateur non-superadmin ne peut pas conserver un filtre de site global.
+    if (data.user.role !== 'superadmin') setSiteOverride(null);
     setUser(data.user);
     return data.user;
   };
@@ -37,6 +40,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+    setSiteOverride(null);
     setUser(null);
   };
 

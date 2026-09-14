@@ -12,6 +12,7 @@ module.exports = (sequelize, DataTypes) => {
 static associate(models) {
   Employee.hasMany(models.Request, { foreignKey: 'employee_id' });
   Employee.hasMany(models.Notification, { foreignKey: 'user_id' });
+  Employee.belongsTo(models.Site, { foreignKey: 'site_id' });
 }
   }
   Employee.init({
@@ -20,7 +21,8 @@ static associate(models) {
     email: DataTypes.STRING,
     password: DataTypes.STRING,
     department: DataTypes.STRING,
-    role: DataTypes.STRING
+    role: DataTypes.STRING,
+    site_id: DataTypes.INTEGER
   }, {
     sequelize,
     modelName: 'Employee',

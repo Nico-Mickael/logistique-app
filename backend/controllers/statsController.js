@@ -2,6 +2,7 @@ const { Sortie, Request, Vehicle, SortieRequest } = require('../models');
 const { Op, fn, col } = require('sequelize');
 const asyncHandler = require('../utils/asyncHandler');
 const passengerReportService = require('../services/passengerReportService');
+const { scopeWhere, getResolvedSiteId } = require('../middlewares/siteContext');
 
 const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
@@ -24,11 +25,11 @@ exports.overview = asyncHandler(async (req, res) => {
   const [start, end] = yearRange(year);
 
   const [requestsByStatus, sortiesByStatus, vehiclesByStatus, sortiesOfYear] = await Promise.all([
-    countByStatus(Request),
-    countByStatus(Sortie),
-    countByStatus(Vehicle),
+    countByStatus(Request, scopeWhere(req)),
+    countByStatus(Sortie, scopeWhere(req)),
+    countByStatus(Vehicle, scopeWhere(req)),
     Sortie.findAll({
-      where: { departure_time: { [Op.between]: [start, end] } },
+      where: { departure_time: { [Op.between]: [start, end] }, ...scopeWhere(req) },
       attributes: ['destination', 'status', 'distance_km', 'departure_time'],
       raw: true,
     }),
@@ -72,7 +73,7 @@ exports.mine = asyncHandler(async (req, res) => {
   const [start, end] = yearRange(year);
 
   const myRequests = await Request.findAll({
-    where: { employee_id: req.user.id },
+    where: { employee_id: req.user.id, ...scopeWhere(req) },
     attributes: ['id', 'status'],
     raw: true,
   });
@@ -131,7 +132,7 @@ exports.mine = asyncHandler(async (req, res) => {
 
 // GET /api/stats/kilometrage?year=2026&vehicle_id=2
 exports.kilometrage = asyncHandler(async (req, res) => {
-  const where = { status: 'finished', distance_km: { [Op.ne]: null } };
+  const where = { status: 'finished', distance_km: { [Op.ne]: null }, ...scopeWhere(req) };
 
   const year = parseInt(req.query.year, 10);
   if (year) {
@@ -156,7 +157,7 @@ exports.kilometrage = asyncHandler(async (req, res) => {
 // Rapport "qui était à bord de quel véhicule à quelle date" (admin / chef logistique)
 // Données limitées aux sorties réellement effectuées + demandes réellement validées.
 exports.sortiesPassengers = asyncHandler(async (req, res) => {
-  const result = await passengerReportService.findReport(req.query);
+  const result = await passengerReportService.findReport(req.query, { site_id: getResolvedSiteId(req) });
   if (result.error) {
     return res.status(result.status || 400).json({ message: result.error });
   }
@@ -166,9 +167,9 @@ exports.sortiesPassengers = asyncHandler(async (req, res) => {
 // GET /api/stats/fleet — santé de la flotte (pour le dashboard chef)
 exports.fleet = asyncHandler(async (req, res) => {
   const [vehicles, fuelStats] = await Promise.all([
-    Vehicle.findAll({ raw: true }),
+    Vehicle.findAll({ where: scopeWhere(req), raw: true }),
     Sortie.findAll({
-      where: { status: 'finished' },
+      where: { status: 'finished', ...scopeWhere(req) },
       attributes: [
         [fn('SUM', col('fuel_cost')), 'totalFuelCost'],
         [fn('SUM', col('fuel_litres')), 'totalFuelLitres'],

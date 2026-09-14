@@ -4,6 +4,7 @@ import {
   Stack, Button, Modal, NumberInput, Avatar, Divider,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { TimeInput } from '@mantine/dates';
 import { IconRoute, IconClock, IconGauge, IconPlayerPlay, IconFlag, IconCar, IconCalendarEvent, IconNote } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import dayjs from '../../utils/date';
@@ -122,6 +123,7 @@ function DriverSorties() {
   const [arriveeOpened, { open: openArrivee, close: closeArrivee }] = useDisclosure(false);
   const [arriveeSortie, setArriveeSortie] = useState(null);
   const [arriveeKm, setArriveeKm] = useState(0);
+  const [arriveeTime, setArriveeTime] = useState('');
 
   const fetchData = async () => {
     try {
@@ -159,9 +161,12 @@ function DriverSorties() {
       notifyError("Le kilométrage d'arrivée ne peut pas être inférieur au kilométrage de départ");
       return;
     }
+    if (!arriveeTime) { notifyError('Sélectionnez l\'heure de retour'); return; }
     setActionLoading('arrivee');
     try {
-      await sortieService.driverArrivee(arriveeSortie.id, km);
+      const dateBase = dayjs(arriveeSortie.departure_time).format('YYYY-MM-DD');
+      const returnedAt = new Date(`${dateBase}T${arriveeTime}`);
+      await sortieService.driverArrivee(arriveeSortie.id, { arrival_km: km, returned_at: returnedAt });
       notifySuccess('Arrivée enregistrée - Sortie terminée');
       closeArrivee();
       fetchData();
@@ -252,6 +257,9 @@ function DriverSorties() {
           <NumberInput label="Kilométrage d'arrivée" placeholder="Ex: 126000" min={0}
             value={arriveeKm} onChange={setArriveeKm} required radius="md"
             leftSection={<IconGauge size={16} />}
+          />
+          <TimeInput label="Heure de retour" withSeconds={false}
+            value={arriveeTime} onChange={(e) => setArriveeTime(e.currentTarget.value)} required radius="md"
           />
           {Number(arriveeSortie?.departure_km) > 0 && Number(arriveeKm) > Number(arriveeSortie.departure_km) && (
             <Text size="sm" c="dimmed">
