@@ -1,6 +1,6 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { app, request, db, seed, login, authHeader, close, CHAUFFEUR } = require('../integration/helpers');
+const { app, request, seed, authHeader, close, loginAll, CHAUFFEUR } = require('../integration/helpers');
 
 describe('Flux Employés (intégration)', () => {
   let tokens, employeeId;
@@ -11,12 +11,6 @@ describe('Flux Employés (intégration)', () => {
   });
 
   after(async () => { await close(); });
-
-  async function loginAll() {
-    const sa = await login('superadmin@test.com', 'Test1234');
-    const ch = await login('chief@test.com', 'Test1234');
-    return { superadmin: sa, chief: ch };
-  }
 
   it('POST /api/employees — superadmin crée un employé', async () => {
     const res = await request(app)

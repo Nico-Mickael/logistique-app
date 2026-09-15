@@ -114,14 +114,14 @@ function ValidateRequests() {
   }));
 
   // Filtres communs à la pagination et à l'export CSV.
-  const buildFilterParams = (extra = {}) => {
+  const buildFilterParams = useCallback((extra = {}) => {
     const params = { ...extra };
     if (statusFilter !== 'all') params.status = statusFilter;
     if (destinationFilter) params.destination = destinationFilter;
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
     return params;
-  };
+  }, [statusFilter, destinationFilter, dateFrom, dateTo]);
 
   const fetchRequests = useCallback(async (p = page) => {
     try {
@@ -134,7 +134,7 @@ function ValidateRequests() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, destinationFilter, dateFrom, dateTo, page]);
+  }, [page, buildFilterParams]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
   useEffect(() => {

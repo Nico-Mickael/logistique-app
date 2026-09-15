@@ -1,6 +1,6 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { app, request, db, seed, login, authHeader, close } = require('../integration/helpers');
+const { app, request, seed, authHeader, close, loginAll } = require('../integration/helpers');
 
 describe('Flux Stats & Exports (intégration)', () => {
   let tokens;
@@ -11,13 +11,6 @@ describe('Flux Stats & Exports (intégration)', () => {
   });
 
   after(async () => { await close(); });
-
-  async function loginAll() {
-    const sa = await login('superadmin@test.com', 'Test1234');
-    const ch = await login('chief@test.com', 'Test1234');
-    const emp = await login('employee@test.com', 'Test1234');
-    return { superadmin: sa, chief: ch, employee: emp };
-  }
 
   it('GET /api/stats/overview — vue d\'ensemble', async () => {
     const res = await request(app)

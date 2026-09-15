@@ -1,6 +1,6 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { app, request, db, seed, login, authHeader, close, getSite } = require('../integration/helpers');
+const { app, request, db, seed, login, authHeader, close, loginAll, getSite } = require('../integration/helpers');
 
 describe('Flux Chauffeur (intégration)', () => {
   let tokens, sortieId;
@@ -10,7 +10,7 @@ describe('Flux Chauffeur (intégration)', () => {
     tokens = await loginAll();
     // Create a sortie assigned to the chauffeur
     const chauffeur = await db.Employee.findOne({ where: { role: 'chauffeur' } });
-    const vehicle = (await db.Vehicle.findAll())[0];
+    const vehicle = (await db.Vehicle.findOne({ order: [['id', 'ASC']] }));
     const sortie = await db.Sortie.create({
       vehicle_id: vehicle.id,
       driver_employee_id: chauffeur.id,
@@ -25,13 +25,6 @@ describe('Flux Chauffeur (intégration)', () => {
   });
 
   after(async () => { await close(); });
-
-  async function loginAll() {
-    const sa = await login('superadmin@test.com', 'Test1234');
-    const ch = await login('chief@test.com', 'Test1234');
-    const drv = await login('chauffeur@test.com', 'Test1234');
-    return { superadmin: sa, chief: ch, chauffeur: drv };
-  }
 
   it('GET /api/sorties/driver/mine — chauffeur voit ses sorties', async () => {
     const res = await request(app)
@@ -65,7 +58,7 @@ describe('Flux Chauffeur (intégration)', () => {
   it('PATCH /api/sorties/:id/driver/depart — employé non-chauffeur refusé', async () => {
     const emp = await login('employee@test.com', 'Test1234');
     const newSortie = await db.Sortie.create({
-      vehicle_id: (await db.Vehicle.findAll())[0].id,
+      vehicle_id: (await db.Vehicle.findOne({ order: [['id', 'ASC']] })).id,
       driver_name: 'test',
       destination: 'Test',
       motif: 'Test',

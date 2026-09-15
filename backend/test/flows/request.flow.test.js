@@ -1,26 +1,19 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { app, request, db, SUPERADMIN, CHIEF, EMPLOYEE, CHAUFFEUR, seed, login, authHeader, close } = require('../integration/helpers');
+const { app, request, db, seed, authHeader, close, loginAll } = require('../integration/helpers');
 
 describe('Flux Demandes (intégration)', () => {
   let tokens, sortieId, requestId;
 
   before(async () => {
-    const data = await seed();
+    await seed();
     tokens = await loginAll();
   });
 
   after(async () => { await close(); });
 
-  async function loginAll() {
-    const sa = await login(SUPERADMIN.email, SUPERADMIN.password);
-    const ch = await login(CHIEF.email, CHIEF.password);
-    const emp = await login(EMPLOYEE.email, EMPLOYEE.password);
-    return { superadmin: sa, chief: ch, employee: emp };
-  }
-
   it('POST /api/requests — employé crée une demande', async () => {
-    const vehicle = (await db.Vehicle.findAll())[0];
+    const vehicle = (await db.Vehicle.findOne({ order: [['id', 'ASC']] }));
     const res = await request(app)
       .post('/api/requests')
       .set(authHeader(tokens.employee.accessToken))
@@ -72,7 +65,7 @@ describe('Flux Demandes (intégration)', () => {
   });
 
   it('POST /api/requests/:id/assign — chef affecte un véhicule et crée une sortie', async () => {
-    const vehicle = (await db.Vehicle.findAll())[0];
+    const vehicle = (await db.Vehicle.findOne({ order: [['id', 'ASC']] }));
     const res = await request(app)
       .post(`/api/requests/${requestId}/assign`)
       .set(authHeader(tokens.chief.accessToken))
@@ -112,7 +105,7 @@ describe('Flux Demandes (intégration)', () => {
 
   it('PATCH /api/requests/:id/cancel — employé annule une demande', async () => {
     // Create a new request to cancel
-    const vehicle = (await db.Vehicle.findAll())[0];
+    const vehicle = (await db.Vehicle.findOne({ order: [['id', 'ASC']] }));
     const createRes = await request(app)
       .post('/api/requests')
       .set(authHeader(tokens.employee.accessToken))
@@ -133,7 +126,7 @@ describe('Flux Demandes (intégration)', () => {
   });
 
   it('PATCH /api/requests/:id/status — chef refuse une demande', async () => {
-    const vehicle = (await db.Vehicle.findAll())[0];
+    const vehicle = (await db.Vehicle.findOne({ order: [['id', 'ASC']] }));
     const createRes = await request(app)
       .post('/api/requests')
       .set(authHeader(tokens.employee.accessToken))
@@ -155,7 +148,7 @@ describe('Flux Demandes (intégration)', () => {
   });
 
   it('DELETE /api/requests/:id — employé supprime sa demande', async () => {
-    const vehicle = (await db.Vehicle.findAll())[0];
+    const vehicle = (await db.Vehicle.findOne({ order: [['id', 'ASC']] }));
     const createRes = await request(app)
       .post('/api/requests')
       .set(authHeader(tokens.employee.accessToken))

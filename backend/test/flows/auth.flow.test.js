@@ -1,23 +1,16 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { app, request, db, SUPERADMIN, CHIEF, EMPLOYEE, seed, login, authHeader, close, getSite } = require('../integration/helpers');
+const { app, request, SUPERADMIN, seed, login, authHeader, close, loginAll, getSite } = require('../integration/helpers');
 
 describe('Flux Auth (intégration)', () => {
   let tokens;
 
   before(async () => {
-    const data = await seed();
+    await seed();
     tokens = await loginAll();
   });
 
   after(async () => { await close(); });
-
-  async function loginAll() {
-    const sa = await login(SUPERADMIN.email, SUPERADMIN.password);
-    const ch = await login(CHIEF.email, CHIEF.password);
-    const emp = await login(EMPLOYEE.email, EMPLOYEE.password);
-    return { superadmin: sa, chief: ch, employee: emp };
-  }
 
   it('POST /api/auth/login — connecte avec de bons identifiants', async () => {
     const res = await request(app)

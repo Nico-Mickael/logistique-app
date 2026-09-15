@@ -1,6 +1,6 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { app, request, db, seed, login, authHeader, close } = require('../integration/helpers');
+const { app, request, db, seed, login, authHeader, close, loginAll } = require('../integration/helpers');
 
 describe('Flux Véhicules (intégration)', () => {
   let tokens, vehicleId;
@@ -11,12 +11,6 @@ describe('Flux Véhicules (intégration)', () => {
   });
 
   after(async () => { await close(); });
-
-  async function loginAll() {
-    const sa = await login('superadmin@test.com', 'Test1234');
-    const ch = await login('chief@test.com', 'Test1234');
-    return { superadmin: sa, chief: ch };
-  }
 
   it('POST /api/vehicles — chef crée un véhicule', async () => {
     const res = await request(app)
@@ -101,7 +95,7 @@ describe('Flux Véhicules (intégration)', () => {
   });
 
   it('DELETE /api/vehicles/:id — impossible de supprimer un véhicule busy', async () => {
-    const vehicle = (await db.Vehicle.findAll())[0];
+    const vehicle = (await db.Vehicle.findOne({ order: [['id', 'ASC']] }));
     vehicle.status = 'busy';
     await vehicle.save();
     const res = await request(app)

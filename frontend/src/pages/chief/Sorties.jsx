@@ -86,7 +86,7 @@ function Sorties() {
   const openDetail = (s) => { setDetailSortie(s); openDetailModal(); };
 
   // Filtres communs à la pagination, à l'export CSV et aux départs dépassés.
-  const buildFilterParams = (extra = {}) => {
+  const buildFilterParams = useCallback((extra = {}) => {
     const params = { ...extra };
     if (statusFilter !== 'all') params.status = statusFilter;
     if (vehicleFilter) params.vehicle_id = vehicleFilter;
@@ -94,7 +94,7 @@ function Sorties() {
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
     return params;
-  };
+  }, [statusFilter, vehicleFilter, searchQuery, dateFrom, dateTo]);
 
   const fetchSorties = useCallback(async (p = page) => {
     try {
@@ -107,7 +107,7 @@ function Sorties() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, vehicleFilter, searchQuery, dateFrom, dateTo, page]);
+  }, [page, buildFilterParams]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
   useEffect(() => {

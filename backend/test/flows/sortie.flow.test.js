@@ -1,9 +1,9 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { app, request, db, seed, login, authHeader, close } = require('../integration/helpers');
+const { app, request, db, seed, login, authHeader, close, loginAll } = require('../integration/helpers');
 
 describe('Flux Sorties (intégration)', () => {
-  let tokens, sortieId;
+  let tokens, sortieId, vehicleId;
 
   before(async () => {
     await seed();
@@ -12,15 +12,10 @@ describe('Flux Sorties (intégration)', () => {
 
   after(async () => { await close(); });
 
-  async function loginAll() {
-    const sa = await login('superadmin@test.com', 'Test1234');
-    const ch = await login('chief@test.com', 'Test1234');
-    return { superadmin: sa, chief: ch };
-  }
-
   it('POST /api/sorties — chef crée une sortie', async () => {
-    const vehicle = (await db.Vehicle.findAll())[0];
     const chauffeur = await db.Employee.findOne({ where: { role: 'chauffeur' } });
+    const vehicle = (await db.Vehicle.findOne({ order: [['id', 'ASC']] }));
+    vehicleId = vehicle.id;
     const res = await request(app)
       .post('/api/sorties')
       .set(authHeader(tokens.chief.accessToken))
@@ -83,9 +78,8 @@ describe('Flux Sorties (intégration)', () => {
   });
 
   it('GET /api/sorties/last/:vehicleId — dernière sortie d\'un véhicule', async () => {
-    const vehicle = (await db.Vehicle.findAll())[0];
     const res = await request(app)
-      .get(`/api/sorties/last/${vehicle.id}`)
+      .get(`/api/sorties/last/${vehicleId}`)
       .set(authHeader(tokens.chief.accessToken));
     assert.strictEqual(res.status, 200);
     assert.ok(res.body);

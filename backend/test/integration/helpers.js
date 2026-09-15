@@ -12,9 +12,12 @@ const db = require('../../models');
 const app = require('../../app');
 const request = require('supertest');
 
+// Silencie le logging SQL (bruit de fond inutile pendant les tests)
+db.sequelize.options.logging = false;
+
 const BCRYPT_ROUNDS = 10;
 
-// Base seed data
+// Comptes/site de base pour tous les flux
 const SUPERADMIN = { nom: 'Super', prenom: 'Admin', email: 'superadmin@test.com', password: 'Test1234', role: 'superadmin', department: 'IT' };
 const CHIEF = { nom: 'Chef', prenom: 'Logistique', email: 'chief@test.com', password: 'Test1234', role: 'admin', department: 'Logistique' };
 const EMPLOYEE = { nom: 'Employe', prenom: 'Jean', email: 'employee@test.com', password: 'Test1234', role: 'employee', department: 'RH' };
@@ -77,12 +80,7 @@ async function loginAll() {
   const ch = await login(CHIEF.email, CHIEF.password);
   const emp = await login(EMPLOYEE.email, EMPLOYEE.password);
   const drv = await login(CHAUFFEUR.email, CHAUFFEUR.password);
-  return {
-    superadmin: { token: sa.accessToken, refresh: sa.refreshToken, user: sa.user },
-    chief: { token: ch.accessToken, refresh: ch.refreshToken, user: ch.user },
-    employee: { token: emp.accessToken, refresh: emp.refreshToken, user: emp.user },
-    chauffeur: { token: drv.accessToken, refresh: drv.refreshToken, user: drv.user },
-  };
+  return { superadmin: sa, chief: ch, employee: emp, chauffeur: drv };
 }
 
 async function close() {
@@ -90,6 +88,6 @@ async function close() {
 }
 
 module.exports = {
-  app, request, db, SUPERADMIN, CHIEF, EMPLOYEE, CHAUFFEUR, VEHICLE, VEHICLE2,
-  login, authHeader, cleanup, seed, loginAll, close, hashPassword, getSite: () => site,
+  app, request, db, SUPERADMIN, CHIEF, EMPLOYEE, CHAUFFEUR,
+  login, authHeader, seed, loginAll, close, getSite: () => site,
 };
