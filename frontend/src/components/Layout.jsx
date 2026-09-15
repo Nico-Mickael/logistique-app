@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  AppShell, NavLink, Stack, Divider, Group, ScrollArea, Tooltip,
+  AppShell, NavLink, Stack, Divider, Group, ScrollArea, Tooltip, Badge,
   UnstyledButton, ActionIcon, useMantineColorScheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
@@ -21,6 +21,7 @@ import {
 } from '@tabler/icons-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import Header from './Header';
 import Logo from './Logo';
 
@@ -64,6 +65,7 @@ function Layout({ children }) {
   const [opened, { toggle }] = useDisclosure();
   const [collapsed, setCollapsed] = useState(false);
   const { user } = useAuth();
+  const { badgeCounts } = useSocket();
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const dark = colorScheme === 'dark';
   const navigate = useNavigate();
@@ -79,6 +81,19 @@ function Layout({ children }) {
   }, [isChief, isSuperadmin, isChauffeur]);
 
   const navbarWidth = collapsed ? 72 : 260;
+
+  // Badge rouge "actions à traiter" sur Demandes / Sorties (chef + superadmin).
+  // Masqué si 0 ou en mode rétracté (largeur insuffisante).
+  const badgeFor = (label) => {
+    if (collapsed) return undefined;
+    if (label === 'Demandes' && badgeCounts.requests > 0) {
+      return <Badge size="xs" radius="xl" color="red" variant="filled">{badgeCounts.requests}</Badge>;
+    }
+    if (label === 'Sorties' && badgeCounts.sorties > 0) {
+      return <Badge size="xs" radius="xl" color="red" variant="filled">{badgeCounts.sorties}</Badge>;
+    }
+    return undefined;
+  };
 
   return (
     <AppShell
@@ -119,6 +134,7 @@ function Layout({ children }) {
                   key={item.path}
                   label={collapsed ? undefined : item.label}
                   leftSection={<item.icon size={18} />}
+                  rightSection={badgeFor(item.label)}
                   active={isActive}
                   color="brand"
                   variant={isActive ? 'light' : 'subtle'}

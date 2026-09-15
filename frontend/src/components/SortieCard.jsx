@@ -21,23 +21,29 @@ function InfoRow({ label, value, icon }) {
   );
 }
 
-function DriverSelect({ sortie, chauffeurs, onAssignDriver, disabled }) {
+function DriverSelect({ sortie, chauffeurs, onAssignDriver, disabled, isOnline }) {
   return (
     <Select
       size="xs"
       placeholder={sortie.driver_name ? `Chauffeur: ${sortie.driver_name}` : 'Affecter un chauffeur'}
-      data={chauffeurOptions(chauffeurs)}
+      data={chauffeurOptions(chauffeurs, isOnline)}
       value={sortie.driver_employee_id ? String(sortie.driver_employee_id) : null}
       onChange={(v) => onAssignDriver(sortie, v)}
       clearable searchable radius="md"
       w={{ base: '100%', sm: 140 }}
       disabled={disabled}
       styles={{ input: sortie.driver_employee_id ? {} : { borderColor: 'var(--mantine-color-brand-6)' } }}
+      renderOption={({ option }) => (
+        <Group gap={8} wrap="nowrap">
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: option.online ? '#40c057' : '#9098a3', flexShrink: 0 }} />
+          <Text size="sm">{option.label}</Text>
+        </Group>
+      )}
     />
   );
 }
 
-function SortieCard({ sortie, chauffeurs, vehicles, onAssignDriver, onChangeVehicle, onDetail, onEdit, onDepart, onSuggestions, onDelete, onValidateReturn, onArrivee, actionLoading }) {
+function SortieCard({ sortie, chauffeurs, vehicles, onAssignDriver, onChangeVehicle, onDetail, onEdit, onDepart, onSuggestions, onDelete, onValidateReturn, onArrivee, actionLoading, isOnline }) {
   const isMoto = sortie.Vehicle?.type === 'moto';
   const ds = sortie.displayStatus;
 
@@ -135,7 +141,7 @@ function SortieCard({ sortie, chauffeurs, vehicles, onAssignDriver, onChangeVehi
       <Group gap="xs" align="center" wrap="nowrap" style={{ minWidth: 0 }}>
         {sortie.status === 'planned' && !isMoto && (
           <Group gap="xs" align="center" wrap="nowrap" style={{ minWidth: 0, flexWrap: 'nowrap' }}>
-            <DriverSelect sortie={sortie} chauffeurs={chauffeurs} onAssignDriver={onAssignDriver} disabled={actionLoading === 'assignDriver'} />
+            <DriverSelect sortie={sortie} chauffeurs={chauffeurs} onAssignDriver={onAssignDriver} disabled={actionLoading === 'assignDriver'} isOnline={isOnline} />
             <Select
               size="xs"
               placeholder="Changer de véhicule"

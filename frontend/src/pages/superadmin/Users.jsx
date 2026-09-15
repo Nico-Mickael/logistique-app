@@ -14,6 +14,7 @@ import { siteService } from '../../api/siteService';
 import { getSiteOverride } from '../../api/axios';
 import { accentColor } from '../../utils/labels';
 import ConfirmModal from '../../components/ConfirmModal';
+import { useSocket } from '../../context/SocketContext';
 
 const roleLabels = {
   superadmin: 'Superadmin',
@@ -30,6 +31,8 @@ const roleColors = {
 };
 
 function UserCard({ u, onEdit, onDelete }) {
+  const { isUserOnline } = useSocket();
+  const online = Boolean(u.online) || isUserOnline(u.id);
   return (
     <Card withBorder radius="lg" p="lg" className="user-card">
       <div style={{
@@ -44,6 +47,13 @@ function UserCard({ u, onEdit, onDelete }) {
         <Text size="sm"><Text span c="dimmed">Email: </Text>{u.email}</Text>
         {u.department && <Text size="sm"><Text span c="dimmed">Département: </Text>{u.department}</Text>}
         <Text size="sm"><Text span c="dimmed">Site: </Text>{u.Site?.name || '—'}</Text>
+        <Text size="sm">
+          <Text span c="dimmed">Statut: </Text>
+          <Group gap={6} wrap="nowrap" display="inline-flex" ml={2} style={{ verticalAlign: 'middle' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: online ? '#40c057' : '#9098a3' }} />
+            <Text span c={online ? 'teal.7' : 'dimmed'} fw={600}>{online ? 'En ligne' : 'Hors ligne'}</Text>
+          </Group>
+        </Text>
       </Stack>
       <Group gap="xs">
         <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => onEdit(u)}>Modifier</Button>
@@ -59,6 +69,7 @@ export default function Users() {
   const [users, setUsers] = useState([]);
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { isUserOnline } = useSocket();
   const [opened, { open, close }] = useDisclosure(false);
   const [editUser, setEditUser] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -186,6 +197,18 @@ export default function Users() {
       ) : (
         <Text size="sm" c="dimmed">—</Text>
       )),
+    },
+    {
+      accessor: 'status', title: 'Statut', sortable: true,
+      render: (u) => {
+        const online = Boolean(u.online) || isUserOnline(u.id);
+        return (
+          <Group gap={6} wrap="nowrap">
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: online ? '#40c057' : '#9098a3' }} />
+            <Text size="sm" c={online ? 'teal.7' : 'dimmed'} fw={500}>{online ? 'En ligne' : 'Hors ligne'}</Text>
+          </Group>
+        );
+      },
     },
     {
       accessor: 'actions', title: '',

@@ -10,6 +10,7 @@ router.get('/mine', auth, statsController.mine);
 
 router.use(auth, checkRole(CHIEF_ROLES));
 
+router.get('/badges', statsController.badges);
 router.get('/overview', statsController.overview);
 router.get('/kilometrage', statsController.kilometrage);
 router.get('/fleet', statsController.fleet);

@@ -4,6 +4,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { ASSIGNABLE_ROLES, ALL_ROLES, BCRYPT_ROUNDS } = require('../utils/constants');
 const { logAudit } = require('../services/auditService');
 const { getResolvedSiteId, requireSiteAccess, enforceCreationSite } = require('../middlewares/siteContext');
+const { bulkOnlineStatus } = require('../services/presenceService');
 
 exports.list = asyncHandler(async (req, res) => {
   const siteId = getResolvedSiteId(req);
@@ -13,18 +14,34 @@ exports.list = asyncHandler(async (req, res) => {
     include: [{ association: 'Site', attributes: ['id', 'name', 'code'] }],
     order: [['createdAt', 'DESC']],
   });
-  res.json(employees);
+  const statuses = await bulkOnlineStatus(employees.map((e) => e.id));
+  const enriched = employees.map((e) => {
+    const obj = e.toJSON();
+    obj.online = !!statuses[e.id]?.online;
+    obj.last_seen = statuses[e.id]?.last_seen || null;
+    return obj;
+  });
+  res.json(enriched);
 });
 
 // Liste des comptes ayant le rôle 'chauffeur' (pour l'affectation à une sortie)
+// Triés en ligne d'abord (préférence d'affectation), puis par nom/prénom.
 exports.listChauffeurs = asyncHandler(async (req, res) => {
   const siteId = getResolvedSiteId(req);
   const chauffeurs = await Employee.findAll({
     where: { role: 'chauffeur', ...(siteId != null ? { site_id: siteId } : {}) },
     attributes: ['id', 'nom', 'prenom', 'email', 'department'],
-    order: [['nom', 'ASC']],
   });
-  res.json(chauffeurs);
+  const statuses = await bulkOnlineStatus(chauffeurs.map((c) => c.id));
+  const result = chauffeurs
+    .map((c) => {
+      const obj = c.toJSON();
+      obj.online = !!statuses[c.id]?.online;
+      obj.last_seen = statuses[c.id]?.last_seen || null;
+      return obj;
+    })
+    .sort((a, b) => (b.online - a.online) || a.nom.localeCompare(b.nom) || a.prenom.localeCompare(b.prenom));
+  res.json(result);
 });
 
 exports.create = asyncHandler(async (req, res) => {

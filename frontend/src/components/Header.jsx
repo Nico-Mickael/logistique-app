@@ -20,11 +20,12 @@ function initials(user) {
 
 function Header({ opened: navOpened, onToggle }) {
   const { logout, user } = useAuth();
-  const { unreadCount, refreshUnreadCount } = useSocket();
+  const { unreadCount, refreshUnreadCount, isUserOnline } = useSocket();
   const { colorScheme } = useMantineColorScheme();
   const dark = colorScheme === 'dark';
   const navigate = useNavigate();
   const isSuperadmin = user?.role === 'superadmin';
+  const meOnline = isUserOnline(user?.id);
   const [sites, setSites] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loadingNotif, setLoadingNotif] = useState(false);
@@ -161,12 +162,33 @@ function Header({ opened: navOpened, onToggle }) {
 
       <Group gap={{ base: 6, sm: 'md' }} wrap="nowrap">
         <Group gap={8} wrap="nowrap" className="hide-on-mobile">
-          <Avatar size={30} radius="xl" color="brandYellow" variant="filled">
-            {initials(user)}
-          </Avatar>
+          <div style={{ position: 'relative' }}>
+            <Avatar size={30} radius="xl" color="brandYellow" variant="filled">
+              {initials(user)}
+            </Avatar>
+            <Tooltip label={meOnline ? 'En ligne' : 'Hors ligne'} position="bottom" withArrow>
+              <span
+                aria-label={meOnline ? 'En ligne' : 'Hors ligne'}
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  right: 0,
+                  width: 9,
+                  height: 9,
+                  borderRadius: '50%',
+                  background: meOnline ? '#40c057' : '#9098a3',
+                  border: '2px solid #fff',
+                  boxShadow: '0 0 0 1px rgba(0,0,0,0.15)',
+                }}
+              />
+            </Tooltip>
+          </div>
           <div>
             <Text size="sm" c="white" fw={500} lh={1.1}>
               {user?.prenom} {user?.nom}
+            </Text>
+            <Text size="xs" c={meOnline ? '#a5d6a7' : 'rgba(255,255,255,0.6)'} fw={500} lh={1.1}>
+              {meOnline ? 'En ligne' : 'Hors ligne'}
             </Text>
           </div>
         </Group>

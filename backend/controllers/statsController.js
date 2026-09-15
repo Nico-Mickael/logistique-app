@@ -19,6 +19,19 @@ function countByStatus(model, where = {}) {
   });
 }
 
+// GET /api/stats/badges — compteurs d'action pour la sidebar (chefs).
+//  - requests : demandes en attente de validation (badge "Demandes")
+//  - sorties   : sorties planifiées (badge "Sorties", attention requise)
+// Périmètre : site autorisé via scopeWhere (multi-sites).
+exports.badges = asyncHandler(async (req, res) => {
+  const siteWhere = scopeWhere(req);
+  const [requests, sorties] = await Promise.all([
+    Request.count({ where: { status: 'pending', ...siteWhere } }),
+    Sortie.count({ where: { status: 'planned', deleted_at: null, ...siteWhere } }),
+  ]);
+  res.json({ requests, sorties });
+});
+
 // GET /api/stats/overview?year=2026
 exports.overview = asyncHandler(async (req, res) => {
   const year = parseInt(req.query.year, 10) || new Date().getFullYear();

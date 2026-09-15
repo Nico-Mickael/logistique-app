@@ -1,6 +1,7 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { app, request, db, seed, login, authHeader, close, loginAll } = require('../integration/helpers');
+const bcrypt = require('bcrypt');
+const { app, request, db, seed, login, authHeader, close, loginAll, getSite } = require('../integration/helpers');
 
 describe('Flux Sorties (intégration)', () => {
   let tokens, sortieId, vehicleId;
@@ -31,6 +32,28 @@ describe('Flux Sorties (intégration)', () => {
     assert.strictEqual(res.body.status, 'planned');
     assert.strictEqual(res.body.destination, 'Antsirabe');
     sortieId = res.body.id;
+  });
+
+  it('POST /api/sorties — chauffeur hors ligne refusé (présence)', async () => {
+    const hashedPw = await bcrypt.hash('Test1234', 10);
+    const offlineChauffeur = await db.Employee.create({
+      nom: 'HorsLigne', prenom: 'Test', email: `offline-${Date.now()}@test.com`,
+      password: hashedPw, department: 'Logistique', role: 'chauffeur', site_id: getSite().id,
+    });
+    const vehicle2 = (await db.Vehicle.findOne({ where: { name: 'Clio Test' } }));
+    const res = await request(app)
+      .post('/api/sorties')
+      .set(authHeader(tokens.chief.accessToken))
+      .send({
+        vehicle_id: vehicle2.id,
+        driver_name: 'HorsLigne Test',
+        driver_employee_id: offlineChauffeur.id,
+        destination: 'Toamasina',
+        motif: 'Test hors ligne',
+        departure_time: new Date(Date.now() + 7200000).toISOString(),
+      });
+    assert.strictEqual(res.status, 400);
+    assert.ok(/hors ligne/i.test(res.body.message));
   });
 
   it('GET /api/sorties — la sortie apparaît dans la liste', async () => {

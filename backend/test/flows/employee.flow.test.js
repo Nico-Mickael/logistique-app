@@ -41,13 +41,17 @@ describe('Flux Employés (intégration)', () => {
     assert.strictEqual(res.body.department, 'IT');
   });
 
-  it('GET /api/employees/chauffeurs — liste les chauffeurs', async () => {
+  it('GET /api/employees/chauffeurs — liste les chauffeurs avec statut de présence', async () => {
     const res = await request(app)
       .get('/api/employees/chauffeurs')
       .set(authHeader(tokens.chief.accessToken));
     assert.strictEqual(res.status, 200);
     assert.ok(Array.isArray(res.body));
-    assert.ok(res.body.some((e) => e.email === CHAUFFEUR.email));
+    const chauffeur = res.body.find((e) => e.email === CHAUFFEUR.email);
+    assert.ok(chauffeur, 'chauffeur dans la liste');
+    // Le chauffeur a été connecté via loginAll (session active fraîche) → en ligne.
+    assert.strictEqual(chauffeur.online, true);
+    assert.ok(typeof chauffeur.last_seen !== 'undefined');
   });
 
   it('DELETE /api/employees/:id — superadmin supprime un employé', async () => {

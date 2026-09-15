@@ -1,6 +1,6 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { app, request, seed, authHeader, close, loginAll } = require('../integration/helpers');
+const { app, request, db, seed, authHeader, close, loginAll } = require('../integration/helpers');
 
 describe('Flux Stats & Exports (intégration)', () => {
   let tokens;
@@ -55,6 +55,45 @@ describe('Flux Stats & Exports (intégration)', () => {
       .get('/api/stats/overview')
       .set(authHeader(tokens.employee.accessToken));
     assert.strictEqual(res.status, 403);
+  });
+
+  it('GET /api/stats/badges — compteurs sidebar (demandes + sorties)', async () => {
+    const before = (await request(app)
+      .get('/api/stats/badges')
+      .set(authHeader(tokens.superadmin.accessToken))).body;
+    assert.ok(Number.isInteger(before.requests));
+    assert.ok(Number.isInteger(before.sorties));
+
+    // Une demande en attente incrémente le badge "Demandes"…
+    const vehicle = (await db.Vehicle.findOne({ order: [['id', 'ASC']] }));
+    const created = await request(app)
+      .post('/api/requests')
+      .set(authHeader(tokens.employee.accessToken))
+      .send({
+        destination: 'Ambositra',
+        motif: 'Badge test',
+        date_souhaitee: new Date(Date.now() + 86400000 * 3).toISOString(),
+        nb_personnes: 1,
+        vehicle_id: vehicle.id,
+      });
+    assert.strictEqual(created.status, 201);
+
+    const after = (await request(app)
+      .get('/api/stats/badges')
+      .set(authHeader(tokens.superadmin.accessToken))).body;
+    assert.strictEqual(after.requests, before.requests + 1);
+
+    // …et une fois validée, le badge "Demandes" décrémente.
+    const approved = await request(app)
+      .patch(`/api/requests/${created.body.id}/status`)
+      .set(authHeader(tokens.chief.accessToken))
+      .send({ status: 'approved' });
+    assert.strictEqual(approved.status, 200);
+
+    const final = (await request(app)
+      .get('/api/stats/badges')
+      .set(authHeader(tokens.superadmin.accessToken))).body;
+    assert.strictEqual(final.requests, before.requests);
   });
 
   it('GET /api/export/fleet — export XLSX flotte', async () => {

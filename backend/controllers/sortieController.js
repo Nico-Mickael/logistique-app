@@ -10,6 +10,7 @@ const { notifyChiefs } = require('../services/socketService');
 const notificationService = require('../services/notificationService');
 const { logAudit } = require('../services/auditService');
 const { scopeWhere, requireSiteAccess } = require('../middlewares/siteContext');
+const { bulkOnlineStatus } = require('../services/presenceService');
 
 // Chargement détaillé d'une sortie (véhicule, conducteur, rescheduleur, demandes liées).
 const SORTIE_INCLUDES = [
@@ -63,6 +64,11 @@ exports.create = asyncHandler(async (req, res) => {
     // Le chauffeur doit être un compte 'chauffeur' du MÊME site que la sortie.
     if (!driver || driver.role !== 'chauffeur' || driver.site_id !== req.user.site_id) {
       return res.status(400).json({ message: 'Le chauffeur affecté doit être un compte avec le rôle chauffeur du site' });
+    }
+    // Empêcher l'affectation d'un chauffeur hors ligne.
+    const presence = await bulkOnlineStatus([driver.id]);
+    if (!presence[driver.id]?.online) {
+      return res.status(400).json({ message: 'Ce chauffeur est hors ligne et ne peut pas être affecté à une sortie' });
     }
   }
 
@@ -366,6 +372,11 @@ exports.update = asyncHandler(async (req, res) => {
       const driver = await Employee.findByPk(newDriverId);
       if (!driver || driver.role !== 'chauffeur' || driver.site_id !== sortie.site_id) {
         return res.status(400).json({ message: 'Le chauffeur affecté doit être un compte avec le rôle chauffeur du site' });
+      }
+      // Empêcher l'affectation d'un chauffeur hors ligne.
+      const presence = await bulkOnlineStatus([driver.id]);
+      if (!presence[driver.id]?.online) {
+        return res.status(400).json({ message: 'Ce chauffeur est hors ligne et ne peut pas être affecté à cette sortie' });
       }
       sortie.driver_employee_id = driver.id;
     } else {
