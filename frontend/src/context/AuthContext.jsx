@@ -44,8 +44,20 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  // Met à jour la disponibilité professionnelle (statut + dates de congé) de
+  // l'utilisateur connecté, puis synchronise l'objet user local/session.
+  const updateAvailability = async (payload) => {
+    const { data } = await authService.updateAvailability(payload);
+    setUser((prev) => {
+      const next = { ...prev, ...data };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+    return data;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, updateAvailability }}>
       {children}
     </AuthContext.Provider>
   );

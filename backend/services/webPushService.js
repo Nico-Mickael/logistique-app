@@ -30,6 +30,7 @@ const PUSH_TITLES = {
   sortie_driver_removed: 'Chauffeur retiré d\'une sortie',
   sortie_updated: 'Sortie mise à jour',
   sortie_cancelled: 'Sortie annulée',
+  sortie_prepare: 'Préparez-vous',
   return_marked: 'Retour enregistré',
   approved: 'Demande validée',
   rejected: 'Demande refusée',

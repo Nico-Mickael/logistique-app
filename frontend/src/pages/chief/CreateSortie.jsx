@@ -18,8 +18,8 @@ import { requestService } from '../../api/requestService';
 import { employeeService } from '../../api/employeeService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import { getSeatLayout, getSeatColor } from '../../utils/seatLayout';
-import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor, vehicleDisplayName } from '../../utils/labels';
-import { useSocket } from '../../context/SocketContext';
+import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor, vehicleDisplayName, availabilityStatusLabel, availabilityStatusDot } from '../../utils/labels';
+import { chauffeurOptions as buildChauffeurOptions } from '../../utils/sortieOptions';
 
 // Critère de regroupement du cahier des charges : écart horaire ≤ 3 h
 const COMPAT_WINDOW_MIN = 180;
@@ -297,7 +297,6 @@ function CreateSortie() {
   const [vehicles, setVehicles] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { isUserOnline } = useSocket();
 
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [driverName, setDriverName] = useState('');
@@ -314,21 +313,14 @@ function CreateSortie() {
   const [adding, setAdding] = useState(false);
   const [configModalOpen, setConfigModalOpen] = useState(false);
 
-  // Options chauffeur triées en ligne d'abord ; hors ligne désactivables.
-  // Fusionne le statut HTTP (listChauffeurs) avec la présence socket en direct
-  // pour rester à jour sans rafraîchir la page.
-  const [chauffeurOptions, onlineChauffeurCount] = useMemo(() => {
-    const withPresence = chauffeurs.map((c) => ({ ...c, online: Boolean(c.online) || isUserOnline(c.id) }));
-    const options = [...withPresence]
-      .sort((a, b) => (b.online - a.online) || a.nom.localeCompare(b.nom) || a.prenom.localeCompare(b.prenom))
-      .map((c) => ({
-        value: String(c.id),
-        label: `${c.prenom} ${c.nom}`.trim(),
-        disabled: !c.online,
-      }));
-    const online = withPresence.filter((c) => c.online).length;
-    return [options, online];
-  }, [chauffeurs, isUserOnline]);
+  // Options chauffeur triées par disponibilité : les disponibles d'abord, les
+  // autres désactivés. La disponibilité déclarée (availability_status effectif
+  // renvoyé par l'API) prime sur l'état de connexion.
+  const [chauffeurOptions, availableChauffeurCount] = useMemo(() => {
+    const options = buildChauffeurOptions(chauffeurs);
+    const available = options.filter((o) => !o.disabled).length;
+    return [options, available];
+  }, [chauffeurs]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -387,8 +379,8 @@ function CreateSortie() {
       return;
     }
     const driverAccount = chauffeurs.find((c) => String(c.id) === String(driverEmployeeId));
-    if (driverAccount && !(Boolean(driverAccount.online) || isUserOnline(driverAccount.id))) {
-      notifyError('Ce chauffeur est hors ligne et ne peut pas être affecté à une sortie');
+    if (driverAccount && (driverAccount.availability_status || 'available') !== 'available') {
+      notifyError('Ce chauffeur n\'est pas disponible et ne peut pas être affecté à une sortie');
       return;
     }
     const effectiveDriverName = driverAccount
@@ -626,22 +618,23 @@ function CreateSortie() {
               leftSection={<IconUser size={16} />}
               renderOption={({ option }) => {
                 const c = chauffeurs.find((ch) => String(ch.id) === String(option.value));
-                const optOnline = c ? Boolean(c.online) || isUserOnline(c.id) : false;
+                const optStatus = c?.availability_status || 'available';
+                const optLabel = availabilityStatusLabel[optStatus] || optStatus;
                 return (
                   <Group gap={8} wrap="nowrap">
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: optOnline ? '#40c057' : '#9098a3', flexShrink: 0 }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: availabilityStatusDot[optStatus] || '#9098a3', flexShrink: 0 }} />
                     <Text size="sm">{option.label}</Text>
                     <Text size="xs" c="dimmed" style={{ marginLeft: 'auto', fontStyle: 'italic' }}>
-                      {optOnline ? 'en ligne' : 'hors ligne'}
+                      {optLabel}
                     </Text>
                   </Group>
                 );
               }}
             />
-            {chauffeurs.length === 0 ? null : onlineChauffeurCount === 0 ? (
-              <Text size="xs" c="orange.6">Aucun chauffeur en ligne pour le moment — vous pouvez saisir le conducteur manuellement.</Text>
-            ) : onlineChauffeurCount < chauffeurs.length ? (
-              <Text size="xs" c="dimmed">{onlineChauffeurCount} chauffeur(s) en ligne — les chauffeurs hors ligne ne sont pas sélectionnables.</Text>
+            {chauffeurs.length === 0 ? null : availableChauffeurCount === 0 ? (
+              <Text size="xs" c="orange.6">Aucun chauffeur disponible pour le moment — vous pouvez saisir le conducteur manuellement.</Text>
+            ) : availableChauffeurCount < chauffeurs.length ? (
+              <Text size="xs" c="dimmed">{availableChauffeurCount} chauffeur(s) disponible(s) — les chauffeurs indisponibles ne sont pas sélectionnables.</Text>
             ) : null}
             <TextInput
               label="Conducteur"

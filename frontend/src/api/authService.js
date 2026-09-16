@@ -7,4 +7,5 @@ export const authService = {
   sessions: () => api.get('/auth/sessions'),
   revokeSession: (id) => api.delete(`/auth/sessions/${id}`),
   deleteSessions: (ids) => api.delete('/auth/sessions', { data: { ids } }),
+  updateAvailability: (payload) => api.patch('/auth/me/availability', payload),
 };

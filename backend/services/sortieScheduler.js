@@ -1,5 +1,6 @@
 const { Op } = require('sequelize');
 const notificationService = require('./notificationService');
+const availabilityService = require('./availabilityService');
 
 // Dépendances injectables par défaut. Permet de tester le planificateur en
 // isolation avec des mocks.
@@ -9,6 +10,7 @@ function defaultDeps() {
     Sortie,
     Vehicle,
     notificationService,
+    availabilityService,
   };
 }
 
@@ -72,6 +74,14 @@ async function checkAndNotifyImminent() {
   return sorties.length;
 }
 
+// Retour automatique de congé : les chauffeurs/employés dont la période de
+// congé (leave_end_date) est terminée repassent à 'available' en base.
+async function autoRevertLeaves() {
+  const { availabilityService: avail } = getDeps();
+  if (!avail?.autoRevertLeaves) return 0;
+  return avail.autoRevertLeaves();
+}
+
 let timer = null;
 
 /**
@@ -84,9 +94,15 @@ function start() {
     checkAndNotifyImminent()
       .catch((err) => console.error('[scheduler-imminence] Erreur :', err.message));
   });
+  setImmediate(() => {
+    autoRevertLeaves()
+      .catch((err) => console.error('[scheduler-availability] Erreur :', err.message));
+  });
   timer = setInterval(() => {
     checkAndNotifyImminent()
       .catch((err) => console.error('[scheduler-imminence] Erreur :', err.message));
+    autoRevertLeaves()
+      .catch((err) => console.error('[scheduler-availability] Erreur :', err.message));
   }, SCAN_INTERVAL_MS);
   if (timer.unref) timer.unref();
   return timer;

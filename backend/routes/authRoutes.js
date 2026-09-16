@@ -28,6 +28,7 @@ router.post('/refresh', authController.refresh);
 router.post('/logout', auth, authController.logout);
 router.post('/logout-all', auth, authController.logoutAll);
 router.get('/me', auth, authController.me);
+router.patch('/me/availability', auth, authController.updateAvailability);
 router.get('/sessions', auth, authController.sessions);
 router.delete('/sessions', auth, authController.deleteSessions);
 router.delete('/sessions/:id', auth, authController.revokeSession);

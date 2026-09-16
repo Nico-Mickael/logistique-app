@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Paper, Badge, Center, Text, Group, Button, Modal, TextInput, Select, Stack, Card, SimpleGrid, Pagination, SegmentedControl,
+  Paper, Badge, Center, Text, Group, Button, Modal, TextInput, Select, Stack, Card, SimpleGrid, Pagination, SegmentedControl, Tooltip,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { IconPlus, IconEdit, IconTrash, IconUsers as IconUsersIcon, IconSearch } from '@tabler/icons-react';
@@ -12,9 +12,8 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import { employeeService } from '../../api/employeeService';
 import { siteService } from '../../api/siteService';
 import { getSiteOverride } from '../../api/axios';
-import { accentColor } from '../../utils/labels';
+import { accentColor, availabilityStatusLabel, availabilityStatusDot } from '../../utils/labels';
 import ConfirmModal from '../../components/ConfirmModal';
-import { useSocket } from '../../context/SocketContext';
 
 const roleLabels = {
   superadmin: 'Superadmin',
@@ -30,9 +29,23 @@ const roleColors = {
   employee: 'gray',
 };
 
+function AvailabilityDot({ status }) {
+  const s = status || 'available';
+  return (
+    <Tooltip label={availabilityStatusLabel[s] || s} withArrow position="top">
+      <span
+        aria-label={availabilityStatusLabel[s] || s}
+        style={{
+          width: 9, height: 9, borderRadius: '50%',
+          background: availabilityStatusDot[s] || '#9098a3',
+          display: 'inline-block', flexShrink: 0,
+        }}
+      />
+    </Tooltip>
+  );
+}
+
 function UserCard({ u, onEdit, onDelete }) {
-  const { isUserOnline } = useSocket();
-  const online = Boolean(u.online) || isUserOnline(u.id);
   return (
     <Card withBorder radius="lg" p="lg" className="user-card">
       <div style={{
@@ -40,20 +53,16 @@ function UserCard({ u, onEdit, onDelete }) {
         background: accentColor(roleColors[u.role]),
       }} />
       <Group justify="space-between" mb="xs" wrap="wrap">
-        <Text fw={600} size="md" style={{ minWidth: 0, wordBreak: 'break-word' }}>{u.prenom} {u.nom}</Text>
+        <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
+          <AvailabilityDot status={u.availability_status} />
+          <Text fw={600} size="md" style={{ minWidth: 0, wordBreak: 'break-word' }}>{u.prenom} {u.nom}</Text>
+        </Group>
         <Badge color={roleColors[u.role] || 'gray'} variant="light">{roleLabels[u.role] || u.role}</Badge>
       </Group>
       <Stack gap={4} mb="md">
         <Text size="sm"><Text span c="dimmed">Email: </Text>{u.email}</Text>
         {u.department && <Text size="sm"><Text span c="dimmed">Département: </Text>{u.department}</Text>}
         <Text size="sm"><Text span c="dimmed">Site: </Text>{u.Site?.name || '—'}</Text>
-        <Text size="sm">
-          <Text span c="dimmed">Statut: </Text>
-          <Group gap={6} wrap="nowrap" display="inline-flex" ml={2} style={{ verticalAlign: 'middle' }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: online ? '#40c057' : '#9098a3' }} />
-            <Text span c={online ? 'teal.7' : 'dimmed'} fw={600}>{online ? 'En ligne' : 'Hors ligne'}</Text>
-          </Group>
-        </Text>
       </Stack>
       <Group gap="xs">
         <Button size="xs" variant="subtle" color="brand" leftSection={<IconEdit size={14} />} onClick={() => onEdit(u)}>Modifier</Button>
@@ -69,7 +78,6 @@ export default function Users() {
   const [users, setUsers] = useState([]);
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { isUserOnline } = useSocket();
   const [opened, { open, close }] = useDisclosure(false);
   const [editUser, setEditUser] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -182,7 +190,15 @@ export default function Users() {
   };
 
   const columns = [
-    { accessor: 'nom', title: 'Nom', sortable: true },
+    {
+      accessor: 'nom', title: 'Nom', sortable: true,
+      render: (u) => (
+        <Group gap={8} wrap="nowrap">
+          <AvailabilityDot status={u.availability_status} />
+          <Text size="sm">{u.nom}</Text>
+        </Group>
+      ),
+    },
     { accessor: 'prenom', title: 'Prénom', sortable: true },
     { accessor: 'email', title: 'Email', sortable: true },
     { accessor: 'department', title: 'Département', sortable: true },
@@ -197,18 +213,6 @@ export default function Users() {
       ) : (
         <Text size="sm" c="dimmed">—</Text>
       )),
-    },
-    {
-      accessor: 'status', title: 'Statut', sortable: true,
-      render: (u) => {
-        const online = Boolean(u.online) || isUserOnline(u.id);
-        return (
-          <Group gap={6} wrap="nowrap">
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: online ? '#40c057' : '#9098a3' }} />
-            <Text size="sm" c={online ? 'teal.7' : 'dimmed'} fw={500}>{online ? 'En ligne' : 'Hors ligne'}</Text>
-          </Group>
-        );
-      },
     },
     {
       accessor: 'actions', title: '',

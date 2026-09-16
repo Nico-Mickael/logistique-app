@@ -112,7 +112,14 @@ beforeEach(() => {
   db = { requests: [], vehicles: [], sorties: [], sortieRequests: [], employees: [] };
   notifyCalls.length = 0;
   releaseCalls.length = 0;
-  sortieService.__setDeps({ models: fakeModels, notifyChiefs: fakeNotify, releaseIfIdle: fakeReleaseIfIdle });
+  // Horloge gelée AVANT les dates fixées des fixtures (2026-09-05 → 2026-09-10)
+  // pour que le garde "départ dépassé" reste déterministe.
+  sortieService.__setDeps({
+    models: fakeModels,
+    notifyChiefs: fakeNotify,
+    releaseIfIdle: fakeReleaseIfIdle,
+    now: () => new Date('2026-09-01T00:00:00').getTime(),
+  });
 });
 
 afterEach(() => {
@@ -122,6 +129,17 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // findCompatibleRequests
 // ---------------------------------------------------------------------------
+test('findCompatibleRequests : aucune suggestion si le départ de la sortie est déjà passé', async () => {
+  const base = new Date('2026-09-05T10:00:00').getTime();
+  db.requests = [
+    { id: 1, destination: 'Antananarivo', status: 'approved', date_souhaitee: new Date(base), nb_personnes: 2 },
+  ];
+
+  const result = await sortieService.findCompatibleRequests(99, 'Antananarivo', 10, new Date('2026-08-20T10:00:00'));
+
+  assert.deepStrictEqual(result, [], 'plus aucune suggestion pour une sortie déjà partie');
+});
+
 test('findCompatibleRequests : filtre par destination (synonymes inclus), statut et fenêtre horaire', async () => {
   const base = new Date('2026-09-05T10:00:00').getTime();
   db.requests = [
@@ -387,6 +405,35 @@ function seedGroupable() {
     { id: 5, employee_id: 11, destination: 'Antananarivo', motif: 'Formation', date_souhaitee: new Date(base + 3 * 60 * 1000), nb_personnes: 2, status: 'pending', vehicle_id: null },
   ];
 }
+
+test('attachRequestToSortie : refuse une sortie dont le départ est déjà passé', async () => {
+  seedGroupable();
+  // Départ antérieur à l'horloge gelée (2026-09-01) → sortie déjà partie
+  db.sorties[0].departure_time = new Date('2026-08-20T10:00:00');
+
+  await assert.rejects(
+    sortieService.attachRequestToSortie({ sortieId: 100, requestId: 2 }),
+    (err) => err.status === 400 && /déjà passé/i.test(err.message)
+  );
+  assert.strictEqual(db.sortieRequests.filter((sr) => sr.request_id === 2).length, 0, 'aucun lien créé');
+});
+
+test('attachRequestToSortie : autorise un retard toléré (≤ 20 min après le départ)', async () => {
+  seedGroupable();
+  // Horloge gelée à 2026-09-10T10:00 → départ à 09:50 = 10 min de retard (≤ 20),
+  // et demande 2 (date_souhaitee 10:10) reste dans la fenêtre ±3 h.
+  db.sorties[0].departure_time = new Date('2026-09-10T09:50:00');
+  sortieService.__setDeps({
+    models: fakeModels,
+    notifyChiefs: fakeNotify,
+    releaseIfIdle: fakeReleaseIfIdle,
+    now: () => new Date('2026-09-10T10:00:00').getTime(),
+  });
+
+  const result = await sortieService.attachRequestToSortie({ sortieId: 100, requestId: 2 });
+
+  assert.strictEqual(result.status, 'added');
+});
 
 test('attachRequestToSortie : ajoute une demande compatible et conserve id, employé, motif, statut', async () => {
   seedGroupable();

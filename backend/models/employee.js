@@ -22,7 +22,14 @@ static associate(models) {
     password: DataTypes.STRING,
     department: DataTypes.STRING,
     role: DataTypes.STRING,
-    site_id: DataTypes.INTEGER
+    site_id: DataTypes.INTEGER,
+    // Disponibilité professionnelle (distincte de l'état de connexion technique) :
+    // 'available' (par défaut) | 'offline' | 'on_leave' | 'absent'.
+    // La connexion/déconnexion à l'application ne modifie JAMAIS ce champ.
+    availability_status: { type: DataTypes.STRING, allowNull: false, defaultValue: 'available' },
+    leave_start_date: { type: DataTypes.DATEONLY, allowNull: true },
+    leave_end_date: { type: DataTypes.DATEONLY, allowNull: true },
+    availability_updated_at: { type: DataTypes.DATE, allowNull: true },
   }, {
     sequelize,
     modelName: 'Employee',

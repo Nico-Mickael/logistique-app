@@ -23,7 +23,6 @@ import FloatingPanel from '../../components/FloatingPanel';
 import { useNavigate } from 'react-router-dom';
 import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, vehicleDisplayName } from '../../utils/labels';
 import { downloadCSV } from '../../utils/csv';
-import { useSocket } from '../../context/SocketContext';
 
 const statusFilterOptions = [
   { label: 'Toutes', value: 'all' },
@@ -39,7 +38,6 @@ const CSV_EXPORT_LIMIT = 9999;
 
 function Sorties() {
   const navigate = useNavigate();
-  const { isUserOnline } = useSocket();
   const [sorties, setSorties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [vehicles, setVehicles] = useState([]);
@@ -174,8 +172,8 @@ function Sorties() {
       return;
     }
     const chauffeurAcc = chauffeurs.find((c) => String(c.id) === String(editDriverEmployeeId));
-    if (chauffeurAcc && !(Boolean(chauffeurAcc.online) || isUserOnline(chauffeurAcc.id))) {
-      notifyError('Ce chauffeur est hors ligne et ne peut pas être affecté à une sortie');
+    if (chauffeurAcc && (chauffeurAcc.availability_status || 'available') !== 'available') {
+      notifyError('Ce chauffeur n\'est pas disponible et ne peut pas être affecté à une sortie');
       return;
     }
     const effectiveName = chauffeurAcc ? `${chauffeurAcc.prenom} ${chauffeurAcc.nom}`.trim() : editDriverName;
@@ -200,8 +198,8 @@ function Sorties() {
 
   const handleAssignDriver = async (sortie, driverId) => {
     const chauffeurAcc = chauffeurs.find((c) => String(c.id) === String(driverId));
-    if (chauffeurAcc && !(Boolean(chauffeurAcc.online) || isUserOnline(chauffeurAcc.id))) {
-      notifyError('Ce chauffeur est hors ligne et ne peut pas être affecté à une sortie');
+    if (chauffeurAcc && (chauffeurAcc.availability_status || 'available') !== 'available') {
+      notifyError('Ce chauffeur n\'est pas disponible et ne peut pas être affecté à une sortie');
       return;
     }
     const driverName = chauffeurAcc ? `${chauffeurAcc.prenom} ${chauffeurAcc.nom}`.trim() : '';
@@ -318,7 +316,7 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
           <Select
             size="xs"
             placeholder={s.driver_name ? s.driver_name : 'Affecter un chauffeur'}
-            data={chauffeurOptions(chauffeurs, isUserOnline)}
+            data={chauffeurOptions(chauffeurs)}
             value={s.driver_employee_id ? String(s.driver_employee_id) : null}
             onChange={(v) => handleAssignDriver(s, v)}
             clearable searchable radius="md" w={{ base: 130, sm: 170 }}
@@ -327,7 +325,7 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
             onClick={(e) => e.stopPropagation()}
             renderOption={({ option }) => (
               <Group gap={8} wrap="nowrap">
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: option.online ? '#40c057' : '#9098a3', flexShrink: 0 }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: option.dot, flexShrink: 0 }} />
                 <Text size="sm">{option.label}</Text>
               </Group>
             )}
@@ -544,7 +542,6 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
               <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                 {sorties.map((s) => (
                   <SortieCard key={s.id} sortie={s} chauffeurs={chauffeurs} vehicles={vehicles}
-                    isOnline={isUserOnline}
                     onAssignDriver={handleAssignDriver} onChangeVehicle={handleChangeVehicle}
                     onDetail={openDetail} onEdit={openEdit}
                     onDepart={openDepartModal} onSuggestions={openSuggestionsModal}
@@ -571,7 +568,7 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
             value={editVehicleId} onChange={setEditVehicleId} radius="md"
           />
           <Select label="Chauffeur (compte)" placeholder="Choisir un chauffeur" w="100%"
-            data={chauffeurOptions(chauffeurs, isUserOnline)}
+            data={chauffeurOptions(chauffeurs)}
             value={editDriverEmployeeId || null}
             onChange={(v) => {
               setEditDriverEmployeeId(v || '');
@@ -581,10 +578,10 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
             clearable searchable radius="md"
             renderOption={({ option }) => (
               <Group gap={8} wrap="nowrap">
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: option.online ? '#40c057' : '#9098a3', flexShrink: 0 }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: option.dot, flexShrink: 0 }} />
                 <Text size="sm">{option.label}</Text>
                 <Text size="xs" c="dimmed" style={{ marginLeft: 'auto', fontStyle: 'italic' }}>
-                  {option.online ? 'en ligne' : 'hors ligne'}
+                  {option.statusLabel}
                 </Text>
               </Group>
             )}

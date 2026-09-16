@@ -10,7 +10,8 @@ const { notifyChiefs } = require('../services/socketService');
 const notificationService = require('../services/notificationService');
 const { logAudit } = require('../services/auditService');
 const { scopeWhere, requireSiteAccess } = require('../middlewares/siteContext');
-const { bulkOnlineStatus } = require('../services/presenceService');
+const { isAssignable: chauffeurAssignable } = require('../services/availabilityService');
+const { SORTIE_JOIN_GRACE_MS } = require('../services/sortieService');
 
 // Chargement détaillé d'une sortie (véhicule, conducteur, rescheduleur, demandes liées).
 const SORTIE_INCLUDES = [
@@ -65,10 +66,11 @@ exports.create = asyncHandler(async (req, res) => {
     if (!driver || driver.role !== 'chauffeur' || driver.site_id !== req.user.site_id) {
       return res.status(400).json({ message: 'Le chauffeur affecté doit être un compte avec le rôle chauffeur du site' });
     }
-    // Empêcher l'affectation d'un chauffeur hors ligne.
-    const presence = await bulkOnlineStatus([driver.id]);
-    if (!presence[driver.id]?.online) {
-      return res.status(400).json({ message: 'Ce chauffeur est hors ligne et ne peut pas être affecté à une sortie' });
+    // Un chauffeur est assignable UNIQUEMENT s'il est déclaré disponible
+    // (offline / en congé / en absence → non assignable). L'état de
+    // connexion technique ne joue aucun rôle.
+    if (!chauffeurAssignable(driver)) {
+      return res.status(400).json({ message: 'Ce chauffeur est indisponible (hors ligne, en congé ou en absence) et ne peut pas être affecté à une sortie' });
     }
   }
 
@@ -373,10 +375,9 @@ exports.update = asyncHandler(async (req, res) => {
       if (!driver || driver.role !== 'chauffeur' || driver.site_id !== sortie.site_id) {
         return res.status(400).json({ message: 'Le chauffeur affecté doit être un compte avec le rôle chauffeur du site' });
       }
-      // Empêcher l'affectation d'un chauffeur hors ligne.
-      const presence = await bulkOnlineStatus([driver.id]);
-      if (!presence[driver.id]?.online) {
-        return res.status(400).json({ message: 'Ce chauffeur est hors ligne et ne peut pas être affecté à cette sortie' });
+      // Un chauffeur indisponible (offline / congé / absence) n'est pas assignable.
+      if (!chauffeurAssignable(driver)) {
+        return res.status(400).json({ message: 'Ce chauffeur est indisponible (hors ligne, en congé ou en absence) et ne peut pas être affecté à cette sortie' });
       }
       sortie.driver_employee_id = driver.id;
     } else {
@@ -606,7 +607,7 @@ exports.validateReturn = asyncHandler(async (req, res) => {
 // Employé : voir les sorties planifiées disponibles pour rejoindre
 exports.planned = asyncHandler(async (req, res) => {
   const sorties = await Sortie.findAll({
-    where: { status: 'planned', ...scopeWhere(req) },
+    where: { status: 'planned', departure_time: { [Op.gt]: new Date(Date.now() - SORTIE_JOIN_GRACE_MS) }, ...scopeWhere(req) },
     include: [
       { model: Vehicle, attributes: ['id', 'type', 'capacity', 'name'] },
       { model: Employee, as: 'driver', attributes: ['nom', 'prenom'] },
@@ -648,6 +649,12 @@ exports.join = asyncHandler(async (req, res) => {
   requireSiteAccess(req, sortie.site_id);
   if (sortie.status !== 'planned') {
     return res.status(400).json({ message: 'Cette sortie n\'est plus disponible' });
+  }
+
+  // Départ dépassé d'au moins 20 min → plus possible de rejoindre la sortie.
+  const depTime = new Date(sortie.departure_time);
+  if (!isNaN(depTime.getTime()) && depTime.getTime() <= Date.now() - SORTIE_JOIN_GRACE_MS) {
+    return res.status(400).json({ message: 'Le départ de cette sortie est déjà passé : elle ne peut plus être rejointe' });
   }
 
   // Vérifier si l'employé a déjà une demande liée à cette sortie
@@ -694,6 +701,17 @@ exports.join = asyncHandler(async (req, res) => {
     message: `Votre demande pour la sortie vers ${sortie.destination} le ${new Date(sortie.departure_time).toLocaleDateString('fr-FR')} a été approuvée.`,
     type: 'approved',
   });
+
+  // Rejoint juste avant / juste après le départ : on prévient l'employé
+  // qu'il a 20 minutes max pour se préparer.
+  const depMs = new Date(sortie.departure_time).getTime();
+  if (!isNaN(depMs) && depMs <= Date.now() + SORTIE_JOIN_GRACE_MS) {
+    await createNotification({
+      user_id: req.user.id,
+      message: `La sortie vers ${sortie.destination} part sous 20 minutes maximum : préparez-vous.`,
+      type: 'sortie_prepare',
+    });
+  }
 
   notifyChiefs('sortie_updated', sortie);
 

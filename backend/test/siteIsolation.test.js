@@ -159,7 +159,14 @@ function makeFakeModels() {
 beforeEach(() => {
   db = { requests: [], vehicles: [], sorties: [], sortieRequests: [], employees: [] };
   findAllCalls.length = 0;
-  sortieService.__setDeps({ models: makeFakeModels(), notifyChiefs: () => {}, releaseIfIdle: () => {} });
+  // Horloge gelée AVANT les dates fixées des fixtures (2026-09-05 → 2026-09-10)
+  // pour que le garde "départ dépassé" reste déterministe.
+  sortieService.__setDeps({
+    models: makeFakeModels(),
+    notifyChiefs: () => {},
+    releaseIfIdle: () => {},
+    now: () => new Date('2026-09-01T00:00:00').getTime(),
+  });
 });
 
 afterEach(() => {

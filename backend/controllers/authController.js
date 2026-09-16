@@ -7,9 +7,29 @@ const asyncHandler = require('../utils/asyncHandler');
 const { ALL_ROLES, BCRYPT_ROUNDS } = require('../utils/constants');
 const { logAudit } = require('../services/auditService');
 const { enforceCreationSite } = require('../middlewares/siteContext');
+const availabilityService = require('../services/availabilityService');
+const { AVAILABILITY_STATUSES, effectiveStatus, toDayStr } = availabilityService;
 
 const ACCESS_TOKEN_EXPIRY = '30m';
 const REFRESH_TOKEN_DAYS = 7;
+
+// DTO utilisateur renvoyé à l'application : l'état de connexion technique
+// n'apparaît pas ici, seul le statut de disponibilité professionnelle compte.
+function serializeUser(employee) {
+  return {
+    id: employee.id,
+    nom: employee.nom,
+    prenom: employee.prenom,
+    email: employee.email,
+    department: employee.department || null,
+    role: employee.role,
+    site_id: employee.site_id ?? null,
+    availability_status: effectiveStatus(employee),
+    leave_start_date: employee.leave_start_date || null,
+    leave_end_date: employee.leave_end_date || null,
+    availability_updated_at: employee.availability_updated_at || null,
+  };
+}
 
 function parseDeviceInfo(ua) {
   if (!ua) return 'Inconnu';
@@ -123,14 +143,7 @@ exports.login = asyncHandler(async (req, res) => {
   res.json({
     accessToken,
     refreshToken,
-    user: {
-      id: employee.id,
-      nom: employee.nom,
-      prenom: employee.prenom,
-      email: employee.email,
-      role: employee.role,
-      site_id: employee.site_id ?? null,
-    },
+    user: serializeUser(employee),
   });
 });
 
@@ -203,13 +216,51 @@ exports.logoutAll = asyncHandler(async (req, res) => {
 
 exports.me = asyncHandler(async (req, res) => {
   const employee = await Employee.findByPk(req.user.id, {
-    attributes: ['id', 'nom', 'prenom', 'email', 'department', 'role', 'site_id'],
+    attributes: ['id', 'nom', 'prenom', 'email', 'department', 'role', 'site_id', 'availability_status', 'leave_start_date', 'leave_end_date', 'availability_updated_at'],
     include: [{ model: Site, attributes: ['id', 'name', 'code'], required: false }],
   });
   if (!employee) {
     return res.status(404).json({ message: 'Utilisateur introuvable' });
   }
-  res.json(employee);
+  res.json({ ...serializeUser(employee), site: employee.Site || null });
+});
+
+// L'utilisateur modifie lui-même sa disponibilité professionnelle (menu avatar).
+// Le statut reflète sa disponibilité réelle — indépendante de sa connexion.
+exports.updateAvailability = asyncHandler(async (req, res) => {
+  const { availability_status, leave_start_date, leave_end_date } = req.body || {};
+
+  if (!AVAILABILITY_STATUSES.includes(availability_status)) {
+    return res.status(400).json({ message: 'Statut de disponibilité invalide' });
+  }
+
+  let start = null;
+  let end = null;
+  if (availability_status === 'on_leave') {
+    start = toDayStr(leave_start_date);
+    end = toDayStr(leave_end_date);
+    if (!start || !end) {
+      return res.status(400).json({ message: 'Un congé nécessite une date de début et une date de retour' });
+    }
+    if (end < start) {
+      return res.status(400).json({ message: 'La date de retour doit être le jour même ou après la date de début' });
+    }
+  }
+
+  const employee = await Employee.findByPk(req.user.id);
+  if (!employee) {
+    return res.status(404).json({ message: 'Utilisateur introuvable' });
+  }
+
+  employee.availability_status = availability_status;
+  employee.leave_start_date = start;
+  employee.leave_end_date = end;
+  employee.availability_updated_at = new Date();
+  await employee.save();
+
+  await logAudit({ userId: req.user.id, action: 'update_availability', entity: 'Employee', entityId: employee.id, newValue: { availability_status: effectiveStatus(employee), leave_start_date: start, leave_end_date: end }, req });
+
+  res.json(serializeUser(employee));
 });
 
 exports.sessions = asyncHandler(async (req, res) => {

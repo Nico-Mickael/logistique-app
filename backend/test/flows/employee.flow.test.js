@@ -49,8 +49,9 @@ describe('Flux Employés (intégration)', () => {
     assert.ok(Array.isArray(res.body));
     const chauffeur = res.body.find((e) => e.email === CHAUFFEUR.email);
     assert.ok(chauffeur, 'chauffeur dans la liste');
-    // Le chauffeur a été connecté via loginAll (session active fraîche) → en ligne.
-    assert.strictEqual(chauffeur.online, true);
+    // Par défaut un chauffeur est disponible — sa disponibilité déclarée ne
+    // dépend pas de son état de connexion.
+    assert.strictEqual(chauffeur.availability_status, 'available');
     assert.ok(typeof chauffeur.last_seen !== 'undefined');
   });
 

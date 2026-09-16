@@ -82,6 +82,29 @@ export const sortieStatusAccent = {
   finished: 'var(--mantine-color-brandYellow-6)',
 };
 
+// Disponibilité professionnelle (indépendante de l'état de connexion technique).
+export const availabilityStatusLabel = {
+  available: 'Disponible',
+  offline: 'Hors ligne',
+  on_leave: 'En congé',
+  absent: 'En absence',
+};
+
+export const availabilityStatusColor = {
+  available: 'brand',
+  offline: 'gray',
+  on_leave: 'orange',
+  absent: 'red',
+};
+
+// Couleur du point indicateur (avatar / tableau), par statut de disponibilité.
+export const availabilityStatusDot = {
+  available: '#40c057',
+  offline: '#9098a3',
+  on_leave: '#fd7e14',
+  absent: '#e03131',
+};
+
 // Couleur CSS du bandeau d'accent des cartes, à partir d'une couleur Mantine
 // (source unique : évite que chaque page réimplémente la même correspondance).
 export const accentColor = (colorName, fallback = 'var(--mantine-color-gray-5)') => {

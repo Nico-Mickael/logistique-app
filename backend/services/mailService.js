@@ -54,6 +54,7 @@ const SUBJECTS = {
   cancelled: 'Demande annulée',
   sortie_assignment: 'Assignation à une sortie',
   sortie_finished: 'Sortie terminée',
+  sortie_prepare: 'Préparez-vous',
   return_marked: 'Retour enregistré',
 };
 

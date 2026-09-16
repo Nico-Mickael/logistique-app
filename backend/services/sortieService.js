@@ -5,11 +5,23 @@ const { normalizeDestination } = require('../utils/destination');
 // Critère de regroupement : écart horaire ≤ 3 heures
 const COMPAT_WINDOW_MS = 3 * 60 * 60 * 1000;
 
+// Tolérance de retard : une sortie planifiée peut encore être rejointe dans
+// les 20 minutes suivant l'heure de départ (ex. l'employé prend la moto avec
+// quelques minutes de retard après un imprévu). Au-delà, plus de rejoint.
+const SORTIE_JOIN_GRACE_MS = 20 * 60 * 1000;
+
 // Deux dates appartiennent-elles au même jour calendaire ?
 function isSameCalendarDay(a, b) {
   return a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
+}
+
+// Une sortie ne peut plus être rejointe une fois son départ dépassé d'au
+// moins SORTIE_JOIN_GRACE_MS (tolérance de 20 min de retard).
+function isDeparturePassed(departureTime, nowMs) {
+  const d = new Date(departureTime);
+  return !isNaN(d.getTime()) && d.getTime() <= nowMs - SORTIE_JOIN_GRACE_MS;
 }
 
 // Dépendances injectables (modèles + socket) par défaut. Permet de tester
@@ -19,6 +31,7 @@ function defaultDeps() {
     models: require('../models'),
     notifyChiefs: require('./socketService').notifyChiefs,
     releaseIfIdle: require('./vehicleService').releaseIfIdle,
+    now: () => Date.now(),
   };
 }
 
@@ -45,7 +58,7 @@ function __resetDeps() {
 // Trouve les demandes compatibles avec une sortie (même destination — synonymes
 // et casse ignorés —, écart horaire ≤ 3 h, capacité respectée)
 exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, departureTime) => {
-  const { models } = getDeps();
+  const { models, now } = getDeps();
   const { Request, SortieRequest, Employee, Sortie } = models;
 
   // Multi-sites : les suggestions d'une sortie ne concernent QUE son site.
@@ -55,6 +68,12 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, 
   const linkedRequestIds = (await SortieRequest.findAll({ attributes: ['request_id'] })).map((sr) => sr.request_id);
 
   const departure = departureTime ? new Date(departureTime) : null;
+
+  // Départ déjà dépassé (au-delà de la tolérance de 20 min) → plus aucune
+  // suggestion (la sortie ne peut plus être rejointe)
+  if (departure && !isNaN(departure.getTime()) && departure.getTime() <= now() - SORTIE_JOIN_GRACE_MS) {
+    return [];
+  }
 
   const candidates = await Request.findAll({
     where: {
@@ -112,11 +131,16 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, 
  * @throws {Error} avec `.status` (400/404) si la liaison est impossible
  */
 exports.attachRequestToSortie = async ({ sortieId, requestId }) => {
-  const { models, releaseIfIdle, notifyChiefs } = getDeps();
+  const { models, releaseIfIdle, notifyChiefs, now } = getDeps();
   const { Sortie, Request, SortieRequest, Vehicle } = models;
 
   const sortie = await Sortie.findByPk(sortieId);
   if (!sortie) throw apiError(404, 'Sortie introuvable');
+
+  // Départ dépassé d'au moins 20 min → plus possible de rejoindre cette sortie.
+  if (isDeparturePassed(sortie.departure_time, now())) {
+    throw apiError(400, 'Le départ de cette sortie est déjà passé : elle ne peut plus être rejointe');
+  }
 
   const request = await Request.findByPk(requestId);
   if (!request) throw apiError(404, 'Demande introuvable');
@@ -290,5 +314,6 @@ exports.autoCreateSortie = async (request) => {
 module.exports.__setDeps = __setDeps;
 module.exports.__resetDeps = __resetDeps;
 module.exports.COMPAT_WINDOW_MS = COMPAT_WINDOW_MS;
+module.exports.SORTIE_JOIN_GRACE_MS = SORTIE_JOIN_GRACE_MS;
 module.exports.isSameCalendarDay = isSameCalendarDay;
 module.exports.normalizeDestination = normalizeDestination;
