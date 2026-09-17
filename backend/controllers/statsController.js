@@ -40,7 +40,7 @@ exports.overview = asyncHandler(async (req, res) => {
   const [requestsByStatus, sortiesByStatus, vehiclesByStatus, sortiesOfYear] = await Promise.all([
     countByStatus(Request, scopeWhere(req)),
     countByStatus(Sortie, scopeWhere(req)),
-    countByStatus(Vehicle, scopeWhere(req)),
+    countByStatus(Vehicle, { archived_at: null, ...scopeWhere(req) }),
     Sortie.findAll({
       where: { departure_time: { [Op.between]: [start, end] }, ...scopeWhere(req) },
       attributes: ['destination', 'status', 'distance_km', 'departure_time'],
@@ -145,7 +145,7 @@ exports.mine = asyncHandler(async (req, res) => {
 
 // GET /api/stats/kilometrage?year=2026&vehicle_id=2
 exports.kilometrage = asyncHandler(async (req, res) => {
-  const where = { status: 'finished', distance_km: { [Op.ne]: null }, ...scopeWhere(req) };
+  const where = { status: 'finished', distance_km: { [Op.ne]: null }, deleted_at: null, ...scopeWhere(req) };
 
   const year = parseInt(req.query.year, 10);
   if (year) {
@@ -180,7 +180,7 @@ exports.sortiesPassengers = asyncHandler(async (req, res) => {
 // GET /api/stats/fleet — santé de la flotte (pour le dashboard chef)
 exports.fleet = asyncHandler(async (req, res) => {
   const [vehicles, fuelStats] = await Promise.all([
-    Vehicle.findAll({ where: scopeWhere(req), raw: true }),
+    Vehicle.findAll({ where: { archived_at: null, ...scopeWhere(req) }, raw: true }),
     Sortie.findAll({
       where: { status: 'finished', ...scopeWhere(req) },
       attributes: [

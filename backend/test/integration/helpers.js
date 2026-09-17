@@ -44,6 +44,10 @@ function authHeader(accessToken) {
 
 async function cleanup() {
   const { sequelize } = db;
+  await sequelize.query('DELETE FROM "MessageReads"');
+  await sequelize.query('DELETE FROM "Messages"');
+  await sequelize.query('DELETE FROM "ConversationMembers"');
+  await sequelize.query('DELETE FROM "Conversations"');
   await sequelize.query('DELETE FROM "Notifications"');
   await sequelize.query('DELETE FROM "Sessions"');
   await sequelize.query('DELETE FROM "AuditLogs"');

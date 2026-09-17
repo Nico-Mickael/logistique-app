@@ -3,13 +3,15 @@ import {
   Title, Text, Paper, Stack, Group, Badge, ActionIcon, Button, Divider,
   Tooltip, Loader, Center, Alert, Pagination, Checkbox,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import {
   IconDeviceDesktop, IconDeviceMobile, IconDeviceTablet,
-  IconLogout, IconTrash, IconRefresh, IconAlertCircle,
+  IconLogout, IconTrash, IconRefresh, IconAlertCircle, IconInfoCircle,
 } from '@tabler/icons-react';
 import { authService } from '../api/authService';
 import { notifySuccess, notifyError } from '../utils/toast';
 import ConfirmModal from '../components/ConfirmModal';
+import UserManualModal from '../components/UserManual';
 
 const deviceIcon = (device) => {
   if (/mobile/i.test(device)) return IconDeviceMobile;
@@ -37,6 +39,7 @@ export default function Sessions() {
   const [selected, setSelected] = useState([]);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [manualOpened, manual] = useDisclosure(false);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -128,6 +131,11 @@ export default function Sessions() {
           </Text>
         </div>
         <Group gap="xs">
+          <Tooltip label="Manuel d'utilisation">
+            <ActionIcon variant="light" color="brand" onClick={manual.open}>
+              <IconInfoCircle size={16} />
+            </ActionIcon>
+          </Tooltip>
           <Tooltip label="Rafraîchir">
             <ActionIcon variant="light" color="gray" onClick={fetchSessions}>
               <IconRefresh size={16} />
@@ -263,6 +271,8 @@ export default function Sessions() {
         variant="danger"
         loading={deleting}
       />
+
+      <UserManualModal opened={manualOpened} onClose={manual.close} />
     </Stack>
   );
 }

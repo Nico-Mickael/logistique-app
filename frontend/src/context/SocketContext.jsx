@@ -2,6 +2,7 @@ import { createContext, useContext, useCallback, useEffect, useRef, useState } f
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { notificationService } from '../api/notificationService';
+import { messageService } from '../api/messageService';
 import api from '../api/axios';
 import { notifySuccess, notifyInfo, notifyWarning } from '../utils/toast';
 
@@ -27,11 +28,35 @@ const toastForType = (type, message) => {
 export function SocketProvider({ children }) {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [onlineUserIds, setOnlineUserIds] = useState(() => new Set());
   const [badgeCounts, setBadgeCounts] = useState({ requests: 0, sorties: 0 });
   const lastIdRef = useRef(null);
   const intervalRef = useRef(null);
   const socketRef = useRef(null);
+  const subscribersRef = useRef(new Map());
+
+  // Abonnement aux événements socket liés à la messagerie. Retourne une
+  // fonction de désinscription (à appeler dans le useEffect du composant).
+  const subscribeSocket = useCallback((event, callback) => {
+    if (!subscribersRef.current.has(event)) subscribersRef.current.set(event, new Set());
+    subscribersRef.current.get(event).add(callback);
+    return () => {
+      const set = subscribersRef.current.get(event);
+      if (set) {
+        set.delete(callback);
+        if (set.size === 0) subscribersRef.current.delete(event);
+      }
+    };
+  }, []);
+
+  const emitToSubscribers = useCallback((event, data) => {
+    const set = subscribersRef.current.get(event);
+    if (!set) return;
+    set.forEach((cb) => {
+      try { cb(data); } catch { /* ignore */ }
+    });
+  }, []);
 
   const isUserOnline = useCallback(
     (id) => onlineUserIds.has(Number(id)),
@@ -89,9 +114,20 @@ export function SocketProvider({ children }) {
     checkNotifications();
   }, [checkNotifications]);
 
+  // Total des messages non lus (messagerie) — rafraîchi par polling et socket.
+  const refreshUnreadMessages = useCallback(async () => {
+    try {
+      const { data } = await messageService.messages.unreadCount();
+      setUnreadMessages(typeof data?.count === 'number' ? data.count : 0);
+    } catch {
+      // silent
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) {
       setUnreadCount(0);
+      setUnreadMessages(0);
       setOnlineUserIds(new Set());
       setBadgeCounts({ requests: 0, sorties: 0 });
       lastIdRef.current = null;
@@ -153,13 +189,30 @@ export function SocketProvider({ children }) {
           return next;
         });
       });
+
+      // Messagerie : événements temps réel (les composants s'abonnent via
+      // subscribeSocket). Le toast est géré par la notification persistée.
+      socket.on('new_message', (data) => {
+        if (data?.sender_id && data.sender_id !== user.id) {
+          setUnreadMessages((c) => c + 1);
+        }
+        emitToSubscribers('new_message', data);
+      });
+      socket.on('message_updated', (data) => {
+        emitToSubscribers('message_updated', data);
+      });
+      socket.on('message_deleted', (data) => {
+        emitToSubscribers('message_deleted', data);
+      });
     }
 
     checkNotifications();
     refreshBadges();
+    refreshUnreadMessages();
     intervalRef.current = setInterval(() => {
       checkNotifications();
       refreshBadges();
+      refreshUnreadMessages();
     }, POLL_INTERVAL);
 
     return () => {
@@ -169,10 +222,10 @@ export function SocketProvider({ children }) {
         socketRef.current = null;
       }
     };
-  }, [user, checkNotifications, refreshBadges]);
+  }, [user, checkNotifications, refreshBadges, refreshUnreadMessages, emitToSubscribers]);
 
   return (
-    <NotificationContext.Provider value={{ unreadCount, refreshUnreadCount, onlineUserIds, isUserOnline, badgeCounts }}>
+    <NotificationContext.Provider value={{ unreadCount, refreshUnreadCount, unreadMessages, refreshUnreadMessages, subscribeSocket, onlineUserIds, isUserOnline, badgeCounts }}>
       {children}
     </NotificationContext.Provider>
   );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Paper, TextInput, PasswordInput, Button, Title, Text, Stack, Divider } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -13,6 +13,7 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const passwordRef = useRef(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -106,11 +107,19 @@ function Login() {
                 data-lpignore="true"
                 value={email}
                 onChange={(e) => setEmail(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setPasswordTouched(true);
+                    passwordRef.current?.focus();
+                  }
+                }}
               />
               <PasswordInput
                 label="Mot de passe"
                 placeholder="Votre mot de passe"
                 required
+                ref={passwordRef}
                 name="password-login"
                 autoComplete="new-password"
                 data-lpignore="true"

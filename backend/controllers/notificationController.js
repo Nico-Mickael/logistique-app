@@ -64,7 +64,7 @@ exports.markAllRead = asyncHandler(async (req, res) => {
 // `entity_type`/`entity_id` permettent l'anti-doublon : si `dedupe` est vrai
 // (ou que les deux sont fournis), on n'envoie une notification du même
 // (user_id, type, entity_type, entity_id) qu'une seule fois.
-exports.createNotification = async ({ user_id, message, type, entity_type, entity_id, dedupe }) => {
+exports.createNotification = async ({ user_id, message, type, entity_type, entity_id, dedupe, noEmail }) => {
   const hasEntity = entity_type != null && entity_id != null;
 
   if (dedupe || hasEntity) {
@@ -97,11 +97,14 @@ exports.createNotification = async ({ user_id, message, type, entity_type, entit
   sendToUser(user_id, buildPushPayload(notif))
     .catch((err) => console.error('[push] Erreur:', err.message));
 
-  Employee.findByPk(user_id, { attributes: ['id', 'email'] })
-    .then((employee) => {
-      if (employee?.email) return sendNotificationEmail(employee, notif);
-    })
-    .catch((err) => console.error('[mail] Erreur :', err.message));
+  // Les messages de messagerie ne génèrent pas d'email (spam potentiel).
+  if (!noEmail) {
+    Employee.findByPk(user_id, { attributes: ['id', 'email'] })
+      .then((employee) => {
+        if (employee?.email) return sendNotificationEmail(employee, notif);
+      })
+      .catch((err) => console.error('[mail] Erreur :', err.message));
+  }
 
   return notif;
 };

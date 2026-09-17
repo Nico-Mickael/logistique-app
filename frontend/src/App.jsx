@@ -28,6 +28,7 @@ import DriverSorties from './pages/chauffeur/DriverSorties';
 import Users from './pages/superadmin/Users';
 import Sites from './pages/superadmin/Sites';
 import Sessions from './pages/Sessions';
+import Messages from './pages/Messages';
 import ErrorPage from './pages/ErrorPage';
 
 function AppToasts() {
@@ -213,6 +214,16 @@ function App() {
                   <PrivateRoute allowedRoles={['employee', 'chauffeur', 'logistics_chief', 'admin', 'superadmin']}>
                     <Layout>
                       <Sessions />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/messages"
+                element={
+                  <PrivateRoute allowedRoles={['employee', 'chauffeur', 'logistics_chief', 'admin', 'superadmin']}>
+                    <Layout>
+                      <Messages />
                     </Layout>
                   </PrivateRoute>
                 }

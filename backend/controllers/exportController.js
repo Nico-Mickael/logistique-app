@@ -40,7 +40,7 @@ function buildWorkbook(sheetName, headers, rows, res, req, filename) {
 // Rapport par véhicule : km, carburant, maintenance, statut, coût/km
 exports.fleetReport = asyncHandler(async (req, res) => {
   const vehicles = await Vehicle.findAll({
-    where: scopeWhere(req),
+    where: { archived_at: null, ...scopeWhere(req) },
     attributes: ['id', 'name', 'type', 'capacity', 'status', 'maintenance_until', 'fuel_type', 'current_km'],
     order: [['type', 'ASC']],
   });

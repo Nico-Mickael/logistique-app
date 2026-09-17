@@ -23,6 +23,8 @@ app.use('/api/employees', require('./routes/employeeRoutes'));
 app.use('/api/sites', require('./routes/siteRoutes'));
 app.use('/api/stats', require('./routes/statsRoutes'));
 app.use('/api/export', require('./routes/exportRoutes'));
+app.use('/api/conversations', require('./routes/conversationRoutes'));
+app.use('/api/messages', require('./routes/messageRoutes'));
 
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'Route API introuvable' });

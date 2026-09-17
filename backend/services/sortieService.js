@@ -197,6 +197,8 @@ exports.attachRequestToSortie = async ({ sortieId, requestId }) => {
       const remaining = await SortieRequest.count({ where: { sortie_id: otherSortie.id } });
       if (remaining === 0 && otherSortie.status === 'planned') {
         const wasVehicleId = otherSortie.vehicle_id;
+        // Messagerie : la conversation de l'ancienne sortie part avec elle.
+        await require('./messagingService').deleteSortieConversation(otherSortie.id);
         await otherSortie.destroy();
         notifyChiefs('sortie_updated', { id: otherSortie.id, deleted: true }, otherSortie.site_id);
         if (wasVehicleId) await releaseIfIdle(wasVehicleId);

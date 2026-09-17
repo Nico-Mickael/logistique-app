@@ -234,7 +234,7 @@ function Layout({ children }) {
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 300;
+          z-index: 150;
           transition: left 0.2s ease, background 0.15s ease, transform 0.15s ease;
         }
         .collapse-btn-corner:hover {

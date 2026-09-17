@@ -4,8 +4,11 @@ const { Op } = require('sequelize');
 
 // Liste des sites (tout utilisateur connecté) — affichage "Site actuel" / sélecteur
 exports.list = asyncHandler(async (req, res) => {
+  const includeAll = ['1', 'true', 'all'].includes(String(req.query.all || '').toLowerCase());
+  const where = includeAll ? {} : { status: 'active' };
   const sites = await Site.findAll({
     attributes: ['id', 'name', 'code', 'city', 'address', 'status', 'createdAt', 'updatedAt'],
+    where,
     order: [['name', 'ASC']],
   });
   res.json(sites);
@@ -96,9 +99,13 @@ exports.remove = asyncHandler(async (req, res) => {
     Sortie.count({ where: { site_id: site.id } }),
   ]);
   if (employees + vehicles + requests + sorties > 0) {
-    return res.status(400).json({
-      message: 'Impossible de supprimer un site contenant des données (utilisateurs, véhicules, demandes ou sorties). Désactivez-le ou déplacez ses données.',
-    });
+    // Archiver : passer le site à « inactif » (masqué des sélecteurs) tout en
+    // conservant l'historique (sorties, demandes, kilométrages, employés…).
+    if (site.status === 'active') {
+      site.status = 'inactive';
+      await site.save();
+    }
+    return res.json({ message: 'Site archivé (données et historique conservés)' });
   }
 
   await site.destroy();

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Group, Text, ActionIcon, Popover, Stack, UnstyledButton, Badge,
+  Group, Text, ActionIcon, Popover, Stack, Badge, UnstyledButton,
   Button, Loader, Center, ScrollArea, Burger, Avatar, Tooltip, Divider,
   Select, Menu, useMantineColorScheme,
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
-import { IconBell, IconLogout, IconX, IconBuilding, IconCheck } from '@tabler/icons-react';
+import { IconMessages, IconBell, IconLogout, IconX, IconBuilding, IconCheck } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -31,7 +31,7 @@ function initials(user) {
 
 function Header({ opened: navOpened, onToggle }) {
   const { logout, user, updateAvailability } = useAuth();
-  const { unreadCount, refreshUnreadCount } = useSocket();
+  const { unreadCount, refreshUnreadCount, unreadMessages } = useSocket();
   const { colorScheme } = useMantineColorScheme();
   const dark = colorScheme === 'dark';
   const navigate = useNavigate();
@@ -205,11 +205,11 @@ function Header({ opened: navOpened, onToggle }) {
           </div>
         ) : (
           <div className="hide-on-mobile">
-            {currentSiteName && (
+            {currentSiteName ? (
               <Badge variant="light" color="brand" size="lg" leftSection={<IconBuilding size={13} />} style={{ textTransform: 'none' }}>
                 {currentSiteName}
               </Badge>
-            )}
+            ) : null}
           </div>
         )}
         <Group gap={8} wrap="nowrap" className="app-brand-mobile" hiddenFrom="md" pl={2}>
@@ -320,6 +320,22 @@ function Header({ opened: navOpened, onToggle }) {
         </Menu>
 
         <Divider orientation="vertical" color="rgba(255,255,255,0.25)" className="hide-on-mobile" />
+
+        <Tooltip label="Messagerie" position="bottom" withArrow>
+          <div style={{ position: 'relative' }}>
+            <ActionIcon
+              variant="subtle"
+              color="white"
+              onClick={() => navigate('/messages')}
+              aria-label="Messagerie"
+            >
+              <IconMessages size={19} />
+            </ActionIcon>
+            {unreadMessages > 0 && (
+              <div className="notif-badge">{unreadMessages > 99 ? '99+' : unreadMessages}</div>
+            )}
+          </div>
+        </Tooltip>
 
         <Popover opened={notifOpened} onChange={setNotifOpened} width={{ base: 'calc(100vw - 32px)', sm: 360 }} position="bottom-end" shadow="lg" radius="md">
           <Popover.Target>

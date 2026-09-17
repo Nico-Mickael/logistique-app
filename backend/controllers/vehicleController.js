@@ -8,12 +8,12 @@ const vehicleService = require('../services/vehicleService');
 const { scopeWhere, requireSiteAccess, enforceCreationSite } = require('../middlewares/siteContext');
 
 exports.getAll = asyncHandler(async (req, res) => {
-  const vehicles = await Vehicle.findAll({ where: scopeWhere(req) });
+  const vehicles = await Vehicle.findAll({ where: { archived_at: null, ...scopeWhere(req) } });
   res.json(vehicles);
 });
 
 exports.getAvailable = asyncHandler(async (req, res) => {
-  const vehicles = await Vehicle.findAll({ where: { status: 'available', ...scopeWhere(req) } });
+  const vehicles = await Vehicle.findAll({ where: { status: 'available', archived_at: null, ...scopeWhere(req) } });
   res.json(vehicles);
 });
 
@@ -27,7 +27,7 @@ exports.create = asyncHandler(async (req, res) => {
 });
 
 exports.getOccupancy = asyncHandler(async (req, res) => {
-  const vehicles = await Vehicle.findAll({ where: scopeWhere(req) });
+  const vehicles = await Vehicle.findAll({ where: { archived_at: null, ...scopeWhere(req) } });
 
   const allRequests = await Request.findAll({
     where: { status: ACTIVE_REQUEST_STATUSES, ...scopeWhere(req) },
@@ -137,7 +137,15 @@ exports.remove = asyncHandler(async (req, res) => {
 
   const hasSorties = await vehicle.getSorties();
   if (hasSorties.length > 0) {
-    return res.status(400).json({ message: 'Impossible de supprimer un véhicule ayant déjà des sorties enregistrées' });
+    // Archiver : masquer du parc (filtres lists/dashboard) mais conserver
+    // l'historique kilométrique / passagers (sorties et liens demeurent).
+    vehicle.archived_at = new Date();
+    await vehicle.save();
+    await logAudit({
+      userId: req.user.id, action: 'archive', entity: 'Vehicle', entityId: vehicle.id,
+      oldValue: { name: vehicle.name, type: vehicle.type, capacity: vehicle.capacity }, req,
+    });
+    return res.json({ message: 'Véhicule archivé (historique conservé)' });
   }
 
   await vehicle.destroy();

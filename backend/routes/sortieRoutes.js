@@ -28,6 +28,7 @@ router.patch('/:id/depart', sortieController.depart);
 router.patch('/:id/arrivee', sortieController.arrivee);
 router.patch('/:id/validate-return', sortieController.validateReturn);
 router.put('/:id', sortieController.update);
+router.delete('/bulk', sortieController.removeBulk);
 router.delete('/:id', sortieController.remove);
 
 module.exports = router;

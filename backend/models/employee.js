@@ -12,6 +12,8 @@ module.exports = (sequelize, DataTypes) => {
 static associate(models) {
   Employee.hasMany(models.Request, { foreignKey: 'employee_id' });
   Employee.hasMany(models.Notification, { foreignKey: 'user_id' });
+  Employee.hasMany(models.ConversationMember, { foreignKey: 'user_id' });
+  Employee.hasMany(models.Message, { as: 'sentMessages', foreignKey: 'sender_id' });
   Employee.belongsTo(models.Site, { foreignKey: 'site_id' });
 }
   }

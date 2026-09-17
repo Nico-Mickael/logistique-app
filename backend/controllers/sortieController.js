@@ -8,6 +8,7 @@ const { computeDisplayStatus } = require('../utils/displayStatus');
 const { createNotification, notifyChiefsDb } = require('./notificationController');
 const { notifyChiefs } = require('../services/socketService');
 const notificationService = require('../services/notificationService');
+const messagingService = require('../services/messagingService');
 const { logAudit } = require('../services/auditService');
 const { scopeWhere, requireSiteAccess } = require('../middlewares/siteContext');
 const { isAssignable: chauffeurAssignable } = require('../services/availabilityService');
@@ -96,6 +97,9 @@ exports.create = asyncHandler(async (req, res) => {
     await notificationService.notifyDriverAssigned({ sortie });
   }
 
+  // Messagerie : conversation de la sortie (chefs du site + chauffeur affecté).
+  await messagingService.syncSortieConversation(sortie, { extraMemberIds: [req.user.id] });
+
   res.status(201).json(sortie);
 });
 
@@ -166,6 +170,9 @@ exports.addRequest = asyncHandler(async (req, res) => {
     site_id: sortie.site_id ?? null,
   });
   notifyChiefs('sortie_updated', sortie);
+
+  // Messagerie : l'employé de la demande rejoint la conversation de la sortie.
+  await messagingService.syncSortieConversation(sortie, { extraMemberIds: [request.employee_id] });
 
   res.status(201).json({ message: 'Demande ajoutée à la sortie', sortie_id: sortie.id, request_id });
 });
@@ -453,18 +460,14 @@ exports.update = asyncHandler(async (req, res) => {
     });
   }
 
+  // Messagerie : resynchronise les participants (chauffeur ajouté/retiré…).
+  await messagingService.syncSortieConversation(sortie);
+
   res.json(sortie);
 });
 
-// Supprimer une sortie
-exports.remove = asyncHandler(async (req, res) => {
-  const sortie = await Sortie.findByPk(req.params.id);
-  if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
-  requireSiteAccess(req, sortie.site_id);
-  if (sortie.status !== 'planned' && sortie.status !== 'finished') {
-    return res.status(400).json({ message: 'Seules les sorties planifiées ou terminées peuvent être supprimées' });
-  }
-
+// Logique interne de suppression d'une sortie (réutilisée par remove et removeBulk).
+async function deleteSortieInternal(sortie, req) {
   await vehicleService.setAvailable(sortie.vehicle_id);
 
   const linkedIds = await notificationService.getLinkedEmployeeIds(sortie);
@@ -483,10 +486,13 @@ exports.remove = asyncHandler(async (req, res) => {
   });
 
   if (sortie.status === 'finished') {
-    // Conserver les liens SortieRequest pour l'historique kilométrique / passagers
+    // Suppression douce : la sortie disparaît des rapports (kilométrage, passagers),
+    // mais les liens SortieRequest sont conservés pour traçabilité.
     sortie.deleted_at = new Date();
     await sortie.save();
   } else {
+    // Messagerie : la conversation liée à la sortie supprimée est retirée aussi.
+    await messagingService.deleteSortieConversation(sortie.id);
     await SortieRequest.destroy({ where: { sortie_id: sortie.id } });
     await sortie.destroy();
   }
@@ -494,7 +500,38 @@ exports.remove = asyncHandler(async (req, res) => {
   await logAudit({ userId: req.user.id, action: 'delete', entity: 'Sortie', entityId: sortie.id, oldValue: { destination: sortie.destination, status: sortie.status }, req });
 
   notifyChiefs('sortie_updated', { id: sortie.id, deleted: true }, sortie.site_id);
+}
+
+// Supprimer une sortie
+exports.remove = asyncHandler(async (req, res) => {
+  const sortie = await Sortie.findByPk(req.params.id);
+  if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
+  requireSiteAccess(req, sortie.site_id);
+  if (sortie.status !== 'planned' && sortie.status !== 'finished') {
+    return res.status(400).json({ message: 'Seules les sorties planifiées ou terminées peuvent être supprimées' });
+  }
+
+  await deleteSortieInternal(sortie, req);
   res.json({ message: 'Sortie supprimée' });
+});
+
+// Supprimer plusieurs sorties en une seule demande (depuis l'historique kilométrique)
+exports.removeBulk = asyncHandler(async (req, res) => {
+  const ids = Array.isArray(req.body?.ids)
+    ? [...new Set(req.body.ids.map(Number).filter((n) => Number.isInteger(n)))]
+    : [];
+  if (ids.length === 0) return res.status(400).json({ message: 'Aucune sortie sélectionnée' });
+
+  const sorties = await Sortie.findAll({ where: { id: { [Op.in]: ids } } });
+  let deleted = 0;
+  for (const sortie of sorties) {
+    requireSiteAccess(req, sortie.site_id);
+    if (sortie.status !== 'planned' && sortie.status !== 'finished') continue;
+    await deleteSortieInternal(sortie, req);
+    deleted += 1;
+  }
+
+  res.json({ message: `${deleted} sortie${deleted > 1 ? 's' : ''} supprimée${deleted > 1 ? 's' : ''}`, deleted });
 });
 
 // Employé moto : enregistrer ses propres km (départ + retour) à la remise du véhicule
@@ -714,6 +751,9 @@ exports.join = asyncHandler(async (req, res) => {
   }
 
   notifyChiefs('sortie_updated', sortie);
+
+  // Messagerie : l'employé qui rejoint rejoint la conversation de la sortie.
+  await messagingService.syncSortieConversation(sortie, { extraMemberIds: [req.user.id] });
 
   res.status(201).json({ message: 'Demande créée et liée à la sortie', request_id: request.id, sortie_id: sortie.id });
 });

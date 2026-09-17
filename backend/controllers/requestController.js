@@ -6,8 +6,18 @@ const { createNotification, notifyChiefsDb } = require('./notificationController
 const { notifyChiefs } = require('../services/socketService');
 const { autoCreateSortie, isSameCalendarDay, normalizeDestination } = require('../services/sortieService');
 const vehicleService = require('../services/vehicleService');
+const messagingService = require('../services/messagingService');
 const { logAudit } = require('../services/auditService');
 const { scopeWhere, getResolvedSiteId, requireSiteAccess } = require('../middlewares/siteContext');
+
+// Après une auto-création/regroupement de sortie lié à une demande, réconcilie
+// la conversation de la sortie (le demandeur en devient membre).
+const syncSortieConversationForRequest = async (request) => {
+  const link = await SortieRequest.findOne({ where: { request_id: request.id } });
+  if (!link) return;
+  const sortie = await Sortie.findByPk(link.sortie_id);
+  if (sortie) await messagingService.syncSortieConversation(sortie);
+};
 
 // Employé : créer une demande
 exports.create = asyncHandler(async (req, res) => {
@@ -256,6 +266,7 @@ exports.assignVehicle = asyncHandler(async (req, res) => {
   });
 
   await autoCreateSortie(request);
+  await syncSortieConversationForRequest(request);
 
   const link = await SortieRequest.findOne({ where: { request_id: request.id } });
   if (link) {
@@ -321,6 +332,7 @@ exports.updateStatus = asyncHandler(async (req, res) => {
 
   if (status === 'approved') {
     await autoCreateSortie(request);
+    await syncSortieConversationForRequest(request);
   }
 
   await createNotification({
@@ -367,13 +379,17 @@ exports.cancel = asyncHandler(async (req, res) => {
   // et on libère le véhicule. Sinon on ne libère que si le véhicule n'a plus d'activité.
   if (wasApproved && vehicleId) {
     for (const sortieId of sortieIds) {
+      const sortie = await Sortie.findByPk(sortieId);
+      if (!sortie) continue;
       const remaining = await SortieRequest.count({ where: { sortie_id: sortieId } });
-      if (remaining === 0) {
-        const sortie = await Sortie.findByPk(sortieId);
-        if (sortie && sortie.status === 'planned') {
-          await sortie.destroy();
-          notifyChiefs('sortie_updated', { id: sortie.id, deleted: true }, sortie.site_id);
-        }
+      if (remaining === 0 && sortie.status === 'planned') {
+        // Messagerie : la conversation de la sortie supprimée part avec elle.
+        await messagingService.deleteSortieConversation(sortie.id);
+        await sortie.destroy();
+        notifyChiefs('sortie_updated', { id: sortie.id, deleted: true }, sortie.site_id);
+      } else if (sortie.status !== 'finished') {
+        // L'employé quitte la sortie → retiré de la conversation.
+        await messagingService.syncSortieConversation(sortie);
       }
     }
     await vehicleService.releaseIfIdle(vehicleId);
@@ -445,6 +461,7 @@ exports.respondReschedule = asyncHandler(async (req, res) => {
 
   if (accepted) {
     await autoCreateSortie(request);
+    await syncSortieConversationForRequest(request);
   }
 
   await createNotification({
@@ -477,17 +494,20 @@ exports.remove = asyncHandler(async (req, res) => {
     const sortieIds = [...new Set(links.map((l) => l.sortie_id))];
 
     for (const sortieId of sortieIds) {
+      const sortie = await Sortie.findByPk(sortieId);
       const remaining = await SortieRequest.count({
         where: { sortie_id: sortieId, request_id: { [Op.ne]: request.id } },
       });
       await SortieRequest.destroy({ where: { sortie_id: sortieId, request_id: request.id } });
-      if (remaining === 0) {
-        const sortie = await Sortie.findByPk(sortieId);
-        if (sortie && ['planned', 'ongoing', 'pending_return'].includes(sortie.status)) {
+      if (sortie && ['planned', 'ongoing', 'pending_return'].includes(sortie.status)) {
+        if (remaining === 0) {
           const wasVehicleId = sortie.vehicle_id;
+          await messagingService.deleteSortieConversation(sortie.id);
           await sortie.destroy();
           await vehicleService.releaseIfIdle(wasVehicleId);
           notifyChiefs('sortie_updated', { id: sortie.id, deleted: true }, sortie.site_id);
+        } else {
+          await messagingService.syncSortieConversation(sortie);
         }
       }
     }

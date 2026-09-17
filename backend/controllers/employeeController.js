@@ -1,5 +1,5 @@
 const bcrypt = require('bcrypt');
-const { Employee, Request, Notification, SortieRequest } = require('../models');
+const { Employee, Request, Notification, SortieRequest, ConversationMember, MessageRead } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const { ASSIGNABLE_ROLES, ALL_ROLES, BCRYPT_ROUNDS } = require('../utils/constants');
 const { logAudit } = require('../services/auditService');
@@ -175,6 +175,10 @@ exports.remove = asyncHandler(async (req, res) => {
   }
   await Request.destroy({ where: { employee_id: req.params.id } });
   await Notification.destroy({ where: { user_id: req.params.id } });
+  // Messagerie : le compte n'est plus membre ni marqueur de lecture ; ses
+  // messages restent conservés pour l'historique des conversations.
+  await ConversationMember.destroy({ where: { user_id: req.params.id } });
+  await MessageRead.destroy({ where: { user_id: req.params.id } });
 
   await logAudit({ userId: req.user.id, action: 'delete', entity: 'Employee', entityId: employee.id, oldValue: { nom: employee.nom, prenom: employee.prenom, email: employee.email, role: employee.role }, req });
 

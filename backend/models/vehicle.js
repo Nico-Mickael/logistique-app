@@ -22,7 +22,8 @@ module.exports = (sequelize, DataTypes) => {
     maintenance_until: DataTypes.DATE,
     fuel_type: DataTypes.STRING,
     current_km: DataTypes.INTEGER,
-    site_id: DataTypes.INTEGER
+    site_id: DataTypes.INTEGER,
+    archived_at: DataTypes.DATE
   }, {
     sequelize,
     modelName: 'Vehicle',

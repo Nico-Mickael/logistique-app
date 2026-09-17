@@ -15,6 +15,8 @@ const employeeRoutes = require('./routes/employeeRoutes');
 const siteRoutes = require('./routes/siteRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 const exportRoutes = require('./routes/exportRoutes');
+const conversationRoutes = require('./routes/conversationRoutes');
+const messageRoutes = require('./routes/messageRoutes');
 const { setupSocket } = require('./services/socketService');
 const { start: startSortieScheduler } = require('./services/sortieScheduler');
 const { configure: configureWebPush } = require('./services/webPushService');
@@ -48,6 +50,8 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/sites', siteRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/conversations', conversationRoutes);
+app.use('/api/messages', messageRoutes);
 
 // 404 JSON pour toute route /api/* non déclarée (au lieu du 404 HTML par défaut).
 app.use('/api', (req, res) => {

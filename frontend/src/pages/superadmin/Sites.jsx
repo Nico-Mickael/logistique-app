@@ -62,7 +62,7 @@ export default function Sites() {
 
   const fetchSites = async () => {
     try {
-      const { data } = await siteService.list();
+      const { data } = await siteService.list({ all: 1 });
       setSites(Array.isArray(data) ? data : []);
     } catch {
       notifyError('Impossible de charger les sites');
@@ -126,8 +126,8 @@ export default function Sites() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await siteService.remove(deleteTarget.id);
-      notifySuccess('Site supprimé');
+      const { data } = await siteService.remove(deleteTarget.id);
+      notifySuccess(data?.message || 'Site supprimé');
       setDeleteTarget(null);
       fetchSites();
     } catch (err) {
@@ -263,7 +263,7 @@ export default function Sites() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title={`Supprimer le site ${deleteTarget?.name} ?`}
-        message="Cette action est irréversible. Un site contenant des données ne peut pas être supprimé."
+        message="S'il contient des données (utilisateurs, véhicules, demandes ou sorties), il sera archivé (passe en « Inactif », masqué des sélecteurs) et son historique sera conservé. Sinon il sera définitivement supprimé."
         confirmLabel="Supprimer"
         variant="danger"
         loading={deleting}

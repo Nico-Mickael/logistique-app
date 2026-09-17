@@ -87,6 +87,15 @@ function notifyUser(userId, event, data) {
   io.to(`user:${userId}`).emit(event, data);
 }
 
+// Émet un événement temps réel vers une liste d'utilisateurs (une pièce
+// `user:<id>` par utilisateur). Utilisé par la messagerie interne.
+function emitToUsers(userIds, event, data) {
+  if (!io) return;
+  [...new Set((userIds || []).map(Number))].forEach((id) => {
+    io.to(`user:${id}`).emit(event, data);
+  });
+}
+
 function notifyChiefs(event, data, siteId) {
   if (!io) return;
   // Les chefs locaux du site concerné…
@@ -98,4 +107,4 @@ function notifyChiefs(event, data, siteId) {
   io.to('chiefs').emit(event, data);
 }
 
-module.exports = { setupSocket, notifyUser, notifyChiefs, getOnlineUserIds, isUserOnline };
+module.exports = { setupSocket, notifyUser, notifyChiefs, emitToUsers, getOnlineUserIds, isUserOnline };

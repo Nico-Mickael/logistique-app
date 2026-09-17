@@ -235,8 +235,8 @@ function Vehicles() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await vehicleService.remove(deleteTarget.id);
-      notifySuccess('Véhicule supprimé');
+      const { data } = await vehicleService.remove(deleteTarget.id);
+      notifySuccess(data?.message || 'Véhicule supprimé');
       setDeleteTarget(null);
       fetchVehicles();
     } catch (err) {
@@ -396,7 +396,7 @@ function Vehicles() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title={`Supprimer ${deleteTarget ? vehicleDisplayName(deleteTarget) : ''} (${deleteTarget?.capacity} pers.) ?`}
-        message="Cette action est irréversible."
+        message="S'il a déjà des sorties enregistrées, le véhicule sera archivé (masqué du parc) et son historique conservé. Sinon il sera définitivement supprimé."
         confirmLabel="Supprimer"
         variant="danger"
         loading={deleting}
