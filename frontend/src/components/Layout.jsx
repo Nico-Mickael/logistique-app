@@ -23,7 +23,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import Header from './Header';
-import Logo from './Logo';
+import logoSidebar from '../assets/logo-ades-sidebar.png';
+import MessengerPanel from './MessengerPanel';
 
 const navConfig = {
   chief: [
@@ -64,6 +65,7 @@ const navConfig = {
 function Layout({ children }) {
   const [opened, { toggle }] = useDisclosure();
   const [collapsed, setCollapsed] = useState(false);
+  const [messengerOpen, setMessengerOpen] = useState(false);
   const { user } = useAuth();
   const { badgeCounts } = useSocket();
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
@@ -103,7 +105,7 @@ function Layout({ children }) {
       padding={{ base: 'sm', sm: 'md', lg: 'lg' }}
     >
       <AppShell.Header style={{ border: 'none' }}>
-        <Header opened={opened} onToggle={toggle} />
+        <Header opened={opened} onToggle={toggle} messengerOpen={messengerOpen} onToggleMessenger={() => setMessengerOpen((o) => !o)} />
       </AppShell.Header>
 
       <AppShell.Navbar
@@ -116,13 +118,13 @@ function Layout({ children }) {
       >
         <div className={`sidebar-logo ${collapsed ? 'is-collapsed' : ''}`}>
           <div className="sidebar-logo-badge">
-            <Logo height={30} />
+            <img src={logoSidebar} alt="ADES" style={{ height: 30, width: 'auto', display: 'block' }} />
           </div>
         </div>
 
         <AppShell.Section grow component={ScrollArea}>
           <Stack gap={2} className={collapsed ? 'nav-collapsed' : ''}>
-            {navItems.map((item) => {
+            {navItems.map((item, index) => {
               const isActive = item.path === '/'
                 ? location.pathname === '/'
                 : item.exact
@@ -140,9 +142,11 @@ function Layout({ children }) {
                   variant={isActive ? 'light' : 'subtle'}
                   onClick={() => {
                     navigate(item.path);
+                    setMessengerOpen(false);
                     if (opened) toggle();
                   }}
-                  style={{ borderRadius: 8, justifyContent: collapsed ? 'center' : undefined }}
+                  className="nav-item-in"
+                  style={{ borderRadius: 8, justifyContent: collapsed ? 'center' : undefined, animationDelay: `${index * 0.03}s` }}
                   p={collapsed ? 'sm' : undefined}
                 />
               );
@@ -180,6 +184,8 @@ function Layout({ children }) {
         {children}
       </AppShell.Main>
 
+      {messengerOpen && <MessengerPanel collapsed={collapsed} onClose={() => setMessengerOpen(false)} />}
+
       <Tooltip label={collapsed ? 'Développer' : 'Rétrécir'} position="bottom" withArrow>
         <UnstyledButton
           onClick={() => setCollapsed((c) => !c)}
@@ -199,18 +205,22 @@ function Layout({ children }) {
           padding: 16px 0 12px;
         }
         .sidebar-logo-badge {
-          background: light-dark(#fff, #2c2e33);
+          background: light-dark(transparent, #000);
           border-radius: 8px;
           padding: 4px 10px;
           display: inline-flex;
           align-items: center;
-        }
-        .sidebar-logo img {
           transition: transform 0.25s ease;
           transform-origin: center center;
         }
-        .sidebar-logo.is-collapsed img {
-          transform: scale(0.55);
+        .sidebar-logo img {
+          display: block;
+        }
+        .sidebar-logo.is-collapsed .sidebar-logo-badge {
+          transform: scale(0.45);
+        }
+        .sidebar-logo:not(.is-collapsed) .sidebar-logo-badge:hover {
+          transform: scale(1.06);
         }
         .nav-collapsed .mantine-NavLink-root {
           justify-content: center;

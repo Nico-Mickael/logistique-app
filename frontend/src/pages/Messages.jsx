@@ -9,7 +9,6 @@ import {
   IconTrash, IconRoute, IconX, IconCheck,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
-import { useNavigate } from 'react-router-dom';
 import { messageService } from '../api/messageService';
 import { useSocket } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
@@ -41,11 +40,11 @@ function AvatarWithDot({ user }) {
   );
 }
 
-export default function Messages() {
+export default function Messages({ embedded = false }) {
   const { user } = useAuth();
   const { refreshUnreadMessages, subscribeSocket } = useSocket();
-  const navigate = useNavigate();
-  const isMobile = useMediaQuery('(max-width: 992px)');
+  const compactViewport = useMediaQuery('(max-width: 992px)');
+  const compact = compactViewport;
 
   const [conversations, setConversations] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -189,6 +188,11 @@ export default function Messages() {
     [activeConversation]
   );
 
+  const totalUnread = useMemo(
+    () => conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0),
+    [conversations]
+  );
+
   const send = async () => {
     const text = draft.trim();
     if (!text || !activeId || sending) return;
@@ -281,14 +285,30 @@ export default function Messages() {
     <Paper withBorder radius="md" className="msg-pane" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <Group justify="space-between" px="md" py="xs" wrap="nowrap">
         <Group gap="xs" wrap="nowrap">
+          {mode === 'new' && (
+            <ActionIcon variant="subtle" color="gray" onClick={() => { setMode('list'); setSearch(''); setUsers([]); }} aria-label="Retour à la liste" size="sm">
+              <IconArrowLeft size={16} />
+            </ActionIcon>
+          )}
           <IconMessages size={18} />
-          <Text fw={600} size="sm">Messagerie</Text>
+          <Text fw={600} size="sm">{mode === 'new' ? 'Nouveau message' : 'Messagerie'}</Text>
+          {mode !== 'new' && totalUnread > 0 && (
+            <Badge size="sm" radius="xl" color="red" variant="filled">
+              {totalUnread > 99 ? '99+' : totalUnread}
+            </Badge>
+          )}
         </Group>
-        <Tooltip label="Nouveau message" position="bottom" withArrow>
-          <ActionIcon variant="light" color="brand" onClick={() => { setMode('new'); setSearch(''); setUsers([]); setNewSession((n) => n + 1); }} aria-label="Nouveau message">
-            <IconPlus size={18} />
+        {mode === 'new' ? (
+          <ActionIcon variant="subtle" color="gray" onClick={() => { setMode('list'); setSearch(''); setUsers([]); }} aria-label="Fermer la recherche" size="sm">
+            <IconX size={16} />
           </ActionIcon>
-        </Tooltip>
+        ) : (
+          <Tooltip label="Nouveau message" position="bottom" withArrow>
+            <ActionIcon variant="light" color="brand" onClick={() => { setMode('new'); setSearch(''); setUsers([]); setNewSession((n) => n + 1); }} aria-label="Nouveau message">
+              <IconPlus size={18} />
+            </ActionIcon>
+          </Tooltip>
+        )}
       </Group>
 
       <Divider />
@@ -306,7 +326,7 @@ export default function Messages() {
         />
       </div>
 
-      <ScrollArea.Autosize mah={isMobile ? '55vh' : undefined} style={{ flex: 1 }}>
+      <ScrollArea.Autosize mah={compact ? '55vh' : undefined} style={{ flex: 1 }}>
         {mode === 'new' ? (
           <Stack gap={2} p="xs">
             {searchingUsers ? (
@@ -358,7 +378,7 @@ export default function Messages() {
                   className="msg-item"
                   data-active={active || undefined}
                   style={{ borderRadius: 8 }}
-                  onClick={() => { if (isMobile) setActiveId(c.id); openConversation(c.id); }}
+                  onClick={() => { if (compact) setActiveId(c.id); openConversation(c.id); }}
                 >
                   <Group gap="sm" wrap="nowrap" align="flex-start">
                     {c.type === 'sortie' ? (
@@ -378,7 +398,7 @@ export default function Messages() {
                           {c.last_message ? c.last_message.content : 'Aucun message'}
                         </Text>
                         {c.unread_count > 0 && (
-                          <Badge size="xs" radius="xl" color="red" variant="filled" style={{ flexShrink: 0 }}>
+                          <Badge size="sm" radius="xl" color="red" variant="filled" style={{ flexShrink: 0 }}>
                             {c.unread_count > 99 ? '99+' : c.unread_count}
                           </Badge>
                         )}
@@ -405,7 +425,7 @@ export default function Messages() {
       ) : (
         <>
           <Group px="md" py="xs" gap="sm" wrap="nowrap">
-            {isMobile && (
+            {compact && (
               <ActionIcon variant="subtle" onClick={() => { setActiveId(null); setMessages([]); }} aria-label="Retour">
                 <IconArrowLeft size={18} />
               </ActionIcon>
@@ -428,16 +448,11 @@ export default function Messages() {
               )}
             </div>
             {activeConversation.unread_count > 0 && <Badge size="sm" radius="xl" color="red" variant="filled">{activeConversation.unread_count}</Badge>}
-            <Tooltip label="Quitter la messagerie" position="bottom" withArrow>
-              <ActionIcon variant="subtle" color="gray" onClick={() => navigate('/')} aria-label="Quitter la messagerie">
-                <IconX size={18} />
-              </ActionIcon>
-            </Tooltip>
           </Group>
 
           <Divider />
 
-          <ScrollArea.Autosize style={{ flex: 1 }} mah={isMobile ? '48vh' : undefined}>
+          <ScrollArea.Autosize style={{ flex: 1 }} mah={compact ? '48vh' : undefined}>
             <Stack p="md" gap={6}>
               {loadingMessages ? (
                 <Center py="lg"><Loader size="sm" /></Center>
@@ -453,7 +468,7 @@ export default function Messages() {
                     <div key={m.id} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
                       <div
                         className={mine ? 'msg-bubble msg-mine' : 'msg-bubble msg-theirs'}
-                        style={{ maxWidth: isMobile ? '82%' : '62%' }}
+                        style={{ maxWidth: compact ? '82%' : '62%' }}
                       >
                         {isEditing ? (
                           <Group gap={4} wrap="nowrap">
@@ -536,8 +551,8 @@ export default function Messages() {
   );
 
   return (
-    <div style={{ height: 'calc(100vh - 140px)', minHeight: 420 }}>
-      {isMobile ? (
+    <div style={{ height: embedded ? '100%' : 'calc(100vh - 140px)', minHeight: embedded ? undefined : 420 }}>
+      {compact ? (
         activeId ? renderThread : renderList
       ) : (
         <div style={{ display: 'flex', gap: 12, height: '100%' }}>
@@ -546,10 +561,12 @@ export default function Messages() {
         </div>
       )}
       <style>{`
-        .msg-item:hover { background: var(--mantine-color-gray-0); }
+        .msg-pane { animation: panel-in 0.25s ease-out; }
+        .msg-item { transition: background 0.15s ease, transform 0.15s ease; }
+        .msg-item:hover { background: var(--mantine-color-gray-0); transform: translateX(2px); }
         [data-mantine-color-scheme='dark'] .msg-item:hover { background: var(--mantine-color-dark-6); }
         .msg-item[data-active] { background: light-dark(var(--mantine-color-brand-0), rgba(63, 163, 74, 0.18)); }
-        .msg-bubble { padding: 8px 12px; border-radius: 14px; }
+        .msg-bubble { padding: 8px 12px; border-radius: 14px; animation: bubble-in 0.18s ease-out; }
         .msg-mine {
           background: var(--mantine-color-brand-6);
           color: #fff;

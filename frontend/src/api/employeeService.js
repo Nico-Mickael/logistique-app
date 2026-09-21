@@ -6,4 +6,5 @@ export const employeeService = {
   create: (data) => api.post('/employees', data),
   update: (id, data) => api.put(`/employees/${id}`, data),
   remove: (id) => api.delete(`/employees/${id}`),
+  importUsers: (formData) => api.post('/employees/import', formData),
 };

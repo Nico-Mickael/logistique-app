@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
-  Paper, Badge, Center, Text, Group, Button, Modal, TextInput, Select, Stack, Card, SimpleGrid, Pagination, SegmentedControl, Tooltip,
+  Paper, Badge, Center, Text, Group, Button, Modal, TextInput, Select, Stack, Card, SimpleGrid, Pagination, SegmentedControl, Tooltip, FileInput, Alert, ScrollArea,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
-import { IconPlus, IconEdit, IconTrash, IconUsers as IconUsersIcon, IconSearch } from '@tabler/icons-react';
+import { IconPlus, IconEdit, IconTrash, IconUsers as IconUsersIcon, IconSearch, IconUpload, IconDownload, IconFileSpreadsheet, IconInfoCircle } from '@tabler/icons-react';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
 import EmptyState from '../../components/EmptyState';
@@ -91,6 +91,13 @@ export default function Users() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  const [importOpened, { open: openImport, close: closeImport }] = useDisclosure(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importPassword, setImportPassword] = useState('Ades');
+  const [importSiteId, setImportSiteId] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+
   useEffect(() => {
     siteService
       .list()
@@ -137,7 +144,7 @@ export default function Users() {
 
   const openEdit = (u) => {
     setEditUser(u);
-    setForm({ nom: u.nom, prenom: u.prenom, email: u.email, password: '', department: u.department || '', role: u.role });
+    setForm({ nom: u.nom, prenom: u.prenom, email: u.email, password: '', department: u.department || '', role: u.role, siteId: u.site_id != null ? String(u.site_id) : '' });
     open();
   };
 
@@ -155,6 +162,7 @@ export default function Users() {
       if (editUser) {
         const payload = { ...form };
         if (!payload.password) delete payload.password;
+        if (!payload.siteId) delete payload.siteId;
         await employeeService.update(editUser.id, payload);
         notifySuccess('Utilisateur modifié');
       } else {
@@ -186,6 +194,60 @@ export default function Users() {
       notifyError(err.response?.data?.message || 'Erreur serveur');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const openImportModal = () => {
+    setImportFile(null);
+    setImportPassword('Ades');
+    setImportResult(null);
+    const override = getSiteOverride();
+    setImportSiteId(override != null ? String(override) : '');
+    openImport();
+  };
+
+  const closeImportModal = () => {
+    setImportFile(null);
+    setImportResult(null);
+    closeImport();
+  };
+
+  const downloadTemplate = () => {
+    const header = 'nom,prenom,email,mot de passe,departement,role,site';
+    const example = 'Dupont,Jean,jean.dupont@exemple.fr,Ades,Logistique,chauffeur,';
+    const blob = new Blob([`\uFEFF${header}\n${example}\n`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'modele-utilisateurs.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      notifyError('Sélectionnez un fichier Excel ou CSV');
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      formData.append('defaultPassword', importPassword || 'Ades');
+      if (importSiteId) formData.append('siteId', importSiteId);
+      const { data } = await employeeService.importUsers(formData);
+      setImportResult(data);
+      if (data.imported > 0) {
+        notifySuccess(`${data.imported} utilisateur${data.imported !== 1 ? 's' : ''} importé${data.imported !== 1 ? 's' : ''}`);
+        fetchUsers();
+      } else {
+        notifyError('Aucun utilisateur importé');
+      }
+    } catch (err) {
+      notifyError(err.response?.data?.message || 'Erreur lors de l\'import');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -243,6 +305,9 @@ export default function Users() {
             size="xs"
             color="brand"
           />
+          <Button variant="subtle" color="gray" leftSection={<IconUpload size={16} />} onClick={openImportModal}>
+            Importer
+          </Button>
           {users.length > 0 && (
             <TextInput
               placeholder="Rechercher..."
@@ -311,12 +376,10 @@ export default function Users() {
             <TextInput label="Mot de passe" w="100%" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.currentTarget.value })}
               placeholder={editUser ? 'Laisser vide pour conserver' : ''} required={!editUser} radius="md" autoComplete="new-password" />
             <TextInput label="Département" w="100%" value={form.department} onChange={(e) => setForm({ ...form, department: e.currentTarget.value })} radius="md" autoComplete="off" />
-            {!editUser && (
-              <Select label="Site" w="100%" data={[
-                ...sites.map((s) => ({ value: String(s.id), label: s.name })),
-              ]} value={form.siteId} onChange={(v) => setForm({ ...form, siteId: v || '' })} radius="md"
-                placeholder="Site par défaut" searchable clearable />
-            )}
+            <Select label="Site" w="100%" data={[
+              ...sites.map((s) => ({ value: String(s.id), label: s.name })),
+            ]} value={form.siteId} onChange={(v) => setForm({ ...form, siteId: v || '' })} radius="md"
+              placeholder="Site" searchable clearable />
             <Select label="Rôle" w="100%" data={[
               { value: 'employee', label: 'Employé' },
               { value: 'chauffeur', label: 'Chauffeur' },
@@ -328,6 +391,84 @@ export default function Users() {
             <Button variant="default" onClick={close} radius="md">Annuler</Button>
             <Button onClick={handleSave} loading={saving} color="brand" radius="md">
               {editUser ? 'Enregistrer' : 'Créer'}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={importOpened} onClose={closeImportModal} title="Importer des utilisateurs" size="lg" radius="lg" centered
+        overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
+        transitionProps={{ transition: 'pop', duration: 200 }}
+      >
+        <Stack gap="md" mt="sm">
+          <Alert variant="light" color="brand" icon={<IconInfoCircle size={18} />}>
+            Les colonnes sont reconnues automatiquement (accents, majuscules et espaces ignorés) :
+            <b> nom, prénom, email, mot de passe, département, rôle, site</b>.
+            Seuls <b>nom, prénom et email</b> sont obligatoires.
+          </Alert>
+
+          <Button variant="default" leftSection={<IconDownload size={16} />} onClick={downloadTemplate}>
+            Télécharger le modèle
+          </Button>
+
+          <FileInput
+            label="Fichier Excel / CSV"
+            placeholder="Choisir un fichier (.xlsx, .xls, .csv)"
+            accept=".xlsx,.xls,.csv"
+            leftSection={<IconFileSpreadsheet size={16} />}
+            value={importFile}
+            onChange={setImportFile}
+            radius="md"
+            clearable
+          />
+
+          <TextInput
+            label="Mot de passe par défaut"
+            description="Attribué aux lignes sans colonne « mot de passe » (min. 4 caractères)"
+            value={importPassword}
+            onChange={(e) => setImportPassword(e.currentTarget.value)}
+            radius="md"
+            autoComplete="off"
+          />
+
+          {sites.length > 0 && (
+            <Select
+              label="Site par défaut"
+              description="Utilisé si la ligne ne précise pas de site"
+              data={sites.map((s) => ({ value: String(s.id), label: s.name }))}
+              value={importSiteId}
+              onChange={(v) => setImportSiteId(v || '')}
+              placeholder="Site par défaut"
+              radius="md"
+              searchable
+              clearable
+            />
+          )}
+
+          {importResult && (
+            <Alert color={importResult.failed > 0 ? 'yellow' : 'green'} variant="light">
+              <Text size="sm" fw={600}>
+                {importResult.imported} importé{importResult.imported !== 1 ? 's' : ''} sur {importResult.total} ligne{importResult.total !== 1 ? 's' : ''}
+                {importResult.failed > 0 ? ` — ${importResult.failed} en erreur` : ''}
+              </Text>
+              {importResult.errors?.length > 0 && (
+                <ScrollArea.Autosize mah={160} mt="xs">
+                  <Stack gap={2}>
+                    {importResult.errors.map((e, i) => (
+                      <Text key={i} size="xs" c="dimmed">
+                        Ligne {e.row}{e.email ? ` (${e.email})` : ''} : {e.message}
+                      </Text>
+                    ))}
+                  </Stack>
+                </ScrollArea.Autosize>
+              )}
+            </Alert>
+          )}
+
+          <Group justify="end" mt="md">
+            <Button variant="default" onClick={closeImportModal} radius="md">Fermer</Button>
+            <Button onClick={handleImport} loading={importing} color="brand" radius="md" leftSection={<IconUpload size={16} />} disabled={!importFile}>
+              Importer
             </Button>
           </Group>
         </Stack>

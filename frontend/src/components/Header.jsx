@@ -29,7 +29,7 @@ function initials(user) {
   return `${user.prenom?.[0] || ''}${user.nom?.[0] || ''}`.toUpperCase();
 }
 
-function Header({ opened: navOpened, onToggle }) {
+function Header({ opened: navOpened, onToggle, messengerOpen, onToggleMessenger }) {
   const { logout, user, updateAvailability } = useAuth();
   const { unreadCount, refreshUnreadCount, unreadMessages } = useSocket();
   const { colorScheme } = useMantineColorScheme();
@@ -321,18 +321,19 @@ function Header({ opened: navOpened, onToggle }) {
 
         <Divider orientation="vertical" color="rgba(255,255,255,0.25)" className="hide-on-mobile" />
 
-        <Tooltip label="Messagerie" position="bottom" withArrow>
+        <Tooltip label={messengerOpen ? 'Fermer la messagerie' : 'Messagerie'} position="bottom" withArrow>
           <div style={{ position: 'relative' }}>
             <ActionIcon
               variant="subtle"
               color="white"
-              onClick={() => navigate('/messages')}
+              className={messengerOpen ? 'messenger-active' : ''}
+              onClick={() => onToggleMessenger?.()}
               aria-label="Messagerie"
             >
               <IconMessages size={19} />
             </ActionIcon>
-            {unreadMessages > 0 && (
-              <div className="notif-badge">{unreadMessages > 99 ? '99+' : unreadMessages}</div>
+            {!messengerOpen && unreadMessages > 0 && (
+              <div key={`msg-${unreadMessages}`} className="notif-badge">{unreadMessages > 99 ? '99+' : unreadMessages}</div>
             )}
           </div>
         </Tooltip>
@@ -350,7 +351,7 @@ function Header({ opened: navOpened, onToggle }) {
                 <IconBell size={19} />
               </ActionIcon>
               {unreadCount > 0 && (
-                <div className="notif-badge">{unreadCount}</div>
+                <div key={`notif-${unreadCount}`} className="notif-badge">{unreadCount}</div>
               )}
             </div>
           </Popover.Target>
@@ -450,6 +451,14 @@ function Header({ opened: navOpened, onToggle }) {
           display: flex;
           align-items: center;
           justify-content: center;
+          animation: badge-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .app-header .mantine-ActionIcon-root {
+          transition: transform 0.15s ease, background 0.15s ease;
+        }
+        .app-header .mantine-ActionIcon-root:hover {
+          transform: translateY(-1px) scale(1.08);
         }
 
         .bell-active {

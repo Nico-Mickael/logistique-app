@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
-const { Employee, Request, Notification, SortieRequest, ConversationMember, MessageRead } = require('../models');
+const XLSX = require('xlsx');
+const { Employee, Request, Notification, SortieRequest, ConversationMember, MessageRead, Site } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const { ASSIGNABLE_ROLES, ALL_ROLES, BCRYPT_ROUNDS } = require('../utils/constants');
 const { logAudit } = require('../services/auditService');
@@ -23,6 +24,153 @@ function enrichEmployee(employee, statuses) {
   obj.last_seen = statuses[employee.id]?.last_seen || null;
   return obj;
 }
+
+// --- Import Excel/CSV des utilisateurs -------------------------------------
+// Les en-têtes des colonnes sont reconnus automatiquement (accents, casse,
+// espaces et séparateurs ignorés), avec plusieurs synonymes par champ.
+const IMPORT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const IMPORT_HEADER_ALIASES = {
+  nom: ['nom', 'nomdefamille', 'lastname', 'last name', 'name'],
+  prenom: ['prenom', 'prenoms', 'firstname', 'first name'],
+  email: ['email', 'mail', 'adresseemail', 'courriel', 'e-mail'],
+  password: ['motdepasse', 'password', 'mdp', 'pass'],
+  department: ['departement', 'department', 'service', 'direction'],
+  role: ['role', 'fonction', 'profil', 'statut'],
+  site: ['site', 'code', 'codesite', 'nomsite', 'agence'],
+};
+const IMPORT_ROLE_ALIASES = {
+  employe: 'employee', employee: 'employee',
+  chauffeur: 'chauffeur', driver: 'chauffeur',
+  admin: 'logistics_chief', administrateur: 'logistics_chief',
+  logisticschief: 'logistics_chief', chef: 'logistics_chief',
+  superadmin: 'superadmin',
+};
+
+function normalizeKey(value) {
+  return String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// Associe chaque champ attendu à la colonne réelle de la ligne (auto-détection).
+function mapImportRow(row) {
+  const map = {};
+  Object.keys(row).forEach((key) => {
+    const normalized = normalizeKey(key);
+    for (const [field, aliases] of Object.entries(IMPORT_HEADER_ALIASES)) {
+      if (!map[field] && aliases.some((alias) => normalizeKey(alias) === normalized)) {
+        map[field] = key;
+      }
+    }
+  });
+  return map;
+}
+
+function normalizeImportRole(value) {
+  return IMPORT_ROLE_ALIASES[normalizeKey(value)] || 'employee';
+}
+
+exports.importUsers = asyncHandler(async (req, res) => {
+  if (!req.file || !req.file.buffer) {
+    return res.status(400).json({ message: 'Aucun fichier fourni' });
+  }
+
+  let rows;
+  try {
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+  } catch {
+    return res.status(400).json({ message: 'Fichier illisible (formats acceptés : .xlsx, .xls, .csv)' });
+  }
+
+  if (!rows.length) {
+    return res.status(400).json({ message: 'Le fichier ne contient aucune ligne de données' });
+  }
+
+  const defaultPassword = String(req.body?.defaultPassword || '').trim() || 'Ades';
+  if (defaultPassword.length < 4) {
+    return res.status(400).json({ message: 'Le mot de passe par défaut doit contenir au moins 4 caractères' });
+  }
+
+  // Résolution des sites par code ou par nom (uniquement pour le superadmin,
+  // seul rôle autorisé sur cette route).
+  const sites = await Site.findAll({ attributes: ['id', 'name', 'code'] });
+  const siteByKey = new Map();
+  sites.forEach((site) => {
+    siteByKey.set(normalizeKey(site.name), site.id);
+    if (site.code) siteByKey.set(normalizeKey(site.code), site.id);
+  });
+
+  const forcedSite = enforceCreationSite(req);
+  const existingEmails = new Set(
+    (await Employee.findAll({ attributes: ['email'] })).map((e) => (e.email || '').toLowerCase())
+  );
+  const seenEmails = new Set();
+  const defaultHash = await bcrypt.hash(defaultPassword, BCRYPT_ROUNDS);
+
+  const errors = [];
+  let imported = 0;
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const rowNumber = i + 2; // ligne 1 = en-tête
+    const map = mapImportRow(rows[i]);
+    const value = (field) => (map[field] != null ? String(rows[i][map[field]]).trim() : '');
+
+    const nom = value('nom');
+    const prenom = value('prenom');
+    const email = value('email').toLowerCase();
+    const department = value('department');
+    const role = normalizeImportRole(value('role'));
+    const rowPassword = value('password');
+
+    if (!nom || !prenom || !email) {
+      errors.push({ row: rowNumber, email, message: 'Nom, prénom et email sont obligatoires' });
+      continue;
+    }
+    if (!IMPORT_EMAIL_RE.test(email)) {
+      errors.push({ row: rowNumber, email, message: 'Format d\'email invalide' });
+      continue;
+    }
+    if (existingEmails.has(email) || seenEmails.has(email)) {
+      errors.push({ row: rowNumber, email, message: 'Cet email est déjà utilisé' });
+      continue;
+    }
+    const password = rowPassword || defaultPassword;
+    if (password.length < 4) {
+      errors.push({ row: rowNumber, email, message: 'Le mot de passe doit contenir au moins 4 caractères' });
+      continue;
+    }
+
+    const siteKey = value('site');
+    const siteId = (siteKey && siteByKey.get(normalizeKey(siteKey))) || forcedSite;
+
+    try {
+      const employee = await Employee.create({
+        nom,
+        prenom,
+        email,
+        password: rowPassword ? await bcrypt.hash(rowPassword, BCRYPT_ROUNDS) : defaultHash,
+        department: department || null,
+        role,
+        site_id: siteId,
+      });
+      seenEmails.add(email);
+      imported += 1;
+      await logAudit({ userId: req.user.id, action: 'create', entity: 'Employee', entityId: employee.id, newValue: { nom, prenom, email, department, role, import: true }, req });
+    } catch {
+      errors.push({ row: rowNumber, email, message: 'Erreur lors de la création' });
+    }
+  }
+
+  res.status(201).json({
+    total: rows.length,
+    imported,
+    failed: errors.length,
+    defaultPassword,
+    errors,
+  });
+});
 
 exports.list = asyncHandler(async (req, res) => {
   const siteId = getResolvedSiteId(req);
@@ -95,13 +243,13 @@ exports.create = asyncHandler(async (req, res) => {
 });
 
 exports.update = asyncHandler(async (req, res) => {
-  const { nom, prenom, email, department, role, password, availability_status, leave_start_date, leave_end_date } = req.body;
+  const { nom, prenom, email, department, role, password, siteId, availability_status, leave_start_date, leave_end_date } = req.body;
   const employee = await Employee.findByPk(req.params.id);
 
   if (!employee) return res.status(404).json({ message: 'Utilisateur introuvable' });
   requireSiteAccess(req, employee.site_id);
 
-  const oldData = { nom: employee.nom, prenom: employee.prenom, email: employee.email, department: employee.department, role: employee.role, availability_status: employee.availability_status };
+  const oldData = { nom: employee.nom, prenom: employee.prenom, email: employee.email, department: employee.department, role: employee.role, site_id: employee.site_id, availability_status: employee.availability_status };
 
   if (email && email !== employee.email) {
     const existing = await Employee.findOne({ where: { email } });
@@ -119,6 +267,18 @@ exports.update = asyncHandler(async (req, res) => {
   if (password) {
     if (password.length < 4) return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 4 caractères' });
     employee.password = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  }
+
+  // Changement de site (superadmin uniquement — route déjà restreinte).
+  // site_id est NOT NULL en base : un site valide est obligatoire.
+  if (siteId !== undefined) {
+    const parsedSiteId = parseInt(siteId, 10);
+    if (!Number.isInteger(parsedSiteId) || parsedSiteId <= 0) {
+      return res.status(400).json({ message: 'Site invalide' });
+    }
+    const siteExists = await Site.findByPk(parsedSiteId);
+    if (!siteExists) return res.status(400).json({ message: 'Site introuvable' });
+    employee.site_id = parsedSiteId;
   }
 
   // Disponibilité (supervision par un chef/administrateur) — mêmes règles que
@@ -147,7 +307,7 @@ exports.update = asyncHandler(async (req, res) => {
 
   await employee.save();
 
-  await logAudit({ userId: req.user.id, action: 'update', entity: 'Employee', entityId: employee.id, oldValue: oldData, newValue: { nom: employee.nom, prenom: employee.prenom, email: employee.email, department: employee.department, role: employee.role, availability_status: effectiveStatus(employee) }, req });
+  await logAudit({ userId: req.user.id, action: 'update', entity: 'Employee', entityId: employee.id, oldValue: oldData, newValue: { nom: employee.nom, prenom: employee.prenom, email: employee.email, department: employee.department, role: employee.role, site_id: employee.site_id, availability_status: effectiveStatus(employee) }, req });
 
   res.json({
     id: employee.id,
@@ -156,6 +316,7 @@ exports.update = asyncHandler(async (req, res) => {
     email: employee.email,
     department: employee.department,
     role: employee.role,
+    site_id: employee.site_id,
     availability_status: effectiveStatus(employee),
     leave_start_date: employee.leave_start_date || null,
     leave_end_date: employee.leave_end_date || null,
