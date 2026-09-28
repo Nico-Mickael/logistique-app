@@ -105,6 +105,17 @@ test('notifySortieCreated : tout le monde reçoit une seule notification', () =>
   assert.ok(true);
 });
 
+test('notifySortieCreated : l\'itinéraire multi-étapes est inclus dans le message', async () => {
+  sent.calls.length = 0;
+  sent.chiefsDb.length = 0;
+  await notificationService.notifySortieCreated({
+    sortie: { ...baseSortie, stops: ['  Antsirabe  ', ' Ambatondrazaka ', ''] },
+    vehicle, creatorId: 1,
+  });
+  const msg = sent.calls.find((c) => c.user_id === 2).message;
+  assert.match(msg, /Itinéraire: 1\. Antsirabe → 2\. Ambatondrazaka → 3\. Antananarivo \(arrivée\)/, 'le parcours numéroté est présent et les étapes vides ignorées');
+});
+
 // ---------------------------------------------------------------------------
 // 2. Notification chauffeur
 // ---------------------------------------------------------------------------

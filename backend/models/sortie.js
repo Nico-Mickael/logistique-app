@@ -37,7 +37,8 @@ module.exports = (sequelize, DataTypes) => {
     reschedule_reason: DataTypes.STRING,
     rescheduled_by: DataTypes.INTEGER,
     site_id: DataTypes.INTEGER,
-    deleted_at: DataTypes.DATE
+    deleted_at: DataTypes.DATE,
+    stops: DataTypes.JSONB
   }, {
     sequelize,
     modelName: 'Sortie',

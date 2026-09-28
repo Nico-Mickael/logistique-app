@@ -48,14 +48,22 @@ describe('Flux Disponibilité (intégration)', () => {
   });
 
   it('PATCH /api/auth/me/availability — congé avec dates correctes accepté', async () => {
+    const today = new Date();
+    const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const start = new Date(today);
+    start.setDate(today.getDate() - 1);
+    const end = new Date(today);
+    end.setDate(today.getDate() + 5);
+    const startStr = fmt(start);
+    const endStr = fmt(end);
     const res = await request(app)
       .patch('/api/auth/me/availability')
       .set(authHeader(tokens.employee.accessToken))
-      .send({ availability_status: 'on_leave', leave_start_date: '2026-09-15', leave_end_date: '2026-09-25' });
+      .send({ availability_status: 'on_leave', leave_start_date: startStr, leave_end_date: endStr });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.availability_status, 'on_leave');
-    assert.strictEqual(res.body.leave_start_date, '2026-09-15');
-    assert.strictEqual(res.body.leave_end_date, '2026-09-25');
+    assert.strictEqual(res.body.leave_start_date, startStr);
+    assert.strictEqual(res.body.leave_end_date, endStr);
   });
 
   it('PATCH /api/auth/me/availability — retour à available vide les dates', async () => {

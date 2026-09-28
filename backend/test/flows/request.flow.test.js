@@ -166,4 +166,5 @@ describe('Flux Demandes (intégration)', () => {
       .set(authHeader(tokens.employee.accessToken));
     assert.strictEqual(res.status, 200);
   });
-});
+
+  });

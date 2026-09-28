@@ -39,19 +39,28 @@ function ValidateRequestCard({ r, onApprove, onReject, onReschedule, onDetail, o
       }} />
       <Group justify="space-between" mb="xs" wrap="wrap">
         <Text fw={600} size="md" style={{ minWidth: 0, wordBreak: 'break-word' }}>{r.Employee?.prenom} {r.Employee?.nom}</Text>
-        <Badge color={statusColor[r.status]} variant="light">{statusLabel[r.status]}</Badge>
+        <Group gap={6} wrap="wrap">
+          <Badge color={statusColor[r.status]} variant="light">{statusLabel[r.status]}</Badge>
+        </Group>
       </Group>
       <Stack gap={4} mb="md">
         <Text size="sm"><Text span c="dimmed">Destination: </Text>{r.destination}</Text>
         <Text size="sm"><Text span c="dimmed">Date: </Text>{dayjs(r.date_souhaitee).format('DD/MM/YYYY HH:mm')}</Text>
         <Text size="sm"><Text span c="dimmed">Personnes: </Text>{r.nb_personnes}</Text>
+        {r.Sorties?.length > 0 && (
+          <Badge size="xs" variant="light" color="brand" mt={4} style={{ alignSelf: 'flex-start' }}>
+            Rejoint la sortie vers {r.Sorties[0].destination} ({dayjs(r.Sorties[0].departure_time).format('DD/MM HH:mm')})
+          </Badge>
+        )}
       </Stack>
       <Group gap="xs" wrap="wrap">
         <Button size="xs" variant="subtle" color="brand" leftSection={<IconEye size={14} />} onClick={() => onDetail(r)}>Détail</Button>
         {r.status === 'pending' && (
           <>
             <Button size="xs" color="brand" leftSection={<IconCheck size={14} />} onClick={() => onApprove(r.id)} loading={approving === r.id}>Valider</Button>
-            <Button size="xs" variant="outline" color="brandYellow" leftSection={<IconCalendar size={14} />} onClick={() => onReschedule(r)}>Replanifier</Button>
+            {r.Sorties?.length === 0 && (
+              <Button size="xs" variant="outline" color="brandYellow" leftSection={<IconCalendar size={14} />} onClick={() => onReschedule(r)}>Replanifier</Button>
+            )}
             <Button size="xs" variant="outline" color="red" leftSection={<IconX size={14} />} onClick={() => onReject(r)}>Refuser</Button>
           </>
         )}

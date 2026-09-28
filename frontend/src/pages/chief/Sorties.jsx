@@ -6,7 +6,7 @@ import {
 import { DataTable } from 'mantine-datatable';
 import { DateTimePicker, TimeInput } from '@mantine/dates';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
-import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconNote, IconEye, IconDotsVertical } from '@tabler/icons-react';
+import { IconPlus, IconPlayerPlay, IconFlag, IconUsers, IconRoute, IconSearch, IconX, IconEdit, IconTrash, IconDownload, IconNote, IconEye, IconDotsVertical, IconCheck } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
 import SortieDetailModal from '../../components/SortieDetailModal';
 import SortieCard from '../../components/SortieCard';
@@ -22,6 +22,7 @@ import PageLoader from '../../components/PageLoader';
 import FloatingPanel from '../../components/FloatingPanel';
 import { useNavigate } from 'react-router-dom';
 import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, vehicleDisplayName } from '../../utils/labels';
+import StopsEditor from '../../components/StopsEditor';
 import { downloadCSV } from '../../utils/csv';
 
 const statusFilterOptions = [
@@ -57,6 +58,7 @@ function Sorties() {
   const [editMotif, setEditMotif] = useState('');
   const [editDepartureTime, setEditDepartureTime] = useState(null);
   const [editRescheduleReason, setEditRescheduleReason] = useState('');
+  const [editStops, setEditStops] = useState([]);
 
   const [departOpened, { open: openDepart, close: closeDepart }] = useDisclosure(false);
   const [selectedSortie, setSelectedSortie] = useState(null);
@@ -80,6 +82,7 @@ function Sorties() {
   const [actionLoading, setActionLoading] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [validateReturnTarget, setValidateReturnTarget] = useState(null);
+  const [forceCloseTarget, setForceCloseTarget] = useState(null);
 
   const [detailSortie, setDetailSortie] = useState(null);
   const [detailOpened, { open: openDetailModal, close: closeDetailModal }] = useDisclosure(false);
@@ -158,6 +161,7 @@ function Sorties() {
     setEditMotif(s.motif || '');
     setEditDepartureTime(new Date(s.departure_time));
     setEditRescheduleReason('');
+    setEditStops(Array.isArray(s.stops) ? [...s.stops] : []);
     openEditModal();
   };
 
@@ -186,6 +190,7 @@ function Sorties() {
         departure_time: editDepartureTime,
         vehicle_id: editVehicleId ? parseInt(editVehicleId, 10) : undefined,
         driver_employee_id: chauffeurAcc ? chauffeurAcc.id : null,
+        stops: editStops.map((s) => s.trim()).filter(Boolean),
         ...(departureChanged ? { reschedule_reason: editRescheduleReason } : {}),
       });
       notifySuccess('Sortie modifiée');
@@ -278,8 +283,22 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
     finally { setActionLoading(null); }
   };
 
-  const openSuggestionsModal = async (sortieId) => {
-    try { const { data } = await sortieService.suggestions(sortieId); setSuggestions(data); setSelectedSortie({ id: sortieId }); openSuggest(); }
+  // Clôture forcée : une sortie moto restée bloquée en "en cours" (l'employé
+  // n'a jamais saisi son retour) est clôturée directement par la logistique.
+  const handleForceClose = async () => {
+    if (!forceCloseTarget) return;
+    setActionLoading('forceClose');
+    try {
+      await sortieService.validateReturn(forceCloseTarget.id, true);
+      notifySuccess('Sortie clôturée (validation du retour forcée)');
+      setForceCloseTarget(null);
+      fetchSorties(page);
+    } catch { notifyError("Erreur lors de la clôture de la sortie"); }
+    finally { setActionLoading(null); }
+  };
+
+  const openSuggestionsModal = async (sortie) => {
+    try { const { data } = await sortieService.suggestions(sortie.id); setSuggestions(data); setSelectedSortie({ id: sortie.id, destination: sortie.destination }); openSuggest(); }
     catch { notifyError('Impossible de charger les suggestions'); }
   };
 
@@ -401,7 +420,7 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
             {s.status === 'planned' && (
               <>
                 <Menu.Item leftSection={<IconPlayerPlay size={16} />} onClick={() => openDepartModal(s)}>Démarrer</Menu.Item>
-                <Menu.Item leftSection={<IconUsers size={16} />} onClick={() => openSuggestionsModal(s.id)}>Demandes</Menu.Item>
+                <Menu.Item leftSection={<IconUsers size={16} />} onClick={() => openSuggestionsModal(s)}>Demandes</Menu.Item>
                 <Menu.Item leftSection={<IconEye size={16} />} onClick={() => openDetail(s)}>Détails</Menu.Item>
                 <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => openEdit(s)}>Modifier</Menu.Item>
                 <Menu.Divider />
@@ -411,6 +430,11 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
             {s.status === 'ongoing' && (
               <>
                 <Menu.Item leftSection={<IconFlag size={16} />} onClick={() => openArriveeModal(s)}>Saisir arrivée</Menu.Item>
+                {s.Vehicle?.type === 'moto' && (
+                  <Menu.Item color="orange" leftSection={<IconCheck size={16} />} onClick={() => setForceCloseTarget(s)}>
+                    Forcer la clôture (employé absent)
+                  </Menu.Item>
+                )}
                 <Menu.Item leftSection={<IconEye size={16} />} onClick={() => openDetail(s)}>Détails</Menu.Item>
               </>
             )}
@@ -546,7 +570,7 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
                     onDetail={openDetail} onEdit={openEdit}
                     onDepart={openDepartModal} onSuggestions={openSuggestionsModal}
                     onDelete={() => setDeleteTarget(s)} onValidateReturn={() => setValidateReturnTarget(s)}
-                    onArrivee={openArriveeModal} actionLoading={actionLoading}
+                    onArrivee={openArriveeModal} onForceClose={() => setForceCloseTarget(s)} actionLoading={actionLoading}
                   />
                 ))}
               </SimpleGrid>
@@ -606,6 +630,12 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
             />
           )}
         </SimpleGrid>
+          <Paper withBorder radius="md" p="sm" mt="md">
+            <Text fw={600} size="sm" mb="xs">
+              <Group gap={4}><IconRoute size={15} color="var(--mantine-color-dimmed)" /> Itinéraire multi-étapes</Group>
+            </Text>
+            <StopsEditor value={editStops} onChange={setEditStops} />
+          </Paper>
           <Group justify="end" mt="md">
             <Button variant="default" onClick={closeEditModal} radius="md">Annuler</Button>
             <Button color="brand" onClick={handleEditSave} loading={saving} radius="md">Enregistrer</Button>
@@ -655,34 +685,52 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
         {suggestions.length === 0 ? (
           <Center h={80}><Text c="dimmed" size="sm">Aucune demande compatible disponible</Text></Center>
         ) : (
-          <DataTable
-            withTableBorder
-            borderRadius="md"
-            highlightOnHover
-            verticalSpacing="sm"
-            columns={[
-              {
-                accessor: 'employee', title: 'Employé',
-                render: (req) => `${req.Employee?.prenom || ''} ${req.Employee?.nom || ''}`,
-              },
-              { accessor: 'destination', title: 'Destination' },
-              {
-                accessor: 'date_souhaitee', title: 'Date',
-                render: (req) => dayjs(req.date_souhaitee).format('DD/MM/YYYY HH:mm'),
-              },
-              { accessor: 'nb_personnes', title: 'Personnes', textAlign: 'center' },
-              {
-                accessor: 'actions', title: '',
-                render: (req) => (
-                  <Button size="xs" color="brand" loading={adding} onClick={() => handleAddRequest(req.id)}>
-                    Ajouter
-                  </Button>
-                ),
-              },
-            ]}
-            records={suggestions}
-            idAccessor="id"
-          />
+          <>
+            {suggestions.some((r) => r.destinationMismatch) && (
+              <Text size="xs" c="dimmed" mb="sm">
+                {selectedSortie?.destination ? `Vers ${selectedSortie.destination} : ` : ''}
+                les demandes marquées « Autre destination » diffèrent de la sortie — vous pouvez les ajouter manuellement.
+              </Text>
+            )}
+            <DataTable
+              withTableBorder
+              borderRadius="md"
+              highlightOnHover
+              verticalSpacing="sm"
+              columns={[
+                {
+                  accessor: 'employee', title: 'Employé',
+                  render: (req) => `${req.Employee?.prenom || ''} ${req.Employee?.nom || ''}`,
+                },
+                {
+                  accessor: 'destination', title: 'Destination',
+                  render: (req) => (
+                    <Group gap={6} wrap="wrap">
+                      <Text size="sm">{req.destination}</Text>
+                      {req.destinationMismatch && (
+                        <Badge size="xs" color="orange" variant="light">Autre destination</Badge>
+                      )}
+                    </Group>
+                  ),
+                },
+                {
+                  accessor: 'date_souhaitee', title: 'Date',
+                  render: (req) => dayjs(req.date_souhaitee).format('DD/MM/YYYY HH:mm'),
+                },
+                { accessor: 'nb_personnes', title: 'Personnes', textAlign: 'center' },
+                {
+                  accessor: 'actions', title: '',
+                  render: (req) => (
+                    <Button size="xs" color="brand" loading={adding} onClick={() => handleAddRequest(req.id)}>
+                      Ajouter
+                    </Button>
+                  ),
+                },
+              ]}
+              records={suggestions}
+              idAccessor="id"
+            />
+          </>
         )}
       </Modal>
 
@@ -708,6 +756,17 @@ const openArriveeModal = (s) => { setSelectedSortie(s); setArrivalKm(0); setArri
         confirmLabel="Oui, valider"
         variant="question"
         loading={actionLoading === 'validateReturn'}
+      />
+
+      <ConfirmModal
+        opened={!!forceCloseTarget}
+        onClose={() => setForceCloseTarget(null)}
+        onConfirm={handleForceClose}
+        title="Forcer la clôture ?"
+        message={`La sortie moto vers ${forceCloseTarget?.destination || ''} est restée "en cours" sans retour saisi par l'employé. La clôture forcera la sortie en "terminée".`}
+        confirmLabel="Oui, clôturer"
+        variant="danger"
+        loading={actionLoading === 'forceClose'}
       />
 
       <style>{`

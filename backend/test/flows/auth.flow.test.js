@@ -87,6 +87,45 @@ describe('Flux Auth (intégration)', () => {
     assert.strictEqual(res.status, 200);
   });
 
+  it('DELETE /api/auth/sessions — supprime plusieurs sessions terminées (bulk)', async () => {
+    const extra1 = await login(SUPERADMIN.email, SUPERADMIN.password);
+    const extra2 = await login(SUPERADMIN.email, SUPERADMIN.password);
+    await request(app).post('/api/auth/logout').set(authHeader(extra1.accessToken)).send({ refreshToken: extra1.refreshToken });
+    await request(app).post('/api/auth/logout').set(authHeader(extra2.accessToken)).send({ refreshToken: extra2.refreshToken });
+
+    const listRes = await request(app).get('/api/auth/sessions').set(authHeader(tokens.superadmin.accessToken));
+    const revoked = (listRes.body || []).filter((s) => !s.active && !s.current);
+    assert.ok(revoked.length >= 2, 'au moins 2 sessions terminées disponibles');
+
+    const targetIds = revoked.slice(0, 2).map((s) => s.id);
+    const res = await request(app)
+      .delete('/api/auth/sessions')
+      .set(authHeader(tokens.superadmin.accessToken))
+      .send({ ids: targetIds });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.count, 2);
+
+    const afterRes = await request(app).get('/api/auth/sessions').set(authHeader(tokens.superadmin.accessToken));
+    const remaining = (afterRes.body || []).filter((s) => targetIds.includes(s.id));
+    assert.strictEqual(remaining.length, 0, 'les sessions supprimées ne sont plus listées');
+  });
+
+  it('DELETE /api/auth/sessions — refuse sans ids', async () => {
+    const res = await request(app)
+      .delete('/api/auth/sessions')
+      .set(authHeader(tokens.superadmin.accessToken))
+      .send({ ids: [] });
+    assert.strictEqual(res.status, 400);
+  });
+
+  it('DELETE /api/auth/sessions — refuse des ids de sessions actives/absentes', async () => {
+    const res = await request(app)
+      .delete('/api/auth/sessions')
+      .set(authHeader(tokens.superadmin.accessToken))
+      .send({ ids: [999999] });
+    assert.strictEqual(res.status, 400);
+  });
+
   it('POST /api/auth/register — crée un compte (superadmin)', async () => {
     const res = await request(app)
       .post('/api/auth/register')

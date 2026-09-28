@@ -56,8 +56,11 @@ function __resetDeps() {
 }
 
 // Trouve les demandes compatibles avec une sortie (même destination — synonymes
-// et casse ignorés —, écart horaire ≤ 3 h, capacité respectée)
-exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, departureTime) => {
+// et casse ignorés —, écart horaire ≤ 3 h, capacité respectée).
+// Avec `includeOtherDestinations`, les demandes vers une AUTRE destination sont
+// aussi proposées (ajout manuel par le chef), signalées par `destinationMismatch`,
+// en seconde priorité et toujours dans la limite de la capacité restante.
+exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, departureTime, opts = {}) => {
   const { models, now } = getDeps();
   const { Request, SortieRequest, Employee, Sortie } = models;
 
@@ -101,18 +104,25 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, 
   let occupied = existingRequests.reduce((sum, r) => sum + (r.nb_personnes || 0), 0);
 
   // Filtre la destination en mémoire (synonymes : "Tana" = "Antananarivo", …)
-  // puis selon la capacité restante du véhicule
+  // puis selon la capacité restante du véhicule. Les demandes vers une autre
+  // destination ne sont proposées que si explicitement demandé (ajout manuel du
+  // chef) et passent en seconde priorité, dans la limite de la capacité.
+  const { includeOtherDestinations = false } = opts || {};
   const targetDest = normalizeDestination(destination);
   const compatible = [];
+  const otherDest = [];
   for (const req of candidates) {
     if (siteId != null && req.site_id != null && req.site_id !== siteId) continue;
-    if (normalizeDestination(req.destination) !== targetDest) continue;
+    const sameDest = normalizeDestination(req.destination) === targetDest;
+    if (!sameDest && !includeOtherDestinations) continue;
     if (occupied + (req.nb_personnes || 0) <= vehicleCapacity) {
-      compatible.push(req);
       occupied += req.nb_personnes || 0;
+      const json = req.toJSON ? req.toJSON() : { ...req };
+      json.destinationMismatch = !sameDest;
+      (sameDest ? compatible : otherDest).push(json);
     }
   }
-  return compatible;
+  return [...compatible, ...otherDest];
 };
 
 /**
@@ -126,11 +136,13 @@ exports.findCompatibleRequests = async (sortieId, destination, vehicleCapacity, 
  * - une demande déjà partie (sortie en cours/terminée) ne peut pas être déplacée
  * - la compatibilité est revalidée : statut, destination, fenêtre, capacité
  *
- * @param {object} params - { sortieId, requestId }
- * @returns {Promise<{request, sortie, status: 'added'|'already_linked'}>}
+ * @param {object} params - { sortieId, requestId, allowDestinationMismatch? }
+ *        allowDestinationMismatch: ajout MANUEL par le chef → les destinations
+ *        différentes sont acceptées et signalées dans le résultat.
+ * @returns {Promise<{request, sortie, status: 'added'|'already_linked', destinationMismatch}>}
  * @throws {Error} avec `.status` (400/404) si la liaison est impossible
  */
-exports.attachRequestToSortie = async ({ sortieId, requestId }) => {
+exports.attachRequestToSortie = async ({ sortieId, requestId, allowDestinationMismatch = false }) => {
   const { models, releaseIfIdle, notifyChiefs, now } = getDeps();
   const { Sortie, Request, SortieRequest, Vehicle } = models;
 
@@ -154,9 +166,15 @@ exports.attachRequestToSortie = async ({ sortieId, requestId }) => {
     throw apiError(403, 'Cette demande appartient à un autre site et ne peut pas être ajoutée à cette sortie');
   }
 
-  // Compatibilité : même destination (synonymes et casse ignorés)
-  if (sortie.destination && request.destination &&
-      normalizeDestination(sortie.destination) !== normalizeDestination(request.destination)) {
+  // Compatibilité : même destination (synonymes et casse ignorés). Un ajout
+  // MANUEL du chef peut outrepasser cette règle (coordination exceptionnelle) :
+  // `allowDestinationMismatch` accepte alors la demande et la signale pour que
+  // l'interface l'affiche clairement. Le regroupement AUTOMATIQUE reste strict.
+  const destMismatch = Boolean(
+    sortie.destination && request.destination &&
+    normalizeDestination(sortie.destination) !== normalizeDestination(request.destination)
+  );
+  if (destMismatch && !allowDestinationMismatch) {
     throw apiError(400, 'La destination de la demande ne correspond pas à celle de la sortie');
   }
 
@@ -170,7 +188,7 @@ exports.attachRequestToSortie = async ({ sortieId, requestId }) => {
 
   // Déjà liée à CETTE sortie → pas de doublon
   const existingLink = await SortieRequest.findOne({ where: { sortie_id: sortie.id, request_id: request.id } });
-  if (existingLink) return { request, sortie, status: 'already_linked' };
+  if (existingLink) return { request, sortie, status: 'already_linked', destinationMismatch: destMismatch };
 
   // Capacité restante du véhicule de la sortie
   const vehicle = await Vehicle.findByPk(sortie.vehicle_id);
@@ -212,7 +230,7 @@ exports.attachRequestToSortie = async ({ sortieId, requestId }) => {
     await request.save();
   }
 
-  return { request, sortie, status: 'added' };
+  return { request, sortie, status: 'added', destinationMismatch: destMismatch };
 };
 
 /**

@@ -312,8 +312,10 @@ exports.updateStatus = asyncHandler(async (req, res) => {
 
   // Une demande déjà rattachée à une sortie ne peut PAS être replanifiée :
   // il faudrait d'abord retirer la sortie (chauffeur, capacités, autres
-  // demandes regroupées).
-  if (status === 'rescheduled' && request.status === 'approved') {
+  // demandes regroupées). C'est aussi vrai pour une demande de "rejoindre
+  // une sortie" en attente de validation : elle n'a qu'une issue possible,
+  // valider ou refuser.
+  if (status === 'rescheduled') {
     const existingLink = await SortieRequest.findOne({ where: { request_id: request.id } });
     if (existingLink) {
       return res.status(400).json({ message: 'Cette demande est déjà rattachée à une sortie et ne peut pas être replanifiée' });
@@ -331,8 +333,49 @@ exports.updateStatus = asyncHandler(async (req, res) => {
   await logAudit({ userId: req.user.id, action: `status_${status}`, entity: 'Request', entityId: request.id, oldValue: { status: oldStatus }, newValue: { status, date_souhaitee: request.date_souhaitee, reschedule_reason: request.reschedule_reason }, req });
 
   if (status === 'approved') {
-    await autoCreateSortie(request);
-    await syncSortieConversationForRequest(request);
+    const existingLink = await SortieRequest.findOne({ where: { request_id: request.id } });
+    if (existingLink) {
+      // Demande de "rejoindre une sortie" : elle est DÉJÀ liée (le lien
+      // provisoire a réservé la place). On valide simplement et on prévient
+      // le chauffeur qu'un passager a été ajouté.
+      const sortie = await Sortie.findByPk(existingLink.sortie_id);
+      if (sortie) {
+        await messagingService.syncSortieConversation(sortie);
+        if (sortie.driver_employee_id) {
+          await createNotification({
+            user_id: sortie.driver_employee_id,
+            message: `Un passager a été validé sur la sortie vers ${sortie.destination} (${new Date(sortie.departure_time).toLocaleDateString('fr-FR')}).`,
+            type: 'sortie_assignment',
+          });
+        }
+      }
+    } else {
+      await autoCreateSortie(request);
+      await syncSortieConversationForRequest(request);
+    }
+  }
+
+  if (status === 'rejected') {
+    // Refus d'une demande de "rejoindre une sortie" : on retire le lien
+    // provisoire (la place est libérée). Si la sortie ne porte plus aucune
+    // demande, elle est supprimée (comme un employé qui annulerait son
+    // rejoint) et le véhicule libéré.
+    const link = await SortieRequest.findOne({ where: { request_id: request.id } });
+    if (link) {
+      const sortie = await Sortie.findByPk(link.sortie_id);
+      await SortieRequest.destroy({ where: { request_id: request.id } });
+      if (sortie) {
+        const remaining = await SortieRequest.count({ where: { sortie_id: sortie.id } });
+        if (remaining === 0 && sortie.status === 'planned') {
+          await messagingService.deleteSortieConversation(sortie.id);
+          await sortie.destroy();
+          notifyChiefs('sortie_updated', { id: sortie.id, deleted: true }, sortie.site_id);
+          await vehicleService.releaseIfIdle(sortie.vehicle_id);
+        } else if (sortie.status !== 'finished') {
+          await messagingService.syncSortieConversation(sortie);
+        }
+      }
+    }
   }
 
   await createNotification({
@@ -360,14 +403,14 @@ exports.cancel = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Cette demande ne peut plus être annulée' });
   }
 
-  const wasApproved = request.status === 'approved';
   const vehicleId = request.vehicle_id;
 
   await logAudit({ userId: req.user.id, action: 'cancel', entity: 'Request', entityId: request.id, oldValue: { status: request.status }, newValue: { status: 'cancelled' }, req });
 
-  const sortieIds = wasApproved
-    ? [...new Set((await SortieRequest.findAll({ where: { request_id: request.id }, attributes: ['sortie_id'] })).map((l) => l.sortie_id))]
-    : [];
+  // Le nettoyage de sortie concerne toute demande LIÉE à une sortie, y
+  // compris une demande de "rejoindre une sortie" en attente de validation
+  // (dont le lien provisoire réservait une place).
+  const sortieIds = [...new Set((await SortieRequest.findAll({ where: { request_id: request.id }, attributes: ['sortie_id'] })).map((l) => l.sortie_id))];
 
   await SortieRequest.destroy({ where: { request_id: request.id } });
 
@@ -377,7 +420,7 @@ exports.cancel = asyncHandler(async (req, res) => {
 
   // Si l'annulation vide la seule/dernière sortie liée, on la supprime (sortie planifiée)
   // et on libère le véhicule. Sinon on ne libère que si le véhicule n'a plus d'activité.
-  if (wasApproved && vehicleId) {
+  if (sortieIds.length > 0 && vehicleId) {
     for (const sortieId of sortieIds) {
       const sortie = await Sortie.findByPk(sortieId);
       if (!sortie) continue;
@@ -489,8 +532,12 @@ exports.remove = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: 'Action non autorisée' });
   }
 
-  if (request.status === 'approved') {
-    const links = await SortieRequest.findAll({ where: { request_id: request.id } });
+  const links = await SortieRequest.findAll({ where: { request_id: request.id } });
+
+  // Nettoyage des sorties liées (demande validée ou demande de "rejoindre"
+  // en attente) : la sortie est supprimée si la demande restait sa seule
+  // ou dernière demande, le véhicule est alors libéré.
+  if (links.length > 0) {
     const sortieIds = [...new Set(links.map((l) => l.sortie_id))];
 
     for (const sortieId of sortieIds) {

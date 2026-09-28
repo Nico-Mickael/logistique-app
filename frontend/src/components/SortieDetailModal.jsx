@@ -2,6 +2,7 @@ import { Modal, Group, Badge, Text, Stack, SimpleGrid, Divider, Paper, ScrollAre
 import { IconUser, IconCar, IconCalendarClock, IconRoute, IconUsers } from '@tabler/icons-react';
 import dayjs from '../utils/date';
 import VehicleIcon from './VehicleIcon';
+import SortieItinerary from './SortieItinerary';
 import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, vehicleDisplayName } from '../utils/labels';
 
 // Détail d'une sortie (partagé entre la vue Cartes et le DataTable).
@@ -59,6 +60,13 @@ export default function SortieDetailModal({ opened, onClose, sortie }) {
       </SimpleGrid>
 
       <Divider my="xs" />
+
+      {Array.isArray(sortie.stops) && sortie.stops.length > 0 && (
+        <>
+          <SortieItinerary stops={sortie.stops} destination={sortie.destination} label="Itinéraire multi-étapes" />
+          <Divider my="xs" />
+        </>
+      )}
 
       {(sortie.departure_km != null || sortie.arrival_km != null || sortie.return_km != null || sortie.distance_km != null) && (
         <Group gap="xl" align="start" mb="sm" wrap="wrap">

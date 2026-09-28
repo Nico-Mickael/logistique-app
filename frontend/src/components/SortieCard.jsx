@@ -2,7 +2,7 @@ import {
   Card, Group, Text, Stack, Badge, Select, Menu, ActionIcon, Divider,
 } from '@mantine/core';
 import {
-  IconPlayerPlay, IconFlag, IconUsers, IconEye, IconEdit, IconTrash, IconExchange, IconDotsVertical,
+  IconPlayerPlay, IconFlag, IconUsers, IconEye, IconEdit, IconTrash, IconExchange, IconDotsVertical, IconCheck,
 } from '@tabler/icons-react';
 import VehicleIcon from './VehicleIcon';
 import dayjs from '../utils/date';
@@ -43,7 +43,7 @@ function DriverSelect({ sortie, chauffeurs, onAssignDriver, disabled }) {
   );
 }
 
-function SortieCard({ sortie, chauffeurs, vehicles, onAssignDriver, onChangeVehicle, onDetail, onEdit, onDepart, onSuggestions, onDelete, onValidateReturn, onArrivee, actionLoading }) {
+function SortieCard({ sortie, chauffeurs, vehicles, onAssignDriver, onChangeVehicle, onDetail, onEdit, onDepart, onSuggestions, onDelete, onValidateReturn, onArrivee, onForceClose, actionLoading }) {
   const isMoto = sortie.Vehicle?.type === 'moto';
   const ds = sortie.displayStatus;
 
@@ -58,7 +58,7 @@ function SortieCard({ sortie, chauffeurs, vehicles, onAssignDriver, onChangeVehi
         {sortie.status === 'planned' && (
           <>
             <Menu.Item leftSection={<IconPlayerPlay size={16} />} onClick={() => onDepart(sortie)}>Démarrer</Menu.Item>
-            <Menu.Item leftSection={<IconUsers size={16} />} onClick={() => onSuggestions(sortie.id)}>Demandes</Menu.Item>
+            <Menu.Item leftSection={<IconUsers size={16} />} onClick={() => onSuggestions(sortie)}>Demandes</Menu.Item>
             <Menu.Item leftSection={<IconEye size={16} />} onClick={() => onDetail(sortie)}>Détails</Menu.Item>
             <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => onEdit(sortie)}>Modifier</Menu.Item>
             <Menu.Divider />
@@ -68,6 +68,11 @@ function SortieCard({ sortie, chauffeurs, vehicles, onAssignDriver, onChangeVehi
         {sortie.status === 'ongoing' && (
           <>
             <Menu.Item leftSection={<IconFlag size={16} />} onClick={() => onArrivee(sortie)}>Saisir arrivée</Menu.Item>
+            {isMoto && onForceClose && (
+              <Menu.Item color="orange" leftSection={<IconCheck size={16} />} onClick={() => onForceClose(sortie)}>
+                Forcer la clôture (employé absent)
+              </Menu.Item>
+            )}
             <Menu.Item leftSection={<IconEye size={16} />} onClick={() => onDetail(sortie)}>Détails</Menu.Item>
           </>
         )}

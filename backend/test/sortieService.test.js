@@ -193,6 +193,21 @@ test('findCompatibleRequests : exclut les demandes déjà liées à une autre so
   assert.deepStrictEqual(ids, [11], 'la demande liée ailleurs ne doit pas réapparaître');
 });
 
+test('findCompatibleRequests : avec includeOtherDestinations, propose les autres destinations (signalées) en seconde priorité', async () => {
+  const base = new Date('2026-09-05T10:00:00').getTime();
+  db.requests = [
+    { id: 1, destination: 'Antananarivo', status: 'approved', date_souhaitee: new Date(base), nb_personnes: 2 },
+    { id: 2, destination: 'Mahajanga', status: 'approved', date_souhaitee: new Date(base + 5 * 60 * 1000), nb_personnes: 1 },
+    { id: 3, destination: 'Toliara', status: 'approved', date_souhaitee: new Date(base + 8 * 60 * 1000), nb_personnes: 2 },
+  ];
+
+  const result = await sortieService.findCompatibleRequests(99, 'Antananarivo', 4, new Date(base), { includeOtherDestinations: true });
+
+  assert.deepStrictEqual(result.map((r) => r.id), [1, 2], "même destination d'abord, puis autres, dans la limite de la capacité (4)");
+  assert.strictEqual(result[0].destinationMismatch, false);
+  assert.strictEqual(result[1].destinationMismatch, true);
+});
+
 // ---------------------------------------------------------------------------
 // autoCreateSortie
 // ---------------------------------------------------------------------------
@@ -506,6 +521,20 @@ test('attachRequestToSortie : refuse une destination différente de la sortie', 
     (err) => err.status === 400 && /destination/i.test(err.message)
   );
   assert.strictEqual(db.sortieRequests.length, 0);
+});
+
+test('attachRequestToSortie : ajout manuel (chef) accepté même si destination différente', async () => {
+  seedGroupable();
+
+  const result = await sortieService.attachRequestToSortie({ sortieId: 100, requestId: 4, allowDestinationMismatch: true });
+
+  assert.strictEqual(result.status, 'added');
+  assert.strictEqual(result.destinationMismatch, true);
+  const link = db.sortieRequests.find((sr) => sr.request_id === 4);
+  assert.ok(link, 'la demande vers une autre destination est bien liée');
+  assert.strictEqual(link.sortie_id, 100);
+  const req = db.requests.find((r) => r.id === 4);
+  assert.strictEqual(req.status, 'approved', 'la demande conservée garde son id/employé/motif et passe approuvée');
 });
 
 test('attachRequestToSortie : accepte un synonyme de destination (sortie "Antananarivo" + demande "Tana")', async () => {

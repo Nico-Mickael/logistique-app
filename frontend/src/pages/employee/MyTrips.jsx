@@ -1,19 +1,21 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Badge, Text, Group, Card, SimpleGrid, Stack, Button, Modal, NumberInput, Progress, ScrollArea,
+  Select, SegmentedControl,
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { DataTable } from 'mantine-datatable';
 import { useDisclosure } from '@mantine/hooks';
 import { IconRoute, IconMapPin, IconClock, IconGauge, IconFlag, IconCar, IconUsers, IconNote } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
+import SortieItinerary from '../../components/SortieItinerary';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { notifySuccess, notifyError } from '../../utils/toast';
 import PageHeader from '../../components/PageHeader';
 import PageLoader from '../../components/PageLoader';
 import EmptyState from '../../components/EmptyState';
-import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent, vehicleDisplayName } from '../../utils/labels';
+import { sortieStatusLabel as statusLabel, sortieStatusColor as statusColor, sortieStatusAccent, vehicleDisplayName, VEHICLE_TYPE_OPTIONS } from '../../utils/labels';
 
 function TripCard({ sortie, onReturn }) {
   const isMoto = sortie.Vehicle?.type === 'moto';
@@ -31,6 +33,9 @@ function TripCard({ sortie, onReturn }) {
         </Badge>
       </Group>
       <Stack gap={4} mb="md">
+        {Array.isArray(sortie.stops) && sortie.stops.length > 0 && (
+          <SortieItinerary stops={sortie.stops} destination={sortie.destination} />
+        )}
         <Group gap="xs">
           <VehicleIcon type={sortie.Vehicle?.type} size={14} color="var(--mantine-color-dimmed)" />
           <Text size="sm">{sortie.Vehicle ? vehicleDisplayName(sortie.Vehicle) : '—'}</Text>
@@ -134,7 +139,9 @@ function MyTrips() {
   const [joinOpened, { open: openJoin, close: closeJoin }] = useDisclosure(false);
   const [joinSortie, setJoinSortie] = useState(null);
   const [joinNb, setJoinNb] = useState(1);
+  const [joinDest, setJoinDest] = useState('');
   const [joinLoading, setJoinLoading] = useState(false);
+  const [vehicleFilter, setVehicleFilter] = useState('all');
 
   const fetchTrips = async () => {
     try {
@@ -191,6 +198,7 @@ function MyTrips() {
   const openJoinModal = (s) => {
     setJoinSortie(s);
     setJoinNb(1);
+    setJoinDest(s.destination);
     openJoin();
   };
 
@@ -198,8 +206,8 @@ function MyTrips() {
     if (!joinSortie) return;
     setJoinLoading(true);
     try {
-      await sortieService.join(joinSortie.id, joinNb);
-      notifySuccess('Demande créée pour cette sortie');
+      await sortieService.join(joinSortie.id, joinNb, joinDest);
+      notifySuccess('Demande envoyée — en attente de validation par la logistique');
       closeJoin();
       fetchTrips();
       fetchPlanned();
@@ -216,6 +224,9 @@ function MyTrips() {
   const pendingReturn = sorties.filter((s) => s.status === 'pending_return');
   const planned = sorties.filter((s) => s.status === 'planned');
   const finished = sorties.filter((s) => s.status === 'finished');
+  const filteredPlanned = vehicleFilter === 'all'
+    ? plannedSorties
+    : plannedSorties.filter((s) => s.vehicle?.type === vehicleFilter);
 
   return (
     <div className="page-content">
@@ -223,12 +234,23 @@ function MyTrips() {
 
       {plannedSorties.length > 0 && (
         <>
-          <Text size="sm" fw={600} mb="sm" c="brand">
-            <IconCar size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-            Sorties disponibles ({plannedSorties.length})
-          </Text>
+          <Group justify="space-between" mb="sm" wrap="wrap">
+            <Text size="sm" fw={600} c="brand">
+              <IconCar size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+              Sorties disponibles ({filteredPlanned.length})
+            </Text>
+            <SegmentedControl
+              size="xs"
+              value={vehicleFilter}
+              onChange={setVehicleFilter}
+              data={[
+                { value: 'all', label: 'Toutes' },
+                ...VEHICLE_TYPE_OPTIONS.map((v) => ({ value: v.value, label: v.label })),
+              ]}
+            />
+          </Group>
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" mb="xl">
-            {plannedSorties.map((s) => {
+            {filteredPlanned.map((s) => {
               const capacityPct = s.vehicle?.capacity ? Math.round((s.occupiedSeats / s.vehicle.capacity) * 100) : 0;
               return (
                 <Card key={s.id} withBorder radius="lg" p="lg" className="trip-card">
@@ -247,6 +269,9 @@ function MyTrips() {
                       <IconRoute size={14} color="var(--mantine-color-dimmed)" />
                       <Text size="sm">{s.destination}</Text>
                     </Group>
+                    {s.stops && s.stops.length > 0 && (
+                      <SortieItinerary stops={s.stops} destination={s.destination} />
+                    )}
                     <Group gap="xs">
                       <IconClock size={14} color="var(--mantine-color-dimmed)" />
                       <Text size="sm">{dayjs(s.departure_time).format('DD/MM/YYYY HH:mm')}</Text>
@@ -362,12 +387,29 @@ function MyTrips() {
           <Text size="sm" c="dimmed">
             {joinSortie?.vehicle ? vehicleDisplayName(joinSortie.vehicle) : ''} — {dayjs(joinSortie?.departure_time).format('DD/MM/YYYY HH:mm')}
           </Text>
+          {joinSortie?.stops?.length > 0 && (
+            <SortieItinerary stops={joinSortie.stops} destination={joinSortie.destination} />
+          )}
           {joinSortie?.motif && (
             <Text size="sm" c="dimmed">Motif: {joinSortie.motif}</Text>
           )}
           <Text size="sm">
             Places disponibles: <strong>{joinSortie?.availableSeats}</strong> / {joinSortie?.vehicle?.capacity}
           </Text>
+          {joinSortie?.stops?.length > 0 && (
+            <Select
+              label="Ou descendez-vous ?"
+              description="Choisissez la destination finale de la sortie ou l'une de ses étapes"
+              data={[
+                ...joinSortie.stops.map((stop) => ({ value: stop, label: stop })),
+                { value: joinSortie.destination, label: `Destination finale: ${joinSortie.destination}` },
+              ]}
+              value={joinDest}
+              onChange={setJoinDest}
+              searchable
+              clearable
+            />
+          )}
           <NumberInput
             label="Nombre de personnes"
             min={1}

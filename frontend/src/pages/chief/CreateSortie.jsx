@@ -20,6 +20,7 @@ import { notifySuccess, notifyError } from '../../utils/toast';
 import { getSeatLayout, getSeatColor } from '../../utils/seatLayout';
 import { vehicleStatusLabel as statusLabel, vehicleStatusColor as statusColor, vehicleDisplayName, availabilityStatusLabel, availabilityStatusDot } from '../../utils/labels';
 import { chauffeurOptions as buildChauffeurOptions } from '../../utils/sortieOptions';
+import StopsEditor from '../../components/StopsEditor';
 
 // Critère de regroupement du cahier des charges : écart horaire ≤ 3 h
 const COMPAT_WINDOW_MIN = 180;
@@ -231,7 +232,7 @@ function VehicleCard({ vehicle, seatStates, isSelected, onClick, requestsBySeat 
   );
 }
 
-function RequestCard({ request, onAdd, adding, disabled }) {
+function RequestCard({ request, onAdd, adding, disabled, destinationMismatch }) {
   return (
     <Paper
       p="md"
@@ -269,6 +270,9 @@ function RequestCard({ request, onAdd, adding, disabled }) {
               <IconMapPin size={12} color="var(--mantine-color-dimmed)" />
               <Text size="xs" c="dimmed">{request.destination}</Text>
             </Group>
+            {destinationMismatch && (
+              <Badge size="xs" color="orange" variant="light">Autre destination</Badge>
+            )}
             <Text size="xs" c="dimmed">·</Text>
             <Group gap={4}>
               <IconClock size={12} color="var(--mantine-color-dimmed)" />
@@ -305,6 +309,7 @@ function CreateSortie() {
   const [destination, setDestination] = useState('');
   const [motif, setMotif] = useState('');
   const [departureTime, setDepartureTime] = useState(null);
+  const [stops, setStops] = useState([]);
   const [creating, setCreating] = useState(false);
 
   const [createdSortie, setCreatedSortie] = useState(null);
@@ -370,15 +375,21 @@ function CreateSortie() {
     setDriverName('');
     setDriverEmployeeId('');
     setDepartureTime(null);
+    setStops([]);
     setConfigModalOpen(true);
   };
 
   const handleCreateSortie = async () => {
-    if (!selectedVehicle || !driverName || !destination || !departureTime || !motif) {
+    if (!selectedVehicle || !destination || !departureTime || !motif) {
       notifyError('Merci de remplir tous les champs (motif obligatoire)');
       return;
     }
+    const isMoto = selectedVehicle.type === 'moto';
     const driverAccount = chauffeurs.find((c) => String(c.id) === String(driverEmployeeId));
+    if (!isMoto && !driverAccount) {
+      notifyError('Choisissez un chauffeur (compte) pour cette sortie');
+      return;
+    }
     if (driverAccount && (driverAccount.availability_status || 'available') !== 'available') {
       notifyError('Ce chauffeur n\'est pas disponible et ne peut pas être affecté à une sortie');
       return;
@@ -395,6 +406,7 @@ function CreateSortie() {
         motif,
         departure_time: departureTime,
         driver_employee_id: driverAccount ? driverAccount.id : null,
+        stops: stops.map((s) => s.trim()).filter(Boolean),
       });
       setCreatedSortie(data);
       notifySuccess('Sortie créée avec succès');
@@ -460,14 +472,18 @@ function CreateSortie() {
     return requests.filter((r) => {
       if (r.status !== 'pending' && r.status !== 'approved') return false;
       if (r.vehicle_id && createdSortie.vehicle_id && r.vehicle_id !== createdSortie.vehicle_id) return false;
-      if ((r.destination || '').toLowerCase() !== (createdSortie.destination || '').toLowerCase()) return false;
       if (hasTime) {
         const reqTime = new Date(r.date_souhaitee);
         if (isNaN(reqTime.getTime())) return false;
         if (Math.abs(reqTime - sortieTime) > COMPAT_WINDOW_MIN * 60 * 1000) return false;
       }
       return true;
-    });
+    }).map((r) => ({
+      ...r,
+      // La destination peut différer : le chef peut relier manuellement une
+      // demande vers une autre destination (signalée dans l'UI).
+      destinationMismatch: (r.destination || '').toLowerCase() !== (createdSortie.destination || '').toLowerCase(),
+    }));
   }, [requests, createdSortie]);
 
   const occupancyByVehicle = useMemo(() => {
@@ -493,6 +509,7 @@ function CreateSortie() {
 
   const occupiedCount = Object.values(seatStates).filter((s) => s === 'occupied').length;
   const availableCount = selectedVehicle ? selectedVehicle.capacity - occupiedCount : 0;
+  const isMotoSortie = selectedVehicle?.type === 'moto';
 
   if (loading) {
     return <Center h={300}><Loader color="brand" size="lg" /></Center>;
@@ -585,6 +602,7 @@ function CreateSortie() {
                       onAdd={handleAddRequest}
                       adding={adding}
                       disabled={availableCount < (req.nb_personnes || 1)}
+                      destinationMismatch={req.destinationMismatch}
                     />
                   ))}
                 </SimpleGrid>
@@ -612,7 +630,8 @@ function CreateSortie() {
                 const acc = chauffeurs.find((c) => String(c.id) === String(v));
                 if (acc) setDriverName(`${acc.prenom} ${acc.nom}`.trim());
               }}
-              clearable
+              clearable={isMotoSortie}
+              required={!isMotoSortie}
               searchable
               radius="md"
               leftSection={<IconUser size={16} />}
@@ -632,20 +651,26 @@ function CreateSortie() {
               }}
             />
             {chauffeurs.length === 0 ? null : availableChauffeurCount === 0 ? (
-              <Text size="xs" c="orange.6">Aucun chauffeur disponible pour le moment — vous pouvez saisir le conducteur manuellement.</Text>
+              isMotoSortie ? (
+                <Text size="xs" c="orange.6">Aucun chauffeur disponible pour le moment — vous pouvez saisir le conducteur manuellement.</Text>
+              ) : (
+                <Text size="xs" c="orange.6">Aucun chauffeur disponible actuellement : la sortie nécessite un compte chauffeur.</Text>
+              )
             ) : availableChauffeurCount < chauffeurs.length ? (
               <Text size="xs" c="dimmed">{availableChauffeurCount} chauffeur(s) disponible(s) — les chauffeurs indisponibles ne sont pas sélectionnables.</Text>
             ) : null}
-            <TextInput
-              label="Conducteur"
-              placeholder="Nom du conducteur"
-              w="100%"
-              value={driverName}
-              onChange={(e) => setDriverName(e.currentTarget.value)}
-              required
-              radius="md"
-              leftSection={<IconSteeringWheel size={16} />}
-            />
+            {isMotoSortie && (
+              <TextInput
+                label="Conducteur"
+                placeholder="Nom du conducteur"
+                w="100%"
+                value={driverName}
+                onChange={(e) => setDriverName(e.currentTarget.value)}
+                required
+                radius="md"
+                leftSection={<IconSteeringWheel size={16} />}
+              />
+            )}
           </Stack>
           <TextInput
             label="Destination"
@@ -678,6 +703,13 @@ function CreateSortie() {
             radius="md"
           />
         </SimpleGrid>
+
+        <Paper withBorder radius="md" p="sm" mt="md" style={{ background: 'var(--mantine-color-body)' }}>
+          <Text fw={600} size="sm" mb="xs">
+            <Group gap={4}><IconMapPin size={15} color="var(--mantine-color-dimmed)" /> Itinéraire multi-étapes</Group>
+          </Text>
+          <StopsEditor value={stops} onChange={setStops} />
+        </Paper>
       </VehicleModal>
     </div>
   );

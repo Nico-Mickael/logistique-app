@@ -30,9 +30,22 @@ const notifySortieEmployees = async (sortie, message, type) => {
   await notificationService.notifySortieState({ sortie, type, message, recipients: ids });
 };
 
+// Normalise l'itinéraire multi-étapes : tableau ordonné de lieux de passage
+// (non vides, tronqués, max 20 étapes). Non-tableau → null.
+const sanitizeStops = (stops) => {
+  if (stops === undefined || stops === null) return null;
+  if (!Array.isArray(stops)) return null;
+  const cleaned = stops
+    .map((s) => (typeof s === 'string' ? s.trim() : ''))
+    .filter(Boolean)
+    .slice(0, 20)
+    .map((s) => s.slice(0, 120));
+  return cleaned.length > 0 ? cleaned : null;
+};
+
 // Créer une sortie + assigner véhicule/conducteur
 exports.create = asyncHandler(async (req, res) => {
-  const { vehicle_id, driver_name, destination, motif, departure_time, departure_km, driver_employee_id } = req.body;
+  const { vehicle_id, driver_name, destination, motif, departure_time, departure_km, driver_employee_id, stops } = req.body;
 
   if (!motif) {
     return res.status(400).json({ message: 'Le motif de la sortie est obligatoire' });
@@ -75,10 +88,19 @@ exports.create = asyncHandler(async (req, res) => {
     }
   }
 
+  // Un conducteur saisi uniquement en toutes lettres (sans compte) ne peut
+  // recevoir ni notifications ni messagerie : pour une sortie réelle
+  // (voiture, minibus, bus), le chauffeur DOIT être un compte 'chauffeur'
+  // du site. Les motos (conduites par l'employé lui-même) restent libres.
+  if (vehicle.type !== 'moto' && !driver_employee_id && driver_name && String(driver_name).trim()) {
+    return res.status(400).json({ message: 'Le chauffeur doit être un compte (rôle chauffeur) du site pour recevoir notifications et messagerie' });
+  }
+
   const sortie = await Sortie.create({
     vehicle_id, driver_name, destination, motif, departure_time,
     driver_employee_id: driver_employee_id || null,
     departure_km: departure_km || null,
+    stops: sanitizeStops(stops),
     status: 'planned',
     site_id: req.user.site_id,
   });
@@ -86,7 +108,7 @@ exports.create = asyncHandler(async (req, res) => {
   vehicle.status = 'busy';
   await vehicle.save();
 
-  await logAudit({ userId: req.user.id, action: 'create', entity: 'Sortie', entityId: sortie.id, newValue: { vehicle_id, destination, motif, departure_time, driver_name }, req });
+  await logAudit({ userId: req.user.id, action: 'create', entity: 'Sortie', entityId: sortie.id, newValue: { vehicle_id, destination, motif, departure_time, driver_name, stops: sortie.stops }, req });
 
   // Notifications centralisées (anti-doublon) :
   //  - tous les utilisateurs (date/heure/véhicule/chauffeur/motif)
@@ -123,7 +145,8 @@ exports.suggestions = asyncHandler(async (req, res) => {
     sortie.id,
     sortie.destination,
     sortie.Vehicle.capacity,
-    sortie.departure_time
+    sortie.departure_time,
+    { includeOtherDestinations: true }
   );
 
   res.json(compatible);
@@ -142,12 +165,19 @@ exports.addRequest = asyncHandler(async (req, res) => {
   if (!sortieForScope) return res.status(404).json({ message: 'Sortie introuvable' });
   requireSiteAccess(req, sortieForScope.site_id);
 
-  // Le service central garantit : compatibilité (destination, fenêtre horaire,
-  // capacité), unicité d'un lien par groupe, et impossibilité de perdre une
-  // demande regroupée (elle garde son id, son employé, son motif, son statut).
+  // Le service central garantit : compatibilité (destination — sauf ajout
+  // MANUEL du chef, inchangée pour l'auto —, fenêtre horaire, capacité),
+  // unicité d'un lien par groupe, et impossibilité de perdre une demande
+  // regroupée (elle garde son id, son employé, son motif, son statut).
   let result;
   try {
-    result = await sortieService.attachRequestToSortie({ sortieId: req.params.id, requestId: request_id });
+    result = await sortieService.attachRequestToSortie({
+      sortieId: req.params.id,
+      requestId: request_id,
+      // L'utilisateur de ce endpoint est un chef (rôle gardé par la route) :
+      // il peut relier manuellement une demande vers une autre destination.
+      allowDestinationMismatch: true,
+    });
   } catch (err) {
     return res.status(err.status || 500).json({ message: err.message || 'Erreur lors de l\'ajout de la demande' });
   }
@@ -363,7 +393,7 @@ exports.update = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Seules les sorties planifiées peuvent être modifiées' });
   }
 
-  const { destination, driver_name, departure_time, vehicle_id, driver_employee_id, motif, reschedule_reason } = req.body;
+  const { destination, driver_name, departure_time, vehicle_id, driver_employee_id, motif, reschedule_reason, stops } = req.body;
   const oldDriverId = sortie.driver_employee_id;
   const oldDepartureTime = sortie.departure_time;
   const oldDestination = sortie.destination;
@@ -399,6 +429,15 @@ exports.update = asyncHandler(async (req, res) => {
     }
   }
 
+  // Même garde qu'à la création : un conducteur libre sans compte n'a aucun
+  // canal de notification. Non-moto → obliger un compte chauffeur du site.
+  const updatedVehicle = await Vehicle.findByPk(sortie.vehicle_id);
+  const isMotoSortie = updatedVehicle ? updatedVehicle.type === 'moto' : false;
+  const intendsDriverName = driver_name !== undefined && String(driver_name).trim() !== '';
+  if (!isMotoSortie && intendsDriverName && !sortie.driver_employee_id) {
+    return res.status(400).json({ message: 'Le chauffeur doit être un compte (rôle chauffeur) du site pour recevoir notifications et messagerie' });
+  }
+
   if (vehicle_id && vehicle_id !== sortie.vehicle_id) {
     const oldVehicle = await Vehicle.findByPk(sortie.vehicle_id);
     const newVehicle = await Vehicle.findByPk(vehicle_id);
@@ -411,6 +450,7 @@ exports.update = asyncHandler(async (req, res) => {
   }
 
   if (destination !== undefined) sortie.destination = destination;
+  if (stops !== undefined) sortie.stops = sanitizeStops(stops);
   if (driver_name !== undefined) sortie.driver_name = driver_name;
   if (motif !== undefined) sortie.motif = motif;
   if (departure_time !== undefined) {
@@ -599,12 +639,15 @@ exports.employeeReturn = asyncHandler(async (req, res) => {
 });
 
 // Admin : valider le retour et clôturer la sortie
+// Le champ `force` permet au chef de clôturer une sortie moto restée bloquée
+// en 'ongoing' parce qu'un employé n'a jamais saisi son retour.
 exports.validateReturn = asyncHandler(async (req, res) => {
+  const { force } = req.body || {};
   const sortie = await Sortie.findByPk(req.params.id);
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
   requireSiteAccess(req, sortie.site_id);
 
-  if (sortie.status !== 'pending_return') {
+  if (sortie.status !== 'pending_return' && !(sortie.status === 'ongoing' && force === true)) {
     return res.status(400).json({ message: 'Seules les sorties en attente de retour peuvent être validées' });
   }
 
@@ -669,6 +712,7 @@ exports.planned = asyncHandler(async (req, res) => {
       departure_time: s.departure_time,
       driver_name: s.driver ? `${s.driver.prenom} ${s.driver.nom}` : s.driver_name,
       vehicle: s.Vehicle ? { id: s.Vehicle.id, type: s.Vehicle.type, capacity } : null,
+      stops: Array.isArray(s.stops) && s.stops.length > 0 ? s.stops : null,
       occupiedSeats,
       availableSeats: Math.max(0, capacity - occupiedSeats),
       displayStatus,
@@ -679,7 +723,9 @@ exports.planned = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
-// Employé : rejoindre une sortie planifiée (crée automatiquement une demande liée)
+// Employé : rejoindre une sortie planifiée. La demande est créée en attente
+// et liée à la sortie : le chef logistique doit la valider avant que l'employé
+// soit compté comme passager (plus aucun contournement de la validation).
 exports.join = asyncHandler(async (req, res) => {
   const sortie = await Sortie.findByPk(req.params.id, { include: [Vehicle] });
   if (!sortie) return res.status(404).json({ message: 'Sortie introuvable' });
@@ -707,7 +753,8 @@ exports.join = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Vous avez déjà une demande pour cette sortie' });
   }
 
-  // Vérifier la capacité
+  // Vérifier la capacité (les demandes en attente de validation réservent
+  // leur place pour ne pas surcharger la sortie)
   const currentLinks = await SortieRequest.findAll({ where: { sortie_id: sortie.id } });
   const currentRequestIds = currentLinks.map((l) => l.request_id);
   const currentRequests = await Request.findAll({ where: { id: currentRequestIds }, attributes: ['nb_personnes'] });
@@ -719,15 +766,31 @@ exports.join = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: `Plus assez de places disponibles (${capacity - occupiedSeats} restante${capacity - occupiedSeats !== 1 ? 's' : ''})` });
   }
 
-  // Créer la demande et la lier à la sortie
+  // L'employé peut choisir l'étape de l'itinéraire où il descend : sa demande
+  // porte alors cette étape comme destination (rapports passagers exacts).
+  // Sinon, la destination finale de la sortie est utilisée.
+  const allowedDestinations = [
+    ...(Array.isArray(sortie.stops) ? sortie.stops.filter((s) => typeof s === 'string' && s.trim()) : []),
+    sortie.destination,
+  ].map((d) => String(d).trim()).filter(Boolean);
+  let destination = sortie.destination;
+  if (req.body.destination !== undefined && req.body.destination !== null && String(req.body.destination).trim() !== '') {
+    const chosen = String(req.body.destination).trim();
+    if (!allowedDestinations.some((d) => d.toLocaleLowerCase() === chosen.toLocaleLowerCase())) {
+      return res.status(400).json({ message: 'Destination invalide : choisissez la destination finale ou une étape de l\'itinéraire' });
+    }
+    destination = chosen;
+  }
+
+  // Créer la demande PENDING et la lier à la sortie (validation chef requise)
   const request = await Request.create({
     employee_id: req.user.id,
     vehicle_id: sortie.vehicle_id,
-    destination: sortie.destination,
-    motif: sortie.motif,
+    destination,
+    motif: `Rejoindre la sortie n°${sortie.id} (${sortie.destination})`,
     date_souhaitee: sortie.departure_time,
     nb_personnes: nbPersonnes,
-    status: 'approved',
+    status: 'pending',
     site_id: req.user.site_id,
   });
 
@@ -735,8 +798,18 @@ exports.join = asyncHandler(async (req, res) => {
 
   await createNotification({
     user_id: req.user.id,
-    message: `Votre demande pour la sortie vers ${sortie.destination} le ${new Date(sortie.departure_time).toLocaleDateString('fr-FR')} a été approuvée.`,
-    type: 'approved',
+    message: `Votre demande pour rejoindre la sortie vers ${sortie.destination} le ${new Date(sortie.departure_time).toLocaleDateString('fr-FR')} est en attente de validation par la logistique.`,
+    type: 'pending',
+  });
+
+  // Chefs : la demande entre dans les demandes à valider (notifications DB +
+  // socket en temps réel).
+  const creator = await Employee.findByPk(req.user.id, { attributes: ['id', 'nom', 'prenom'] });
+  await notifyChiefsDb({
+    message: `Nouvelle demande de ${creator ? `${creator.prenom} ${creator.nom}` : 'un employé'} pour rejoindre la sortie vers ${sortie.destination} le ${new Date(sortie.departure_time).toLocaleDateString('fr-FR')} à ${new Date(sortie.departure_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+    type: 'new_request',
+    excludeUserId: req.user.id,
+    site_id: req.user.site_id,
   });
 
   // Rejoint juste avant / juste après le départ : on prévient l'employé
@@ -755,5 +828,5 @@ exports.join = asyncHandler(async (req, res) => {
   // Messagerie : l'employé qui rejoint rejoint la conversation de la sortie.
   await messagingService.syncSortieConversation(sortie, { extraMemberIds: [req.user.id] });
 
-  res.status(201).json({ message: 'Demande créée et liée à la sortie', request_id: request.id, sortie_id: sortie.id });
+  res.status(201).json({ message: 'Demande envoyée : en attente de validation par la logistique', request_id: request.id, sortie_id: sortie.id });
 });

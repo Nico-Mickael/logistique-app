@@ -7,6 +7,7 @@ import { useDisclosure } from '@mantine/hooks';
 import { TimeInput } from '@mantine/dates';
 import { IconRoute, IconClock, IconGauge, IconPlayerPlay, IconFlag, IconCar, IconCalendarEvent, IconNote } from '@tabler/icons-react';
 import VehicleIcon from '../../components/VehicleIcon';
+import SortieItinerary from '../../components/SortieItinerary';
 import dayjs from '../../utils/date';
 import { sortieService } from '../../api/sortieService';
 import { notifySuccess, notifyError } from '../../utils/toast';
@@ -31,6 +32,9 @@ function DriverCard({ sortie, onStart, onArrivee, actionLoading }) {
       </Group>
 
       <Stack gap={5} mb="md">
+        {Array.isArray(sortie.stops) && sortie.stops.length > 0 && (
+          <SortieItinerary stops={sortie.stops} destination={sortie.destination} />
+        )}
         <Group gap="xs">
           <VehicleIcon type={sortie.Vehicle?.type} size={15} color="var(--mantine-color-dimmed)" />
           <Text size="sm" fw={500}>{sortie.Vehicle ? vehicleDisplayName(sortie.Vehicle) : '—'}</Text>

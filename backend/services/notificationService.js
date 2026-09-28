@@ -63,7 +63,21 @@ function buildSortieMessage(sortie, vehicle, driver) {
     : sortie.driver_name || '';
   const dLabel = dName ? `Chauffeur: ${dName}. ` : '';
   const motif = sortie.motif ? `Motif: ${sortie.motif}. ` : '';
-  return `Sortie prévue le ${date} à ${heur} — ${sortie.destination}. Véhicule: ${vLabel}. ${dLabel}${motif}`.trim();
+  return `Sortie prévue le ${date} à ${heur} — ${sortie.destination}. Véhicule: ${vLabel}. ${dLabel}${motif}${itineraryLabel(sortie)}`.trim();
+}
+
+/**
+ * Construit la portion d'itinéraire multi-étapes d'une sortie, ex. :
+ * "Itinéraire: 1. Antsirabe → 2. Antananarivo (arrivée). "
+ * Vide si la sortie n'a pas d'étapes (les étapes vides sont ignorées).
+ * @returns {string}
+ */
+function itineraryLabel(sortie) {
+  if (!Array.isArray(sortie.stops) || sortie.stops.length === 0) return '';
+  const stops = sortie.stops.map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean);
+  if (stops.length === 0) return '';
+  const sequence = [...stops.map((s, i) => `${i + 1}. ${s}`), `${stops.length + 1}. ${sortie.destination} (arrivée)`];
+  return `Itinéraire: ${sequence.join(' → ')}. `;
 }
 
 /**
@@ -129,7 +143,7 @@ exports.notifySortieCreated = async ({ sortie, vehicle, driver, creatorId }) => 
   const { notifyChiefs, notifyChiefsDb } = getDeps();
   notifyChiefs('sortie_created', sortie);
   await notifyChiefsDb({
-    message: `Nouvelle sortie planifiée vers ${sortie.destination}${sortie.motif ? ` — ${sortie.motif}` : ''}`,
+    message: `Nouvelle sortie planifiée vers ${sortie.destination}${sortie.motif ? ` — ${sortie.motif}` : ''}. ${itineraryLabel(sortie)}`,
     type: EVENT_TYPES.SORTIE_CREATED,
     excludeUserId: creatorId,
     site_id: sortie.site_id ?? null,
@@ -181,8 +195,9 @@ exports.notifySortieImminent = async (sortie, linkedEmployeeIds) => {
   const recipients = [...(linkedEmployeeIds || []), sortie.driver_employee_id].filter(Boolean);
   await notifyRecipients({
     sortie, type: EVENT_TYPES.SORTIE_IMMINENT, recipients,
-    message: `La sortie vers ${sortie.destination} commence dans quelques minutes (${new Date(sortie.departure_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}).`,
+    message: `La sortie vers ${sortie.destination} commence dans quelques minutes (${new Date(sortie.departure_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}). ${itineraryLabel(sortie)}`,
   });
+
   getDeps().notifyChiefs('sortie_imminent', sortie);
 };
 
